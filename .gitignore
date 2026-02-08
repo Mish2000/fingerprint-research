@@ -1,0 +1,55 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+
+# ---------- Environments ----------
+.env
+.venv/
+venv/
+env/
+conda-bld/
+*.egg-info/
+dist/
+build/
+
+# ---------- Jupyter ----------
+.ipynb_checkpoints/
+
+# ---------- Generated data / experiment outputs ----------
+data/processed/
+data/raw/
+data/visual_samples/
+reports/
+
+# Model checkpoints (never commit)
+**/*.pth
+**/*.pt
+**/*.ckpt
+**/*.onnx
+
+# ---------- API temp files (if any) ----------
+tmp/
+api/tmp/
+
+# ---------- Frontend ----------
+ui/node_modules/
+ui/dist/
+ui/.vite/
+ui/.eslintcache
+
+# ---------- OS / editors ----------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ---------- Local helpers ----------
+collect_code.py
+project_tree.txt

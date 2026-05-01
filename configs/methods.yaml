@@ -1,0 +1,379 @@
+version: 1
+schema_version: v2_method_registry
+capture_labels:
+  schema_version: v1_capture_labels
+  canonical_values:
+  - plain
+  - roll
+  - contactless
+  - contact_based
+  gate_mapping_for_masked_models:
+    plain: plain
+    contactless: plain
+    roll: roll
+    contact_based: roll
+namespaces:
+  api_runtime:
+  - classic_orb
+  - classic_gftt_orb
+  - harris
+  - sift
+  - dl
+  - dedicated
+  - vit
+  benchmark_runtime:
+  - classic_v2
+  - harris
+  - sift
+  - dl_quick
+  - dedicated
+  - vit
+  - fusion_balanced_v1
+identification:
+  shortlist_retrieval_methods:
+  - dl
+  - vit
+  rerank_methods:
+  - classic_orb
+  - classic_gftt_orb
+  - harris
+  - sift
+  - dedicated
+  - dl
+  - vit
+  notes:
+  - The secure split identification store persists pgvector-backed shortlist columns
+    only for dl (512) and vit (768).
+  - classic_orb, classic_gftt_orb, harris, sift, and dedicated remain valid rerank methods
+    for 1:N identification, but they are not supported shortlist retrieval methods.
+methods:
+  classic_orb:
+    api_name: classic_orb
+    accepted_aliases:
+    - classic
+    benchmark_name: classic_orb
+    ui_label: Classic (ORB)
+    family: local_features
+    status: active
+    current_sources:
+    - src/fpbench/matchers/matching_baseline.py
+    - apps/api/service.py
+    - pipelines/benchmark/evaluate.py
+    planned_location: src/fpbench/matchers/matching_baseline.py
+    scoring:
+      output_score: inliers_over_min_keypoints
+      decision_threshold_ref: decision.api.classic_orb
+    api_runtime_defaults:
+      detector: orb
+      nfeatures: 1500
+      ratio: 0.75
+      reproj_threshold: 3.0
+      scaleFactor: 1.2
+      nlevels: 8
+      edgeThreshold: 31
+      fastThreshold: 10
+    benchmark_defaults:
+      detector: orb
+      preprocess: runtime_square_512_clahe_blur
+      geometry_model: homography
+      score_mode: inliers_over_min_keypoints
+      nfeatures: 1500
+      ratio: 0.75
+      ransac_thresh: 3.0
+    notes:
+    - The API path calls ORB extraction from src/fpbench/matchers/matching_baseline.py
+      via apps/api/service.py.
+    - >-
+      This is the shipped runtime classic branch: square-preprocessed ORB features,
+      homography geometry, and score normalization by the smaller detected keypoint count.
+    - It is kept distinct from the ROI GFTT+ORB benchmark family and is not represented
+      by the historical classic_v2 benchmark artifacts.
+  classic_gftt_orb:
+    api_name: classic_gftt_orb
+    accepted_aliases:
+    - classic_v2
+    benchmark_name: classic_v2
+    ui_label: Classic (ROI GFTT+ORB)
+    family: local_features
+    status: active
+    current_sources:
+    - pipelines/benchmark/eval_classic.py
+    - apps/api/service.py
+    - pipelines/benchmark/evaluate.py
+    planned_location: pipelines/benchmark/eval_classic.py
+    scoring:
+      output_score: inliers_over_k
+      decision_threshold_ref: decision.api.classic_gftt_orb
+    api_runtime_defaults:
+      detector: gftt_orb
+      nfeatures: 1500
+      long_edge: 512
+      ratio: 0.75
+      ransac_thresh: 4.0
+      score_mode: inliers_over_k
+      roi_mode: benchmark_texture_roi
+      geometry_model: affine_partial_2d
+      clahe_clip: 2.0
+      clahe_grid:
+      - 8
+      - 8
+    benchmark_defaults:
+      detector: gftt_orb
+      score_mode: inliers_over_k
+      nfeatures: 1500
+      long_edge: 512
+      ratio: 0.75
+      ransac_thresh: 4.0
+      roi_mode: benchmark_texture_roi
+      geometry_model: affine_partial_2d
+    notes:
+    - >-
+      This matches the benchmark classic_v2 family: ROI-masked preprocessing, GFTT keypoints
+      with ORB descriptors, affine-partial RANSAC geometry, and score normalization by configured nfeatures.
+    - Historical benchmark artifacts remain named classic_v2 on disk, but public presentation
+      canonicalizes them to classic_gftt_orb.
+  harris:
+    api_name: harris
+    benchmark_name: harris
+    ui_label: Classic (Harris + ORB)
+    family: local_features
+    status: active
+    current_sources:
+    - src/fpbench/matchers/matching_baseline.py
+    - apps/api/service.py
+    - pipelines/benchmark/evaluate.py
+    - research_history/week02/week2_make_examples.py
+    planned_location: src/fpbench/matchers/matching_baseline.py
+    scoring:
+      output_score: inliers_over_min_keypoints
+      decision_threshold_ref: decision.api.harris
+    api_runtime_defaults:
+      detector: harris_orb
+      nfeatures: 1500
+      ratio: 0.75
+      reproj_threshold: 3.0
+      block_size: 2
+      ksize: 3
+      k: 0.04
+      thresh_rel: 0.01
+      max_points: 1200
+      min_distance: 5.0
+      orb_edge_threshold: 31
+      orb_fast_threshold: 10
+    benchmark_defaults:
+      detector: harris_orb
+      preprocess: runtime_square_512_clahe_blur
+      mask_mode: none
+      geometry_model: homography
+      score_mode: inliers_over_min_keypoints
+      nfeatures: 1500
+      target_size: 512
+      ratio: 0.75
+      ransac_thresh: 3.0
+      method_semantics_epoch: harris_runtime_aligned_v1
+    notes:
+    - Harris corners are computed in src/fpbench/matchers/matching_baseline.py and
+      benchmark harris now reuses that runtime helper path with runtime square preprocessing,
+      no ROI mask, homography RANSAC, and score normalization by the smaller detected keypoint count.
+    - Descriptors remain ORB-based, so matching uses the same ORB-distance pipeline as the shipped runtime.
+    - Canonical post-alignment benchmark rows carry method_semantics_epoch=harris_runtime_aligned_v1
+      so older ROI/affine/fixed-k artifacts do not silently mix with current results.
+  sift:
+    api_name: sift
+    benchmark_name: sift
+    ui_label: Classic (SIFT)
+    family: local_features
+    status: active
+    current_sources:
+    - src/fpbench/matchers/matching_baseline.py
+    - apps/api/service.py
+    - pipelines/benchmark/evaluate.py
+    planned_location: src/fpbench/matchers/matching_baseline.py
+    scoring:
+      output_score: inliers_over_min_keypoints
+      decision_threshold_ref: decision.api.sift
+    api_runtime_defaults:
+      detector: sift
+      nfeatures: 1500
+      ratio: 0.75
+      reproj_threshold: 3.0
+      nOctaveLayers: 3
+      contrastThreshold: 0.04
+      edgeThreshold: 10
+      sigma: 1.6
+    benchmark_defaults:
+      detector: sift
+      preprocess: runtime_square_512_clahe_blur
+      mask_mode: none
+      geometry_model: homography
+      score_mode: inliers_over_min_keypoints
+      nfeatures: 1500
+      target_size: 512
+      ratio: 0.75
+      ransac_thresh: 3.0
+      method_semantics_epoch: sift_runtime_aligned_v1
+    notes:
+    - Benchmark sift now uses the same runtime square preprocessing, mask=None extraction path,
+      homography RANSAC, and min-keypoint normalization as the shipped runtime method.
+    - Canonical post-alignment benchmark rows carry method_semantics_epoch=sift_runtime_aligned_v1
+      so older ROI/affine/fixed-k artifacts stay separated from current benchmark surfaces.
+  dl:
+    api_name: dl
+    benchmark_name: dl_quick
+    ui_label: Deep Learning (ResNet18)
+    family: global_embedding
+    embedding_dim: 512
+    status: active
+    current_sources:
+    - src/fpbench/matchers/baseline_dl.py
+    - apps/api/service.py
+    - pipelines/benchmark/eval_quick.py
+    - pipelines/benchmark/evaluate.py
+    planned_location: src/fpbench/matchers/baseline_dl.py
+    scoring:
+      output_score: cosine_similarity
+      decision_threshold_ref: decision.api.dl
+    api_runtime_defaults:
+      backbone: resnet18
+      use_mask: true
+      preprocess:
+        target_size: 512
+        clahe_clip: 2.0
+        clahe_grid:
+        - 8
+        - 8
+        blur_ksize: 3
+      input_size: 224
+      roi_min_frac: 0.02
+      roi_max_frac: 0.85
+      gate_top_plain: 0.18
+      gate_top_roll: 0.05
+      gate_border: 12
+    benchmark_defaults:
+      backbone: resnet18
+      use_mask: true
+      emb_cache_supported: true
+    supported_backbones:
+    - resnet18
+    - resnet50
+    - vit_base
+    notes:
+    - The API runtime instantiates BaselineDL with masking enabled by default, and
+      canonical benchmark defaults now match that behavior.
+    - Capture labels are normalized to plain, roll, contactless, or contact_based;
+      masked runs map plain/contactless to the plain gate and roll/contact_based to
+      the roll gate.
+    - --no_mask remains available in benchmark CLI flows as an explicit ablation.
+  vit:
+    api_name: vit
+    benchmark_name: vit
+    ui_label: Deep Learning (ViT)
+    family: global_embedding
+    embedding_dim: 768
+    status: active
+    current_sources:
+    - src/fpbench/matchers/baseline_dl.py
+    - apps/api/service.py
+    - pipelines/benchmark/eval_quick.py
+    - pipelines/benchmark/evaluate.py
+    planned_location: src/fpbench/matchers/baseline_dl.py
+    scoring:
+      output_score: cosine_similarity
+      decision_threshold_ref: decision.api.vit
+    api_runtime_defaults:
+      backbone: vit_base
+      use_mask: true
+      input_size: 224
+    benchmark_defaults:
+      backbone: vit_base
+      use_mask: true
+      emb_cache_supported: true
+    notes:
+    - ViT uses the same BaselineDL capture normalization and masking policy as dl,
+      but with the vit_base backbone.
+    - Canonical benchmark defaults now align with runtime masking behavior for vit.
+    - --no_mask remains available in benchmark CLI flows as an explicit ablation.
+  dedicated:
+    api_name: dedicated
+    benchmark_name: dedicated
+    ui_label: Dedicated (Patch AI)
+    family: learned_patch_matcher
+    status: active
+    current_sources:
+    - src/fpbench/matchers/dedicated_matcher.py
+    - apps/api/service.py
+    - pipelines/benchmark/eval_dedicated.py
+    - pipelines/benchmark/evaluate.py
+    - pipelines/benchmark/train_patch_descriptor.py
+    planned_location: src/fpbench/matchers/dedicated_matcher.py
+    scoring:
+      output_score: geometry_aware_composite_score
+      decision_threshold_ref: decision.api.dedicated
+      components:
+        mean_tentative_sim: 0.35
+        mean_inlier_sim: 0.25
+        inlier_ratio: 0.25
+        stability_term: 0.15
+        postprocess: clip_to_[0,1]
+    api_runtime_defaults:
+      patch: 48
+      max_kpts: 800
+      mask_cov_thr: 0.7
+      max_matches: 200
+      ransac_thresh: 4.0
+      nn_delta: 0.0
+      nn_sim_min: -1.0
+    benchmark_defaults:
+      patch: 48
+      max_kpts: 800
+      mask_cov_thr: 0.7
+      max_matches: 200
+      ransac_thresh: 4.0
+      checkpoint_auto_path: artifacts/checkpoints/patch_descriptor/final/patch_descriptor_ckpt.pth
+    notes:
+    - The matcher accepts the canonical capture labels plain, roll, contactless, and
+      contact_based after API normalization; capture drives masking/gating but is
+      not restricted to plain/roll.
+    - The dedicated score is a weighted blend of mean_tentative_sim (0.35), mean_inlier_sim
+      (0.25), inlier_ratio (0.25), and stability_term (0.15), clipped to [0,1].
+    - Overlay visualizations and detailed tentative/inlier similarity diagnostics
+      are available for this method.
+    capture_support:
+    - plain
+    - roll
+    - contactless
+    - contact_based
+  fusion_balanced_v1:
+    api_name: fusion_balanced_v1
+    benchmark_name: fusion_balanced_v1
+    ui_label: Fingerprint Benchmark Fusion (SIFT + DL + ViT)
+    family: score_fusion
+    status: experimental
+    current_sources:
+      - pipelines/benchmark/evaluate.py
+      - configs/methods.yaml
+      - artifacts/reports/fusion/week11_candidate_balanced_v1/results_summary.csv
+    planned_location: pipelines/benchmark/evaluate.py
+    scoring:
+      output_score: weighted_minmax_fusion
+      notes:
+        - Fits min-max normalization on the fit split only.
+        - Applies fixed weighted fusion over normalized SIFT, DL Quick, and ViT scores.
+    benchmark_defaults:
+      source_methods:
+        - sift
+        - dl_quick
+        - vit
+      fit_split: val
+      weights:
+        sift: 0.91
+        dl_quick: 0.05
+        vit: 0.04
+      source_score_filename_patterns:
+        - scores_{method}_{split}.csv
+        - scores_{dataset}_{method}_{split}.csv
+    notes:
+      - Benchmark-only method for score-level fusion.
+      - Fingerprint algorithm-level score fusion, not cross-biometric fusion.
+      - Not exposed in API runtime at this stage.
+      - Intended to consume existing canonical score CSV artifacts and emit a canonical fused score CSV.

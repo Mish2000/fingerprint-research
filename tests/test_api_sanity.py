@@ -1,9 +1,14 @@
-import unittest
-import numpy as np
-import cv2
+import os
+from pathlib import Path
 
+os.chdir(Path(__file__).resolve().parents[1])
+
+import cv2
+import numpy as np
+import unittest
 from fastapi.testclient import TestClient
-from api.main import app
+
+from apps.api.main import app
 
 
 def _png_bytes(seed: int) -> bytes:
@@ -53,8 +58,27 @@ class TestAPISanity(unittest.TestCase):
         self.assertIn("overlay", j)
         self.assertIsNotNone(j["overlay"])
 
+    def test_match_sift(self):
+        r = self._post_match("sift", return_overlay=True)
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        j = r.json()
+        self.assertIn("score", j)
+        self.assertIn("latency_ms", j)
+        self.assertIn("meta", j)
+        self.assertIn("overlay", j)
+        self.assertIsNotNone(j["overlay"])
+
     def test_match_dl(self):
         r = self._post_match("dl", return_overlay=False)
+        self.assertEqual(r.status_code, 200, msg=r.text)
+        j = r.json()
+        self.assertIn("score", j)
+        self.assertIn("latency_ms", j)
+        self.assertIn("meta", j)
+        self.assertIsNone(j["overlay"])
+
+    def test_match_vit(self):
+        r = self._post_match("vit", return_overlay=False)
         self.assertEqual(r.status_code, 200, msg=r.text)
         j = r.json()
         self.assertIn("score", j)

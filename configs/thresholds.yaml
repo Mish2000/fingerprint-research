@@ -1,0 +1,184 @@
+version: 1
+schema_version: v2_threshold_registry
+decision:
+  api:
+    classic: 0.01
+    classic_v2: 0.01
+    classic_orb: 0.01
+    classic_gftt_orb: 0.01
+    harris: 0.01
+    sift: 0.01
+    dl: 0.45
+    vit: 0.45
+    dedicated: 0.85
+preprocess:
+  shared_defaults:
+    target_size: 512
+    clahe_clip: 2.0
+    clahe_grid:
+    - 8
+    - 8
+    blur_ksize: 3
+  roi_mask:
+    suppress_header_top_ratio: 0.12
+    suppress_border_px: 10
+  deterministic_gate:
+    plain_top_ratio: 0.18
+    roll_top_ratio: 0.05
+    border_px: 12
+    capture_gate_mapping:
+      plain: plain
+      contactless: plain
+      roll: roll
+      contact_based: roll
+dl_baseline:
+  api_runtime:
+    input_size: 224
+    use_mask: true
+    roi_min_frac: 0.02
+    roi_max_frac: 0.85
+    gate_top_plain: 0.18
+    gate_top_roll: 0.05
+    gate_border: 12
+  benchmark_defaults:
+    backbone_default: resnet18
+    use_mask_default: true
+    emb_cache_supported: true
+    note: Benchmark quick/full defaults now keep masking enabled to match the API
+      runtime; --no_mask remains available as an explicit ablation.
+vit_baseline:
+  api_runtime:
+    backbone: vit_base
+    input_size: 224
+    use_mask: true
+    roi_min_frac: 0.02
+    roi_max_frac: 0.85
+    gate_top_plain: 0.18
+    gate_top_roll: 0.05
+    gate_border: 12
+  benchmark_defaults:
+    backbone_default: vit_base
+    use_mask_default: true
+    emb_cache_supported: true
+    note: ViT shares the BaselineDL masking and capture-gate behavior; canonical
+      benchmark defaults now keep masking enabled, with --no_mask retained as an
+      explicit ablation.
+classic_orb:
+  api_runtime:
+    nfeatures: 1500
+    scaleFactor: 1.2
+    nlevels: 8
+    edgeThreshold: 31
+    fastThreshold: 10
+    ratio: 0.75
+    reproj_threshold: 3.0
+  benchmark_defaults:
+    detector: orb
+    preprocess: runtime_square_512_clahe_blur
+    geometry_model: homography
+    score_mode: inliers_over_min_keypoints
+    nfeatures: 1500
+    ratio: 0.75
+    ransac_thresh: 3.0
+classic_gftt_orb:
+  api_runtime:
+    detector: gftt_orb
+    nfeatures: 1500
+    long_edge: 512
+    ratio: 0.75
+    ransac_thresh: 4.0
+    score_mode: inliers_over_k
+    roi_mode: benchmark_texture_roi
+    geometry_model: affine_partial_2d
+    clahe_clip: 2.0
+    clahe_grid:
+    - 8
+    - 8
+  benchmark_defaults:
+    detector: gftt_orb
+    score_mode: inliers_over_k
+    nfeatures: 1500
+    long_edge: 512
+    ratio: 0.75
+    ransac_thresh: 4.0
+    roi_mode: benchmark_texture_roi
+    geometry_model: affine_partial_2d
+classic_harris:
+  api_runtime:
+    nfeatures: 1500
+    block_size: 2
+    ksize: 3
+    k: 0.04
+    thresh_rel: 0.01
+    max_points: 1200
+    min_distance: 5.0
+    orb_edge_threshold: 31
+    orb_fast_threshold: 10
+    ratio: 0.75
+    reproj_threshold: 3.0
+  benchmark_defaults:
+    detector: harris_orb
+    preprocess: runtime_square_512_clahe_blur
+    mask_mode: none
+    geometry_model: homography
+    score_mode: inliers_over_min_keypoints
+    nfeatures: 1500
+    target_size: 512
+    ratio: 0.75
+    ransac_thresh: 3.0
+    method_semantics_epoch: harris_runtime_aligned_v1
+classic_sift:
+  api_runtime:
+    nfeatures: 1500
+    nOctaveLayers: 3
+    contrastThreshold: 0.04
+    edgeThreshold: 10
+    sigma: 1.6
+    ratio: 0.75
+    reproj_threshold: 3.0
+  benchmark_defaults:
+    detector: sift
+    preprocess: runtime_square_512_clahe_blur
+    mask_mode: none
+    geometry_model: homography
+    score_mode: inliers_over_min_keypoints
+    nfeatures: 1500
+    target_size: 512
+    ratio: 0.75
+    ransac_thresh: 3.0
+    method_semantics_epoch: sift_runtime_aligned_v1
+dedicated:
+  matcher_defaults:
+    patch: 48
+    max_kpts: 800
+    mask_cov_thr: 0.7
+    max_matches: 200
+    ransac_thresh: 4.0
+    nn_delta: 0.0
+    nn_sim_min: -1.0
+  checkpoint_resolution:
+    canonical_artifact_path: artifacts/checkpoints/patch_descriptor/final/patch_descriptor_ckpt.pth
+    benchmark_auto_root: artifacts/checkpoints/
+    legacy_code_fallbacks:
+    - reports/week06+07/patch_descriptor/final/patch_descriptor_ckpt.pth
+    - reports/week06/patch_descriptor/final/patch_descriptor_ckpt.pth
+  score_definition:
+    api_runtime: geometry_aware_composite_score
+    note: The executable implementation computes 0.35*mean_tentative_sim + 0.25*mean_inlier_sim
+      + 0.25*inlier_ratio + 0.15*stability_term, then clips the final score to [0,1].
+    diagnostics:
+    - mean_inlier_sim
+    - median_inlier_sim
+    - mean_tentative_sim
+    - median_tentative_sim
+    - max_tentative_sim
+    - mean_top10_tentative_sim
+    - mean_top20_tentative_sim
+    - inlier_ratio
+    - stability_term
+    weights:
+      mean_tentative_sim: 0.35
+      mean_inlier_sim: 0.25
+      inlier_ratio: 0.25
+      stability_term: 0.15
+    postprocess: clip_to_[0,1]

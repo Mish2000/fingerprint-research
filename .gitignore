@@ -23,10 +23,28 @@ build/
 .ipynb_checkpoints/
 
 # ---------- Generated data / experiment outputs ----------
-data/processed/
+data/processed/*
+!data/processed/README_ui_assets.md
+!data/processed/ui_assets_registry.json
+!data/processed/nist_sd300b/
+data/processed/nist_sd300b/*
+!data/processed/nist_sd300b/ui_assets/
+data/processed/nist_sd300b/ui_assets/*
+!data/processed/nist_sd300b/ui_assets/index.json
+!data/processed/nist_sd300b/ui_assets/validation_report.json
+!data/processed/nist_sd300b/ui_assets/thumbnails/
+!data/processed/nist_sd300b/ui_assets/previews/
+data/processed/nist_sd300b/ui_assets/thumbnails/*
+data/processed/nist_sd300b/ui_assets/previews/*
+!data/processed/nist_sd300b/ui_assets/thumbnails/*.png
+!data/processed/nist_sd300b/ui_assets/previews/*.png
 data/raw/
 data/visual_samples/
-reports/
+artifacts/cache/
+artifacts/logs/
+artifacts/reports/
+artifacts/edge-cdp/
+artifacts/backups/
 
 # Model checkpoints (never commit)
 **/*.pth
@@ -36,13 +54,36 @@ reports/
 
 # ---------- API temp files (if any) ----------
 tmp/
-api/tmp/
+apps/api/tmp/
+
+# ---------- Local runtime DBs ----------
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+apps/api/*.sqlite*
+apps/api/*.db*
+
+# ---------- Temporary capture artifacts ----------
+captures/
+tmp_captures/
+apps/api/captures/
+apps/api/tmp_captures/
+*_capture_tmp*
+capture_*.tmp
 
 # ---------- Frontend ----------
+apps/ui/node_modules/
+apps/ui/dist/
+apps/ui/.vite/
+apps/ui/.eslintcache/
+
+# Backward-compatible legacy UI paths
 ui/node_modules/
 ui/dist/
 ui/.vite/
-ui/.eslintcache
+ui/.eslintcache/
 
 # ---------- OS / editors ----------
 .DS_Store
@@ -50,6 +91,15 @@ Thumbs.db
 .vscode/
 .idea/
 
-# ---------- Local helpers ----------
-collect_code.py
+# ---------- Local helpers / generated context ----------
 project_tree.txt
+make_tree.py
+
+# ---------- Local/generated reports ----------
+reports/
+
+# ---------- Local research history / generated notes ----------
+research_history/
+
+# ---------- Local datasets ----------
+data/

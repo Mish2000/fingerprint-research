@@ -1,0 +1,317 @@
+version: 1
+schema_version: v2_dataset_registry
+schemas:
+  manifest_csv:
+    required_columns:
+    - dataset
+    - capture
+    - subject_id
+    - impression
+    - ppi
+    - frgp
+    - path
+    optional_columns:
+    - split
+    schema_version: v1_manifest_csv
+  pairs_csv:
+    required_columns:
+    - pair_id
+    - label
+    - split
+    - subject_a
+    - subject_b
+    - frgp
+    - path_a
+    - path_b
+    schema_version: v2_canonical_pair_csv
+  sanity_outputs:
+    typical_files:
+    - split.json
+    - stats.json
+    - pairs_pos.csv
+    - pairs_neg.csv
+    - pairs_train.csv
+    - pairs_val.csv
+    - pairs_test.csv
+    - pairs_split_build.meta.json
+    - sanity_report.json
+    - pairs/pairs_train.csv
+    - pairs/pairs_val.csv
+    - pairs/pairs_test.csv
+    - pairs/split_subjects.json
+  pairs_split_subjects_json:
+    schema_version: v2_split_subjects
+    required_fields:
+    - schema_version
+    - seed
+    - neg_per_pos
+    - impostors_per_pos
+    - same_finger_policy
+    - negative_pair_policy
+    - positive_pair_policy
+    - finger_col
+    - pair_schema_version
+    - pair_columns
+    - splits
+    canonical_pair_schema_version: v2_canonical_pair_csv
+  pairs_split_build_meta_json:
+    schema_version: v2_canonical_pair_bundle
+    required_fields:
+    - dataset
+    - seed
+    - neg_per_pos
+    - impostors_per_pos
+    - finger_col
+    - positive_pair_policy
+    - negative_pair_policy
+    - schema_version
+    - pair_schema_version
+    - pair_columns
+    canonical_pair_schema_version: v2_canonical_pair_csv
+datasets:
+  nist_sd300b:
+    status: active
+    unit: unit1
+    raw:
+      current:
+      - data/raw/sd300b/
+      - data/raw/sd300b/images/1000/png/
+      proposed: data/raw/sd300b/
+    processed:
+      current:
+      - data/processed/nist_sd300b/
+      proposed: data/processed/nist_sd300b/
+    manifests:
+      current:
+      - data/manifests/nist_sd300b/manifest.csv
+      - data/manifests/nist_sd300b/pairs_neg.csv
+      - data/manifests/nist_sd300b/pairs_pos.csv
+      - data/manifests/nist_sd300b/pairs_train.csv
+      - data/manifests/nist_sd300b/pairs_val.csv
+      - data/manifests/nist_sd300b/pairs_test.csv
+      - data/manifests/nist_sd300b/pairs_split_build.meta.json
+      - data/manifests/nist_sd300b/sanity_report.json
+      - data/manifests/nist_sd300b/split.json
+      - data/manifests/nist_sd300b/stats.json
+      - data/manifests/nist_sd300b/pairs/pairs_train.csv
+      - data/manifests/nist_sd300b/pairs/pairs_val.csv
+      - data/manifests/nist_sd300b/pairs/pairs_test.csv
+      - data/manifests/nist_sd300b/pairs/split_subjects.json
+      proposed: data/manifests/nist_sd300b/
+    ingest_pipeline:
+      current_script: pipelines/ingest/prepare_data_sd300b.py
+      support_scripts:
+      - pipelines/ingest/generate_pairs.py
+      - pipelines/ingest/sanity_check_sd300b.py
+      proposed_pipeline: pipelines/ingest/prepare_data_sd300b.py
+    notes:
+    - Raw data remains under data/raw/sd300b/, while normalized outputs live under
+      data/manifests/nist_sd300b/ and data/processed/nist_sd300b/.
+    - This dataset has a complete manifest/sanity bundle and benchmark coverage in
+      artifacts/reports/benchmark/.
+  nist_sd300c:
+    status: active
+    unit: unit1
+    raw:
+      current:
+      - data/raw/sd300c/
+      - data/raw/sd300c/images/2000/png/
+      proposed: data/raw/sd300c/
+    processed:
+      current:
+      - data/processed/nist_sd300c/
+      proposed: data/processed/nist_sd300c/
+    manifests:
+      current:
+      - data/manifests/nist_sd300c/manifest.csv
+      - data/manifests/nist_sd300c/pairs_neg.csv
+      - data/manifests/nist_sd300c/pairs_pos.csv
+      - data/manifests/nist_sd300c/pairs_train.csv
+      - data/manifests/nist_sd300c/pairs_val.csv
+      - data/manifests/nist_sd300c/pairs_test.csv
+      - data/manifests/nist_sd300c/pairs_split_build.meta.json
+      - data/manifests/nist_sd300c/sanity_report.json
+      - data/manifests/nist_sd300c/split.json
+      - data/manifests/nist_sd300c/stats.json
+      - data/manifests/nist_sd300c/pairs/pairs_train.csv
+      - data/manifests/nist_sd300c/pairs/pairs_val.csv
+      - data/manifests/nist_sd300c/pairs/pairs_test.csv
+      - data/manifests/nist_sd300c/pairs/split_subjects.json
+      proposed: data/manifests/nist_sd300c/
+    ingest_pipeline:
+      current_script: pipelines/ingest/prepare_data_sd300c.py
+      helper_source: pipelines/ingest/prepare_data_sd300b.py
+      proposed_pipeline: pipelines/ingest/prepare_data_sd300c.py
+    notes:
+    - SD300C now has the same manifest/sanity bundle shape as SD300B under data/manifests/nist_sd300c/.
+    - The dedicated SD300C ingest entrypoint is pipelines/ingest/prepare_data_sd300c.py.
+  polyu_cross:
+    status: active
+    unit: unit2
+    raw:
+      current:
+      - data/raw/polyu_cross/
+      - data/raw/polyu_cross/contact-based_fingerprints/
+      - data/raw/polyu_cross/contactless_2d_fingerprint_images/
+      - data/raw/polyu_cross/processed_contactless_2d_fingerprint_images/
+      proposed: data/raw/polyu_cross/
+    processed:
+      current:
+      - data/processed/polyu_cross/
+      proposed: data/processed/polyu_cross/
+    manifests:
+      current:
+      - data/manifests/polyu_cross/manifest.csv
+      - data/manifests/polyu_cross/pairs_neg.csv
+      - data/manifests/polyu_cross/pairs_pos.csv
+      - data/manifests/polyu_cross/pairs_train.csv
+      - data/manifests/polyu_cross/pairs_val.csv
+      - data/manifests/polyu_cross/pairs_test.csv
+      - data/manifests/polyu_cross/pairs_split_build.meta.json
+      - data/manifests/polyu_cross/sanity_report.json
+      - data/manifests/polyu_cross/split.json
+      - data/manifests/polyu_cross/stats.json
+      - data/manifests/polyu_cross/pairs/pairs_train.csv
+      - data/manifests/polyu_cross/pairs/pairs_val.csv
+      - data/manifests/polyu_cross/pairs/pairs_test.csv
+      - data/manifests/polyu_cross/pairs/split_subjects.json
+      proposed: data/manifests/polyu_cross/
+    ingest_pipeline:
+      current_script: pipelines/ingest/prepare_data_polyu_cross.py
+      proposed_pipeline: pipelines/ingest/prepare_data_polyu_cross.py
+    notes:
+    - PolyU Cross is now prepared as a cross-modality benchmark with capture values
+      'contactless' and 'contact_based'.
+    - The ingest pipeline can auto-select processed contactless images when they exist.
+  polyu_3d:
+    status: raw_only
+    unit: unit2
+    raw:
+      current:
+      - data/raw/3D_Fingerprint_Images_Database_V2/
+      - data/raw/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/
+      - data/raw/3D_Fingerprint_Images_Database_V2/3D_surface/
+      proposed: data/raw/3D_Fingerprint_Images_Database_V2/
+    processed:
+      current:
+      - data/processed/polyu_3d/
+      proposed: data/processed/polyu_3d/
+    manifests:
+      current:
+      - data/manifests/polyu_3d/manifest.csv
+      - data/manifests/polyu_3d/pairs_neg.csv
+      - data/manifests/polyu_3d/pairs_pos.csv
+      - data/manifests/polyu_3d/pairs_train.csv
+      - data/manifests/polyu_3d/pairs_val.csv
+      - data/manifests/polyu_3d/pairs_test.csv
+      - data/manifests/polyu_3d/pairs_split_build.meta.json
+      - data/manifests/polyu_3d/sanity_report.json
+      - data/manifests/polyu_3d/split.json
+      - data/manifests/polyu_3d/stats.json
+      - data/manifests/polyu_3d/pairs/pairs_train.csv
+      - data/manifests/polyu_3d/pairs/pairs_val.csv
+      - data/manifests/polyu_3d/pairs/pairs_test.csv
+      - data/manifests/polyu_3d/pairs/split_subjects.json
+      - data/manifests/polyu_3d/protocol_note.md
+      proposed: data/manifests/polyu_3d/
+    ingest_pipeline:
+      current_script: pipelines/ingest/prepare_data_polyu_3d.py
+      proposed_pipeline: pipelines/ingest/prepare_data_polyu_3d.py
+    notes:
+    - The optional ingest pipeline is intentionally gated after the active schemas are standardized; it emits the same manifest/sanity bundle shape as the active datasets while keeping this dataset out of the active benchmark path.
+    - Manifest rows preserve both contactless raw photometric frames and reconstructed 3D surface files via source_modality, but the default protocol is within-modality only (surface_only).
+    - See data/manifests/polyu_3d/protocol_note.md for suitability and protocol caveats.
+  unsw_2d3d:
+    status: raw_only
+    unit: unit2
+    raw:
+      current:
+      - data/raw/UNSW 3D/
+      - data/raw/UNSW 3D/2D_Database/2D Database/
+      - data/raw/UNSW 3D/DS1/
+      - data/raw/UNSW 3D/DS2/
+      - data/raw/UNSW 3D/DS3/
+      proposed: data/raw/UNSW 3D/
+    processed:
+      current:
+      - data/processed/unsw_2d3d/
+      proposed: data/processed/unsw_2d3d/
+    manifests:
+      current:
+      - data/manifests/unsw_2d3d/manifest.csv
+      - data/manifests/unsw_2d3d/pairs_neg.csv
+      - data/manifests/unsw_2d3d/pairs_pos.csv
+      - data/manifests/unsw_2d3d/pairs_train.csv
+      - data/manifests/unsw_2d3d/pairs_val.csv
+      - data/manifests/unsw_2d3d/pairs_test.csv
+      - data/manifests/unsw_2d3d/pairs_split_build.meta.json
+      - data/manifests/unsw_2d3d/sanity_report.json
+      - data/manifests/unsw_2d3d/split.json
+      - data/manifests/unsw_2d3d/stats.json
+      - data/manifests/unsw_2d3d/pairs/pairs_train.csv
+      - data/manifests/unsw_2d3d/pairs/pairs_val.csv
+      - data/manifests/unsw_2d3d/pairs/pairs_test.csv
+      - data/manifests/unsw_2d3d/pairs/split_subjects.json
+      - data/manifests/unsw_2d3d/protocol_note.md
+      proposed: data/manifests/unsw_2d3d/
+    ingest_pipeline:
+      current_script: pipelines/ingest/prepare_data_unsw_2d3d.py
+      proposed_pipeline: pipelines/ingest/prepare_data_unsw_2d3d.py
+    companion_docs:
+      current:
+      - data/readme_docs/UNSW_2D3D_README.md
+      proposed: data/raw/UNSW 3D/
+    notes:
+    - The optional ingest pipeline keeps optical 2D, reconstructed 3D, post-processed 3D variants, and reconstruction intermediates in the manifest via source_modality.
+    - The default canonical bundle uses a cross-modality 2D->3D protocol, but same-modality verification bundles are also supported without forcing a single invalid protocol across all files.
+    - See data/manifests/unsw_2d3d/protocol_note.md for suitability and protocol caveats.
+  l3_sf_v2:
+    status: raw_only
+    unit: unit2
+    raw:
+      current:
+      - data/raw/L3_SF_V2/
+      - data/raw/L3_SF_V2/L3SF_V2/L3-SF/
+      - data/raw/L3_SF_V2/L3SF_V2/Pore ground truth/Fingerprint Images/
+      proposed: data/raw/L3_SF_V2/
+    processed:
+      current:
+      - data/processed/l3_sf_v2/
+      proposed: data/processed/l3_sf_v2/
+    manifests:
+      current:
+      - data/manifests/l3_sf_v2/manifest.csv
+      - data/manifests/l3_sf_v2/pairs_neg.csv
+      - data/manifests/l3_sf_v2/pairs_pos.csv
+      - data/manifests/l3_sf_v2/pairs_train.csv
+      - data/manifests/l3_sf_v2/pairs_val.csv
+      - data/manifests/l3_sf_v2/pairs_test.csv
+      - data/manifests/l3_sf_v2/pairs_split_build.meta.json
+      - data/manifests/l3_sf_v2/sanity_report.json
+      - data/manifests/l3_sf_v2/split.json
+      - data/manifests/l3_sf_v2/stats.json
+      - data/manifests/l3_sf_v2/pairs/pairs_train.csv
+      - data/manifests/l3_sf_v2/pairs/pairs_val.csv
+      - data/manifests/l3_sf_v2/pairs/pairs_test.csv
+      - data/manifests/l3_sf_v2/pairs/split_subjects.json
+      - data/manifests/l3_sf_v2/protocol_note.md
+      proposed: data/manifests/l3_sf_v2/
+    ingest_pipeline:
+      current_script: pipelines/ingest/prepare_data_l3_sf_v2.py
+      proposed_pipeline: pipelines/ingest/prepare_data_l3_sf_v2.py
+    companion_docs:
+      current:
+      - data/raw/L3_SF_V2/L3SF_V2/L3-SF - Level Three Synthetic Fingerprint Generation.txt
+      - data/readme_docs/L3-SF - Level Three Synthetic Fingerprint Generation.txt
+      proposed: data/raw/L3_SF_V2/
+    notes:
+    - The optional ingest pipeline treats each subset as its own synthetic domain and namespaces subject_id by subset to avoid cross-subset leakage.
+    - The canonical bundle is verification-only and same-modality; pore annotations are counted for sanity/documentation but not emitted as manifest rows.
+    - See data/manifests/l3_sf_v2/protocol_note.md for suitability and protocol caveats.
+general_samples:
+  current:
+  - data/samples/week2/
+  - data/samples/faces/
+  proposed:
+  - data/samples/week2/
+  - data/samples/faces/

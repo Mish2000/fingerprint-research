@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  biometric_db:
+    image: pgvector/pgvector:pg16
+    container_name: biometric_postgres
+    environment:
+      POSTGRES_DB: biometric_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: biometric_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - biometric_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  identity_db:
+    image: pgvector/pgvector:pg16
+    container_name: identity_postgres
+    environment:
+      POSTGRES_DB: identity_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: identity_secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - identity_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  biometric_postgres_data:
+  identity_postgres_data:

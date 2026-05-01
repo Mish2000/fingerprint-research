@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import FingerprintLiveDemoWorkspace from "../src/features/live-demo/FingerprintLiveDemoWorkspace.tsx";
-import type { IdentifyCandidate, IdentifyResponse } from "../src/types/index.ts";
+import type { EnrollFingerprintResponse, IdentifyCandidate, IdentifyResponse } from "../src/types/index.ts";
 
 type RenderedWorkspace = {
     container: HTMLDivElement;
@@ -71,6 +71,22 @@ async function uploadFile(input: HTMLInputElement, file: File): Promise<void> {
     });
 }
 
+async function changeInput(input: HTMLInputElement, value: string): Promise<void> {
+    await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+        valueSetter?.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+}
+
+async function changeCheckbox(input: HTMLInputElement, checked: boolean): Promise<void> {
+    await act(async () => {
+        if (input.checked !== checked) {
+            input.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        }
+    });
+}
+
 async function click(button: HTMLButtonElement): Promise<void> {
     await act(async () => {
         button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -128,14 +144,28 @@ const identifyResponse: IdentifyResponse = {
     storage_layout: {},
 };
 
+const enrollResponse: EnrollFingerprintResponse = {
+    random_id: "live_identity_001",
+    created_at: "2026-05-01T12:00:00Z",
+    vector_methods: ["dl", "vit"],
+    image_sha256: "abc123",
+    storage_layout: {},
+};
+
 function installFetchMock() {
-    let submittedFormData: FormData | null = null;
+    let submittedIdentifyFormData: FormData | null = null;
+    let submittedEnrollFormData: FormData | null = null;
 
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const parsed = new URL(String(input), "http://localhost");
 
+        if (parsed.pathname === "/api/identify/enroll") {
+            submittedEnrollFormData = init?.body instanceof FormData ? init.body : null;
+            return createJsonResponse(enrollResponse);
+        }
+
         if (parsed.pathname === "/api/identify/search") {
-            submittedFormData = init?.body instanceof FormData ? init.body : null;
+            submittedIdentifyFormData = init?.body instanceof FormData ? init.body : null;
             return createJsonResponse(identifyResponse);
         }
 
@@ -143,7 +173,8 @@ function installFetchMock() {
     }));
 
     return {
-        getSubmittedFormData: () => submittedFormData,
+        getSubmittedIdentifyFormData: () => submittedIdentifyFormData,
+        getSubmittedEnrollFormData: () => submittedEnrollFormData,
     };
 }
 
@@ -153,7 +184,9 @@ describe("Fingerprint Live Demo workspace", () => {
         const { container, root } = await renderWorkspace();
 
         expect(normalizeText(container.textContent)).toContain("Fingerprint biometrics");
-        expect(getButtonByText(container, "Enroll").disabled).toBe(true);
+        expect(normalizeText(container.textContent)).toContain("Gallery readiness");
+        expect(normalizeText(container.textContent)).toContain("Enroll an identity first or use an already seeded gallery");
+        expect(normalizeText(container.textContent)).toContain("Available in Verify tab");
         expect(getButtonByText(container, "Verify 1:1").disabled).toBe(true);
 
         const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
@@ -163,6 +196,46 @@ describe("Fingerprint Live Demo workspace", () => {
 
         const file = new File([new Blob(["fingerprint"], { type: "image/png" })], "fingerprint.png", { type: "image/png" });
         await uploadFile(fileInput, file);
+        expect(normalizeText(container.textContent)).toContain("Not scored yet");
+
+        const textInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'));
+        const fullNameInput = textInputs[0];
+        const nationalIdInput = textInputs[1];
+        if (!fullNameInput || !nationalIdInput) {
+            throw new Error("Could not find enrollment identity inputs.");
+        }
+
+        await changeInput(fullNameInput, "Alex Demo");
+        await changeInput(nationalIdInput, "123456789");
+
+        const replaceExistingInput = container.querySelector<HTMLInputElement>('input[type="checkbox"]');
+        if (!replaceExistingInput) {
+            throw new Error("Could not find replace existing toggle.");
+        }
+        await changeCheckbox(replaceExistingInput, true);
+
+        await click(getButtonByText(container, "Enroll identity"));
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Enrollment completed");
+            expect(text).toContain("Ready for Identify 1:N");
+            expect(text).toContain("Alex Demo");
+            expect(text).toContain("live_identity_001");
+            expect(text).toContain("Plain");
+            expect(text).toContain("Deep Learning (ResNet50)");
+            expect(text).toContain("Deep Learning (ViT)");
+        });
+
+        const enrollFormData = controls.getSubmittedEnrollFormData();
+        expect(enrollFormData).not.toBeNull();
+        expect((enrollFormData?.get("img") as File).name).toBe("fingerprint.png");
+        expect(enrollFormData?.get("full_name")).toBe("Alex Demo");
+        expect(enrollFormData?.get("national_id")).toBe("123456789");
+        expect(enrollFormData?.get("capture")).toBe("plain");
+        expect(enrollFormData?.get("vector_methods")).toBe("dl,vit");
+        expect(enrollFormData?.get("replace_existing")).toBe("true");
+
         await click(getButtonByText(container, "Run Identify 1:N"));
 
         await waitFor(() => {
@@ -172,7 +245,7 @@ describe("Fingerprint Live Demo workspace", () => {
             expect(normalizeText(container.textContent)).toContain("Prefer templates over raw captures");
         });
 
-        const formData = controls.getSubmittedFormData();
+        const formData = controls.getSubmittedIdentifyFormData();
         expect(formData).not.toBeNull();
         expect((formData?.get("img") as File).name).toBe("fingerprint.png");
         expect(formData?.get("capture")).toBe("plain");

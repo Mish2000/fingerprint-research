@@ -72,6 +72,15 @@ function activeNavButton(container: HTMLElement): HTMLButtonElement | undefined 
     );
 }
 
+function expectLiveDemoActive(container: HTMLElement): void {
+    expect(container.querySelector("main h2")?.textContent).toBe("Live Demo");
+    expect(activeNavButton(container)?.textContent).toContain("Live Demo");
+}
+
+function expectLiveDemoUrl(): void {
+    expect(new URLSearchParams(window.location.search).get("tab")).toBe("live-demo");
+}
+
 function expectBenchmarkActive(container: HTMLElement): void {
     expect(container.querySelector("main h2")?.textContent).toBe("Benchmarks");
     expect(activeNavButton(container)?.textContent).toContain("Benchmarks");
@@ -245,13 +254,13 @@ afterEach(() => {
 });
 
 describe("App default tab", () => {
-    it("opens the Benchmarks tab by default", async () => {
+    it("opens the Live Demo tab by default", async () => {
         installFetchMock();
         const { container, root } = await renderApp("/");
 
         await waitFor(() => {
-            expectBenchmarkActive(container);
-            expectBenchmarkUrl();
+            expectLiveDemoActive(container);
+            expectLiveDemoUrl();
         });
 
         await unmountApp(root);

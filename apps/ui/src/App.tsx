@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Fingerprint, Presentation, ScanFace, Settings } from "lucide-react";
+import { BarChart3, Fingerprint, Presentation, Settings, ShieldCheck } from "lucide-react";
 import PreferencesPanel from "./components/PreferencesPanel.tsx";
 import BenchmarkWorkspace from "./features/benchmark/BenchmarkWorkspace.tsx";
 import { clearAllPersistedIdentificationState } from "./features/identification/persistence.ts";
@@ -45,7 +45,7 @@ const TABS: TabConfig[] = [
         id: "verify",
         titleKey: "tab.verify.title",
         descriptionKey: "tab.verify.description",
-        icon: ScanFace,
+        icon: ShieldCheck,
     },
     {
         id: "identify",

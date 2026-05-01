@@ -185,7 +185,7 @@ export function readPersistedLastActiveTab(): AppTabPreference | null {
 }
 
 export function writePersistedLastActiveTab(tab: AppTabPreference): boolean {
-    const sanitized = sanitizeAppTab(tab, "benchmark");
+    const sanitized = sanitizeAppTab(tab, "live-demo");
     return writeEnvelope(APP_LAST_TAB_STORAGE_KEY, sanitized);
 }
 

@@ -103,9 +103,9 @@ export default function ScannerCaptureCard({
                             <StatusRow
                                 active={Boolean(file)}
                                 label="Preprocess"
-                                value={file ? "Backend normalization on run" : "Pending capture"}
+                                value={file ? "Backend preprocessing runs on submit" : "Pending capture"}
                             />
-                            <StatusRow active={false} label="Quality" value="Scanner score placeholder" />
+                            <StatusRow active={false} label="Quality" value="Scanner quality score pending" />
                         </div>
                     </div>
 

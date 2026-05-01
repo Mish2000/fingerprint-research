@@ -5,7 +5,7 @@ export function createDefaultAppPreferences(): AppPreferences {
         theme: "system",
         language: "en",
         density: "comfortable",
-        defaultTab: "benchmark",
+        defaultTab: "live-demo",
         rememberLastTab: true,
         reducedMotion: false,
     };

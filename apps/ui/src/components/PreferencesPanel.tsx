@@ -116,6 +116,7 @@ export default function PreferencesPanel({ onClose, onClearWorkspaceState }: Pre
                             value={preferences.defaultTab}
                             onChange={(event) => setPreference("defaultTab", event.target.value as AppTabPreference)}
                         >
+                            <option value="live-demo">{t("tab.liveDemo.title")}</option>
                             <option value="verify">{t("tab.verify.title")}</option>
                             <option value="identify">{t("tab.identify.title")}</option>
                             <option value="benchmark">{t("tab.benchmark.title")}</option>

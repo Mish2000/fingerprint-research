@@ -1,6 +1,9 @@
 import type { MessageKey } from "./en.ts";
 
 export const heMessages: Record<MessageKey, string> = {
+    "tab.liveDemo.title": "דמו חי",
+    "tab.liveDemo.shortTitle": "דמו חי",
+    "tab.liveDemo.description": "מעטפת הדגמה מוכנה לבעלי עניין עבור לכידה, חיפוש 1:N וראיות תוצאה.",
     "app.title": "ממשק מחקר טביעות אצבע",
     "app.subtitle": "ממשק למחקר ביומטרי",
 

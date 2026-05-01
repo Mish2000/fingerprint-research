@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Fingerprint, ScanFace, Settings } from "lucide-react";
+import { BarChart3, Fingerprint, Presentation, ScanFace, Settings } from "lucide-react";
 import PreferencesPanel from "./components/PreferencesPanel.tsx";
 import BenchmarkWorkspace from "./features/benchmark/BenchmarkWorkspace.tsx";
 import { clearAllPersistedIdentificationState } from "./features/identification/persistence.ts";
 import IdentificationWorkspace from "./features/identification/IdentificationWorkspace.tsx";
+import FingerprintLiveDemoWorkspace from "./features/live-demo/FingerprintLiveDemoWorkspace.tsx";
 import { clearAllPersistedVerifyState } from "./features/verify/persistence.ts";
 import VerifyWorkspace from "./features/verify/VerifyWorkspace.tsx";
 import type { MessageKey } from "./shared/i18n";
@@ -34,6 +35,12 @@ const LEGACY_TAB_FALLBACKS: Record<string, Tab> = {
 };
 
 const TABS: TabConfig[] = [
+    {
+        id: "live-demo",
+        titleKey: "tab.liveDemo.title",
+        descriptionKey: "tab.liveDemo.description",
+        icon: Presentation,
+    },
     {
         id: "verify",
         titleKey: "tab.verify.title",
@@ -106,6 +113,8 @@ function syncActiveTabInUrl(tab: Tab): void {
 
 function renderTab(tab: Tab) {
     switch (tab) {
+        case "live-demo":
+            return <FingerprintLiveDemoWorkspace />;
         case "verify":
             return <VerifyWorkspace />;
         case "identify":

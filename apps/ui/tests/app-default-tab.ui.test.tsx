@@ -263,6 +263,7 @@ describe("App default tab", () => {
 
         await waitFor(() => {
             const navText = container.querySelector("nav")?.textContent ?? "";
+            expect(navText).toContain("Live Demo");
             expect(navText).toContain("Verification (1:1)");
             expect(navText).toContain("Identification (1:N)");
             expect(navText).toContain("Benchmarks");

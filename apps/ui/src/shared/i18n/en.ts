@@ -1,6 +1,9 @@
 export const enMessages = {
     "app.title": "FP Research UI",
     "app.subtitle": "Biometric Research Interface",
+    "tab.liveDemo.title": "Live Demo",
+    "tab.liveDemo.shortTitle": "Live Demo",
+    "tab.liveDemo.description": "Stakeholder-ready fingerprint capture, 1:N search, and result evidence.",
     "tab.verify.title": "Verification (1:1)",
     "tab.verify.shortTitle": "Verification",
     "tab.verify.description": "Feature hook + shared UI shell for live match requests and overlays.",

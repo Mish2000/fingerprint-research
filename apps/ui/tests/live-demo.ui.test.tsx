@@ -179,24 +179,55 @@ function installFetchMock() {
 }
 
 describe("Fingerprint Live Demo workspace", () => {
-    it("runs the manual-upload Identify 1:N fallback through the existing identify API", async () => {
+    it("disables Identify until a probe fingerprint exists", async () => {
         const controls = installFetchMock();
         const { container, root } = await renderWorkspace();
 
         expect(normalizeText(container.textContent)).toContain("Fingerprint biometrics");
+        expect(normalizeText(container.textContent)).toContain("Step 1Enrollment capture");
+        expect(normalizeText(container.textContent)).toContain("Step 2Probe capture");
+        expect(normalizeText(container.textContent)).toContain("Step 3Identify 1:N result");
         expect(normalizeText(container.textContent)).toContain("Gallery readiness");
-        expect(normalizeText(container.textContent)).toContain("Enroll an identity first or use an already seeded gallery");
+        expect(normalizeText(container.textContent)).toContain("Upload a probe fingerprint to search the enrolled gallery.");
+        expect(normalizeText(container.textContent)).toContain("You can search an existing gallery, but for a clean demo enroll an identity first.");
         expect(normalizeText(container.textContent)).toContain("Available in Verify tab");
         expect(getButtonByText(container, "Verify 1:1").disabled).toBe(true);
+        expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(true);
 
-        const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
-        if (!fileInput) {
-            throw new Error("Could not find manual upload input.");
+        const fileInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+        const enrollmentInput = fileInputs[0];
+        const probeInput = fileInputs[1];
+        if (!enrollmentInput || !probeInput) {
+            throw new Error("Could not find enrollment and probe upload inputs.");
         }
 
-        const file = new File([new Blob(["fingerprint"], { type: "image/png" })], "fingerprint.png", { type: "image/png" });
-        await uploadFile(fileInput, file);
-        expect(normalizeText(container.textContent)).toContain("Not scored yet");
+        const enrollmentFile = new File([new Blob(["enrollment"], { type: "image/png" })], "enrollment.png", { type: "image/png" });
+        await uploadFile(enrollmentInput, enrollmentFile);
+        expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(true);
+
+        const probeFile = new File([new Blob(["probe"], { type: "image/png" })], "probe.png", { type: "image/png" });
+        await uploadFile(probeInput, probeFile);
+        expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(false);
+        expect(normalizeText(container.textContent)).toContain("You can search an existing gallery, but for a clean demo enroll an identity first.");
+        expect(controls.getSubmittedIdentifyFormData()).toBeNull();
+
+        await unmountWorkspace(root);
+    });
+
+    it("submits enrollmentFile for Enroll and probeFile for Identify", async () => {
+        const controls = installFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        const fileInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+        const enrollmentInput = fileInputs[0];
+        const probeInput = fileInputs[1];
+        if (!enrollmentInput || !probeInput) {
+            throw new Error("Could not find enrollment and probe upload inputs.");
+        }
+
+        const enrollmentFile = new File([new Blob(["enrollment"], { type: "image/png" })], "enrollment.png", { type: "image/png" });
+        await uploadFile(enrollmentInput, enrollmentFile);
+        expect(normalizeText(container.textContent)).toContain("Enrollment sourceManual upload ready");
 
         const textInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'));
         const fullNameInput = textInputs[0];
@@ -229,29 +260,79 @@ describe("Fingerprint Live Demo workspace", () => {
 
         const enrollFormData = controls.getSubmittedEnrollFormData();
         expect(enrollFormData).not.toBeNull();
-        expect((enrollFormData?.get("img") as File).name).toBe("fingerprint.png");
+        expect((enrollFormData?.get("img") as File).name).toBe("enrollment.png");
         expect(enrollFormData?.get("full_name")).toBe("Alex Demo");
         expect(enrollFormData?.get("national_id")).toBe("123456789");
         expect(enrollFormData?.get("capture")).toBe("plain");
         expect(enrollFormData?.get("vector_methods")).toBe("dl,vit");
         expect(enrollFormData?.get("replace_existing")).toBe("true");
 
+        const probeFile = new File([new Blob(["probe"], { type: "image/png" })], "probe.png", { type: "image/png" });
+        await uploadFile(probeInput, probeFile);
+        expect(normalizeText(container.textContent)).toContain("Enrollment completed");
+        expect(normalizeText(container.textContent)).toContain("live_identity_001");
+        expect(normalizeText(container.textContent)).toContain("Probe sourceManual upload ready");
+
         await click(getButtonByText(container, "Run Identify 1:N"));
 
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("Match candidate accepted");
             expect(normalizeText(container.textContent)).toContain("Alex Demo");
+            expect(normalizeText(container.textContent)).toContain("Enrollment source file: enrollment.png");
+            expect(normalizeText(container.textContent)).toContain("Probe source file: probe.png");
             expect(normalizeText(container.textContent)).toContain("Benchmark before rollout");
+            expect(normalizeText(container.textContent)).toContain("This demo separates enrollment from probe capture to avoid same-image matching.");
             expect(normalizeText(container.textContent)).toContain("Prefer templates over raw captures");
         });
 
         const formData = controls.getSubmittedIdentifyFormData();
         expect(formData).not.toBeNull();
-        expect((formData?.get("img") as File).name).toBe("fingerprint.png");
+        expect((formData?.get("img") as File).name).toBe("probe.png");
         expect(formData?.get("capture")).toBe("plain");
         expect(formData?.get("retrieval_method")).toBe("dl");
         expect(formData?.get("rerank_method")).toBe("sift");
         expect(formData?.get("shortlist_size")).toBe("10");
+
+        await unmountWorkspace(root);
+    });
+
+    it("keeps the last enrollment visible when probe or enrollment captures change", async () => {
+        installFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        const fileInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+        const enrollmentInput = fileInputs[0];
+        const probeInput = fileInputs[1];
+        if (!enrollmentInput || !probeInput) {
+            throw new Error("Could not find enrollment and probe upload inputs.");
+        }
+
+        const enrollmentFile = new File([new Blob(["enrollment"], { type: "image/png" })], "enrollment.png", { type: "image/png" });
+        await uploadFile(enrollmentInput, enrollmentFile);
+
+        const textInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'));
+        await changeInput(textInputs[0], "Alex Demo");
+        await changeInput(textInputs[1], "123456789");
+        await click(getButtonByText(container, "Enroll identity"));
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Enrollment completed");
+            expect(text).toContain("enrollment.png");
+        });
+
+        const probeFile = new File([new Blob(["probe"], { type: "image/png" })], "probe.png", { type: "image/png" });
+        await uploadFile(probeInput, probeFile);
+        expect(normalizeText(container.textContent)).toContain("Enrollment completed");
+        expect(normalizeText(container.textContent)).toContain("Alex Demo");
+
+        const changedEnrollmentFile = new File([new Blob(["changed"], { type: "image/png" })], "changed-enrollment.png", { type: "image/png" });
+        await uploadFile(enrollmentInput, changedEnrollmentFile);
+
+        const text = normalizeText(container.textContent);
+        expect(text).toContain("Enrollment completed");
+        expect(text).toContain("Alex Demo");
+        expect(text).toContain("Enrollment capture changed — enroll again to update this identity.");
 
         await unmountWorkspace(root);
     });

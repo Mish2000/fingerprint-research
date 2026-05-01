@@ -29,6 +29,9 @@ const DEFAULT_RETRIEVAL_METHOD: IdentificationRetrievalMethod = "dl";
 const DEFAULT_RERANK_METHOD: Method = "sift";
 const DEFAULT_SHORTLIST_SIZE = 10;
 const DEFAULT_ENROLL_VECTOR_METHODS = ["dl", "vit"];
+const ENROLLMENT_CHANGED_MESSAGE = "Enrollment capture changed — enroll again to update this identity.";
+const MISSING_PROBE_MESSAGE = "Upload a probe fingerprint to search the enrolled gallery.";
+const SEEDED_GALLERY_HINT = "You can search an existing gallery, but for a clean demo enroll an identity first.";
 
 interface LiveEnrollForm {
     fullName: string;
@@ -39,6 +42,7 @@ interface LiveEnrollForm {
 interface LiveEnrollResult {
     fullName: string;
     capture: Capture;
+    sourceFileName: string;
     vectorMethods: string[];
     response: EnrollFingerprintResponse;
 }
@@ -99,19 +103,67 @@ function ActionCard({
     );
 }
 
-function QualityStatusPanel({ file, busy }: { file: File | null; busy: boolean }) {
+function StepSummaryCard({
+    step,
+    title,
+    detail,
+    status,
+    icon: Icon,
+    highlighted = false,
+}: {
+    step: string;
+    title: string;
+    detail: string;
+    status: string;
+    icon: LucideIcon;
+    highlighted?: boolean;
+}) {
+    return (
+        <article
+            className={`rounded-2xl border p-4 shadow-sm ${
+                highlighted ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
+            }`}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700">
+                    <Icon className="h-5 w-5" />
+                </div>
+                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-600">
+                    {status}
+                </span>
+            </div>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{step}</p>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">{title}</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{detail}</p>
+        </article>
+    );
+}
+
+function QualityStatusPanel({
+    enrollmentFile,
+    probeFile,
+    busy,
+}: {
+    enrollmentFile: File | null;
+    probeFile: File | null;
+    busy: boolean;
+}) {
     const statusItems = [
         {
-            label: "Image source",
-            value: file ? "Manual upload ready" : "Waiting",
+            label: "Enrollment source",
+            value: enrollmentFile ? "Manual upload ready" : "Waiting",
         },
         {
-            label: "Quality",
-            value: file ? "Not scored yet" : "Pending capture",
+            label: "Probe source",
+            value: probeFile ? "Manual upload ready" : "Waiting",
         },
         {
             label: "Preprocessing",
-            value: busy ? "Running" : file ? "Backend preprocessing runs on submit" : "Pending",
+            value: busy
+                ? "Running"
+                : enrollmentFile || probeFile
+                    ? "Backend preprocessing runs on submit"
+                    : "Pending",
         },
     ];
 
@@ -150,6 +202,7 @@ function EnrollmentFormPanel({
     form,
     capture,
     fileReady,
+    enrollmentChangedMessage,
     disabled,
     enrollState,
     onUpdate,
@@ -158,13 +211,14 @@ function EnrollmentFormPanel({
     form: LiveEnrollForm;
     capture: Capture;
     fileReady: boolean;
+    enrollmentChangedMessage: string | null;
     disabled: boolean;
     enrollState: AsyncState<LiveEnrollResult>;
     onUpdate: (patch: Partial<LiveEnrollForm>) => void;
     onSubmit: () => void | Promise<void>;
 }) {
     const isLoading = enrollState.status === "loading";
-    const result = enrollState.status === "success" ? enrollState.data : null;
+    const result = enrollState.data;
 
     return (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -176,7 +230,7 @@ function EnrollmentFormPanel({
                     </div>
                     <h3 className="mt-3 text-xl font-semibold text-slate-900">Identity details</h3>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                        Uses the current fingerprint upload and {formatCaptureLabel(capture)} capture profile.
+                        Uses the enrollment fingerprint image and the shared {formatCaptureLabel(capture)} capture profile.
                     </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
@@ -235,6 +289,10 @@ function EnrollmentFormPanel({
                     <InlineBanner variant="error">{enrollState.error}</InlineBanner>
                 ) : null}
 
+                {enrollmentChangedMessage ? (
+                    <InlineBanner variant="warning">{enrollmentChangedMessage}</InlineBanner>
+                ) : null}
+
                 {result ? (
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
                         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -246,7 +304,7 @@ function EnrollmentFormPanel({
                             </div>
                             <UserRoundSearch className="h-5 w-5 text-emerald-700" />
                         </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                             <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Name</p>
                                 <p className="mt-1 text-sm font-semibold">{result.fullName}</p>
@@ -258,6 +316,12 @@ function EnrollmentFormPanel({
                             <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Capture</p>
                                 <p className="mt-1 text-sm font-semibold">{formatCaptureLabel(result.capture)}</p>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Enrollment source file</p>
+                                <p className="mt-1 truncate text-sm font-semibold" title={result.sourceFileName}>
+                                    {result.sourceFileName}
+                                </p>
                             </div>
                             <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Vectors</p>
@@ -281,7 +345,8 @@ function EnrollmentFormPanel({
 }
 
 export default function FingerprintLiveDemoWorkspace() {
-    const [file, setFile] = useState<File | null>(null);
+    const [enrollmentFile, setEnrollmentFile] = useState<File | null>(null);
+    const [probeFile, setProbeFile] = useState<File | null>(null);
     const [capture, setCapture] = useState<Capture>("plain");
     const [resultState, setResultState] = useState<AsyncState<IdentifyResponse>>(createIdleState());
     const [enrollState, setEnrollState] = useState<AsyncState<LiveEnrollResult>>(createIdleState());
@@ -291,47 +356,89 @@ export default function FingerprintLiveDemoWorkspace() {
         replaceExisting: false,
     });
     const [notice, setNotice] = useState<string | null>(null);
+    const [enrollmentChangedMessage, setEnrollmentChangedMessage] = useState<string | null>(null);
+    const [lastIdentifyProbeFileName, setLastIdentifyProbeFileName] = useState<string | null>(null);
 
     const isIdentifyBusy = resultState.status === "loading";
     const isEnrollBusy = enrollState.status === "loading";
     const isBusy = isIdentifyBusy || isEnrollBusy;
     const latestResult = resultState.data;
-    const latestEnrollment = enrollState.status === "success" ? enrollState.data : null;
+    const latestEnrollment = enrollState.data;
+    const identifyDisabled = !probeFile || isBusy;
+    const enrollmentStepStatus = isEnrollBusy
+        ? "Enrolling"
+        : latestEnrollment
+            ? enrollmentChangedMessage
+                ? "Update needed"
+                : "Enrolled"
+            : enrollmentFile
+                ? "Ready"
+                : "Waiting";
+    const probeStepStatus = isIdentifyBusy ? "Searching" : probeFile ? "Ready" : "Waiting";
+    const resultStepStatus = resultState.status === "success"
+        ? "Result ready"
+        : resultState.status === "error"
+            ? "Needs review"
+            : probeFile
+                ? "Ready to run"
+                : "Needs probe";
 
-    function handleFileChange(nextFile: File | null): void {
-        setFile(nextFile);
+    function handleEnrollmentFileChange(nextFile: File | null): void {
+        setEnrollmentFile(nextFile);
         setNotice(null);
-        setResultState(createIdleState());
-        setEnrollState(createIdleState());
+        setEnrollmentChangedMessage(enrollState.data ? ENROLLMENT_CHANGED_MESSAGE : null);
+        setEnrollState((current) => (current.data ? createIdleState(current.data) : createIdleState()));
     }
 
     function handleCaptureChange(nextCapture: Capture): void {
+        if (nextCapture === capture) {
+            return;
+        }
+
         setCapture(nextCapture);
         setNotice(null);
+        setEnrollmentChangedMessage(enrollState.data ? ENROLLMENT_CHANGED_MESSAGE : null);
+        setEnrollState((current) => (current.data ? createIdleState(current.data) : createIdleState()));
         setResultState(createIdleState());
-        setEnrollState(createIdleState());
+        setLastIdentifyProbeFileName(null);
+    }
+
+    function handleProbeFileChange(nextFile: File | null): void {
+        setProbeFile(nextFile);
+        setNotice(null);
+        setResultState(createIdleState());
+        setLastIdentifyProbeFileName(null);
+    }
+
+    function useEnrollmentImageAsProbe(): void {
+        if (!enrollmentFile) {
+            return;
+        }
+
+        setProbeFile(enrollmentFile);
+        setNotice(null);
+        setResultState(createIdleState());
+        setLastIdentifyProbeFileName(null);
     }
 
     function updateEnrollForm(patch: Partial<LiveEnrollForm>): void {
         setEnrollForm((current) => ({ ...current, ...patch }));
-        if (enrollState.status !== "idle") {
-            setEnrollState(createIdleState());
-        }
+        setEnrollState((current) => (current.status === "error" && !current.data ? createIdleState() : current));
         setNotice(null);
     }
 
     async function runEnroll(): Promise<void> {
         setNotice(null);
 
-        if (!file) {
-            setEnrollState(createErrorState("Upload a fingerprint image before enrolling an identity."));
+        if (!enrollmentFile) {
+            setEnrollState((current) => createErrorState("Upload an enrollment fingerprint before enrolling an identity.", current.data));
             return;
         }
 
         const fullName = enrollForm.fullName.trim();
         const nationalId = enrollForm.nationalId.trim();
         if (!fullName || !nationalId) {
-            setEnrollState(createErrorState("Full name and national ID are required for enrollment."));
+            setEnrollState((current) => createErrorState("Full name and national ID are required for enrollment.", current.data));
             return;
         }
 
@@ -340,7 +447,7 @@ export default function FingerprintLiveDemoWorkspace() {
 
         try {
             const payload = await enrollFingerprint({
-                file,
+                file: enrollmentFile,
                 fullName,
                 nationalId,
                 capture,
@@ -350,10 +457,13 @@ export default function FingerprintLiveDemoWorkspace() {
             setEnrollState(createSuccessState({
                 fullName,
                 capture,
+                sourceFileName: enrollmentFile.name,
                 vectorMethods,
                 response: payload,
             }));
+            setEnrollmentChangedMessage(null);
             setResultState(createIdleState());
+            setLastIdentifyProbeFileName(null);
         } catch (error) {
             setEnrollState((current) => createErrorState(toErrorMessage(error), current.data));
         }
@@ -362,8 +472,8 @@ export default function FingerprintLiveDemoWorkspace() {
     async function runIdentify(): Promise<void> {
         setNotice(null);
 
-        if (!file) {
-            setResultState((current) => createErrorState("Upload a fingerprint image before running Identify 1:N.", current.data));
+        if (!probeFile) {
+            setResultState((current) => createErrorState(MISSING_PROBE_MESSAGE, current.data));
             return;
         }
 
@@ -371,13 +481,14 @@ export default function FingerprintLiveDemoWorkspace() {
 
         try {
             const payload = await identifyFingerprint({
-                file,
+                file: probeFile,
                 capture,
                 retrievalMethod: DEFAULT_RETRIEVAL_METHOD,
                 rerankMethod: DEFAULT_RERANK_METHOD,
                 shortlistSize: DEFAULT_SHORTLIST_SIZE,
             });
             setResultState(createSuccessState(payload));
+            setLastIdentifyProbeFileName(probeFile.name);
             setNotice(
                 payload.top_candidate
                     ? `Top candidate: ${payload.top_candidate.full_name}.`
@@ -399,13 +510,13 @@ export default function FingerprintLiveDemoWorkspace() {
                         </div>
                         <h3 className="mt-4 text-3xl font-semibold text-slate-950">Live Demo</h3>
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                            A focused presentation flow for capture, quality status, action selection, and a stakeholder-readable result.
+                            A focused three-step stakeholder flow for enrollment capture, separate probe capture, and an Identify 1:N result.
                         </p>
                     </div>
                     <button
                         type="button"
                         onClick={() => void runIdentify()}
-                        disabled={!file || isBusy}
+                        disabled={identifyDisabled}
                         className="inline-flex items-center rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-55"
                     >
                         <Play className="mr-2 h-4 w-4" />
@@ -414,74 +525,173 @@ export default function FingerprintLiveDemoWorkspace() {
                 </div>
             </section>
 
+            <section className="grid gap-3 md:grid-cols-3" aria-label="Live demo stakeholder flow">
+                <StepSummaryCard
+                    step="Step 1"
+                    title="Enrollment capture"
+                    detail="Upload the fingerprint used to enroll the identity into the gallery."
+                    status={enrollmentStepStatus}
+                    icon={UserPlus}
+                    highlighted={Boolean(latestEnrollment)}
+                />
+                <StepSummaryCard
+                    step="Step 2"
+                    title="Probe capture"
+                    detail="Upload a separate probe fingerprint for the 1:N search."
+                    status={probeStepStatus}
+                    icon={Fingerprint}
+                    highlighted={Boolean(probeFile)}
+                />
+                <StepSummaryCard
+                    step="Step 3"
+                    title="Identify 1:N result"
+                    detail="Run the existing identify API and show the stakeholder-readable decision."
+                    status={resultStepStatus}
+                    icon={UserRoundSearch}
+                    highlighted={resultState.status === "success"}
+                />
+            </section>
+
             {notice ? <InlineBanner variant="success">{notice}</InlineBanner> : null}
 
-            <InlineBanner variant={latestEnrollment ? "success" : "info"} title={latestEnrollment ? "Ready for Identify 1:N" : "Gallery readiness"}>
+            <InlineBanner
+                variant={latestEnrollment ? (enrollmentChangedMessage ? "warning" : "success") : "info"}
+                title="Gallery readiness"
+            >
                 {latestEnrollment
-                    ? `Identify searches the enrolled operational gallery. ${latestEnrollment.fullName} is enrolled for this session.`
-                    : "Identify searches the enrolled operational gallery. Enroll an identity first or use an already seeded gallery."}
+                    ? `Keep showing the last enrolled identity as gallery evidence: ${latestEnrollment.fullName} from ${latestEnrollment.sourceFileName}. ${enrollmentChangedMessage ?? "Ready for Identify 1:N against the enrolled operational gallery."}`
+                    : SEEDED_GALLERY_HINT}
             </InlineBanner>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
-                <ScannerCaptureCard
-                    file={file}
-                    capture={capture}
-                    disabled={isBusy}
-                    onFileChange={handleFileChange}
-                    onCaptureChange={handleCaptureChange}
-                />
+            {!probeFile ? <InlineBanner variant="info">{MISSING_PROBE_MESSAGE}</InlineBanner> : null}
 
-                <div className="space-y-5">
+            <div className="grid gap-5 xl:grid-cols-2">
+                <section className="space-y-5" aria-labelledby="enrollment-capture-heading">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Step 1</p>
+                        <h3 id="enrollment-capture-heading" className="mt-1 text-xl font-semibold text-slate-900">
+                            Enrollment capture
+                        </h3>
+                    </div>
+                    <ScannerCaptureCard
+                        file={enrollmentFile}
+                        capture={capture}
+                        disabled={isBusy}
+                        eyebrow="Enrollment capture"
+                        title="Enrollment fingerprint image"
+                        description="Manual upload fallback; scanner SDK wiring next. This image is used only for Enroll identity."
+                        uploadTitle="Upload enrollment fingerprint"
+                        uploadDescription="Recommended first step: choose the identity image that should enter the gallery."
+                        onFileChange={handleEnrollmentFileChange}
+                        onCaptureChange={handleCaptureChange}
+                    />
+
                     <EnrollmentFormPanel
                         form={enrollForm}
                         capture={capture}
-                        fileReady={Boolean(file)}
+                        fileReady={Boolean(enrollmentFile)}
+                        enrollmentChangedMessage={enrollmentChangedMessage}
                         disabled={isBusy}
                         enrollState={enrollState}
                         onUpdate={updateEnrollForm}
                         onSubmit={runEnroll}
                     />
+                </section>
 
-                    <QualityStatusPanel file={file} busy={isBusy} />
+                <section className="space-y-5" aria-labelledby="probe-capture-heading">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Step 2</p>
+                        <h3 id="probe-capture-heading" className="mt-1 text-xl font-semibold text-slate-900">
+                            Probe capture
+                        </h3>
+                    </div>
+                    <ScannerCaptureCard
+                        file={probeFile}
+                        capture={capture}
+                        disabled={isBusy}
+                        eyebrow="Probe capture"
+                        title="Probe fingerprint image"
+                        description="Manual upload fallback; scanner SDK wiring next. This image is used only for Identify 1:N."
+                        uploadTitle="Upload probe fingerprint"
+                        uploadDescription="Primary demo path: use a separate probe image to avoid same-image matching."
+                        onFileChange={handleProbeFileChange}
+                        onCaptureChange={handleCaptureChange}
+                    />
 
-                    <section className="space-y-3">
-                        <h3 className="text-base font-semibold text-slate-900">Choose action</h3>
-                        <div className="grid gap-3">
-                            <ActionCard
-                                title="Enroll"
-                                detail="Create a fingerprint identity in the operational gallery."
-                                status={isEnrollBusy ? "Enrolling..." : latestEnrollment ? "Enrolled" : file ? "Available" : "Needs fingerprint"}
-                                icon={UserPlus}
-                                disabled={!file || isBusy}
-                                highlighted={Boolean(latestEnrollment)}
-                                onClick={runEnroll}
-                            />
-                            <ActionCard
-                                title="Verify 1:1"
-                                detail="Use the full Verify workspace for one-to-one comparisons."
-                                status="Available in Verify tab"
-                                icon={ShieldCheck}
-                                disabled
-                            />
-                            <ActionCard
-                                title="Identify 1:N"
-                                detail="Search the enrolled operational gallery."
-                                status={isIdentifyBusy ? "Running..." : latestEnrollment ? "Ready now" : file ? "Available" : "Needs fingerprint"}
-                                icon={UserRoundSearch}
-                                disabled={!file || isBusy}
-                                highlighted={Boolean(latestEnrollment)}
-                                onClick={runIdentify}
-                            />
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-semibold text-slate-900">Quick smoke test</p>
+                                <p className="text-sm leading-6 text-slate-600">
+                                    Use this only when you need a same-image API smoke check; the recommended demo uses a separate probe image.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={!enrollmentFile || isBusy}
+                                onClick={useEnrollmentImageAsProbe}
+                                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-55"
+                            >
+                                Use enrollment image as probe
+                            </button>
                         </div>
-                    </section>
-                </div>
+                    </div>
+
+                    <QualityStatusPanel enrollmentFile={enrollmentFile} probeFile={probeFile} busy={isBusy} />
+                </section>
             </div>
 
-            <LiveResultHero
-                resultState={resultState}
-                sourceFileName={file?.name ?? null}
-                onRetry={runIdentify}
-            />
+            <section className="space-y-4" aria-labelledby="identify-result-heading">
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Step 3</p>
+                        <h3 id="identify-result-heading" className="mt-1 text-xl font-semibold text-slate-900">
+                            Identify 1:N result
+                        </h3>
+                    </div>
+                    {!latestEnrollment && probeFile ? (
+                        <p className="max-w-xl text-sm leading-6 text-slate-600">{SEEDED_GALLERY_HINT}</p>
+                    ) : null}
+                </div>
+
+                <section className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-900">Choose action</h3>
+                    <div className="grid gap-3 lg:grid-cols-3">
+                        <ActionCard
+                            title="Enroll"
+                            detail="Create a fingerprint identity in the operational gallery from the enrollment capture."
+                            status={isEnrollBusy ? "Enrolling..." : latestEnrollment ? "Enrolled" : enrollmentFile ? "Available" : "Needs enrollment"}
+                            icon={UserPlus}
+                            disabled={!enrollmentFile || isBusy}
+                            highlighted={Boolean(latestEnrollment)}
+                            onClick={runEnroll}
+                        />
+                        <ActionCard
+                            title="Verify 1:1"
+                            detail="Use the full Verify workspace for one-to-one comparisons."
+                            status="Available in Verify tab"
+                            icon={ShieldCheck}
+                            disabled
+                        />
+                        <ActionCard
+                            title="Identify 1:N"
+                            detail="Search the enrolled operational gallery with the probe capture."
+                            status={isIdentifyBusy ? "Running..." : probeFile ? "Available" : "Needs probe"}
+                            icon={UserRoundSearch}
+                            disabled={identifyDisabled}
+                            highlighted={resultState.status === "success"}
+                            onClick={runIdentify}
+                        />
+                    </div>
+                </section>
+
+                <LiveResultHero
+                    resultState={resultState}
+                    enrollmentSourceFileName={latestEnrollment?.sourceFileName ?? null}
+                    probeSourceFileName={lastIdentifyProbeFileName}
+                    onRetry={runIdentify}
+                />
+            </section>
 
             <LiveEvidenceStrip
                 result={latestResult}

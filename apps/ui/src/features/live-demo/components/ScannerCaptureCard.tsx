@@ -9,6 +9,12 @@ interface ScannerCaptureCardProps {
     file: File | null;
     capture: Capture;
     disabled: boolean;
+    eyebrow?: string;
+    title?: string;
+    description?: string;
+    uploadTitle?: string;
+    uploadDescription?: string;
+    captureProfileNote?: string;
     onFileChange: (file: File | null) => void;
     onCaptureChange: (capture: Capture) => void;
 }
@@ -52,6 +58,12 @@ export default function ScannerCaptureCard({
     file,
     capture,
     disabled,
+    eyebrow = "Fingerprint source",
+    title = "Place finger / capture fingerprint",
+    description = "Manual upload fallback; scanner SDK wiring next.",
+    uploadTitle = "Manual fingerprint image",
+    uploadDescription = "Manual upload fallback until scanner SDK wiring is added.",
+    captureProfileNote = "One shared capture profile is used for enrollment and probe in this demo.",
     onFileChange,
     onCaptureChange,
 }: ScannerCaptureCardProps) {
@@ -61,11 +73,11 @@ export default function ScannerCaptureCard({
                 <div>
                     <div className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-900">
                         <Fingerprint className="h-3.5 w-3.5" />
-                        Fingerprint source
+                        {eyebrow}
                     </div>
-                    <h3 className="mt-3 text-xl font-semibold text-slate-900">Place finger / capture fingerprint</h3>
+                    <h3 className="mt-3 text-xl font-semibold text-slate-900">{title}</h3>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                        Scanner intake is represented here, with manual image upload available for this first demo.
+                        {description}
                     </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
@@ -77,8 +89,8 @@ export default function ScannerCaptureCard({
                 <FileDropBox
                     file={file}
                     onChange={onFileChange}
-                    title="Manual fingerprint image"
-                    description="Fallback source for the scanner-ready demo flow."
+                    title={uploadTitle}
+                    description={uploadDescription}
                     className="min-h-[320px]"
                     disabled={disabled}
                 />
@@ -91,7 +103,7 @@ export default function ScannerCaptureCard({
                             </div>
                             <div>
                                 <p className="text-sm font-semibold text-slate-900">Scanner flow</p>
-                                <p className="text-xs text-slate-500">Ready for device SDK wiring.</p>
+                                <p className="text-xs text-slate-500">Manual upload fallback; scanner SDK wiring next.</p>
                             </div>
                         </div>
                         <div className="mt-4 space-y-3">
@@ -124,6 +136,7 @@ export default function ScannerCaptureCard({
                                 </option>
                             ))}
                         </select>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">{captureProfileNote}</p>
                     </FormField>
                 </div>
             </div>

@@ -56,7 +56,7 @@ export default function LiveEvidenceStrip({
                 icon={BarChart3}
                 label="Evidence reminder"
                 value="Benchmark before rollout"
-                detail="Treat live scores as a demo signal and compare operating thresholds against the benchmark workspace before stakeholder commitments."
+                detail="This demo separates enrollment from probe capture to avoid same-image matching. Treat live scores as a demo signal and compare operating thresholds against the benchmark workspace before stakeholder commitments."
             />
             <EvidenceItem
                 icon={ShieldCheck}

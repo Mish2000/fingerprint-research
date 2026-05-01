@@ -6,7 +6,8 @@ import type { IdentifyCandidate, IdentifyResponse, LatencyBreakdown } from "../.
 
 interface LiveResultHeroProps {
     resultState: AsyncState<IdentifyResponse>;
-    sourceFileName: string | null;
+    enrollmentSourceFileName: string | null;
+    probeSourceFileName: string | null;
     onRetry: () => void | Promise<void>;
 }
 
@@ -62,13 +63,18 @@ function StatTile({
     );
 }
 
-export default function LiveResultHero({ resultState, sourceFileName, onRetry }: LiveResultHeroProps) {
+export default function LiveResultHero({
+    resultState,
+    enrollmentSourceFileName,
+    probeSourceFileName,
+    onRetry,
+}: LiveResultHeroProps) {
     if (resultState.status === "loading") {
         return (
             <RequestState
                 variant="loading"
                 title="Running fingerprint identification"
-                description="The uploaded fingerprint is being compared against the enrolled gallery."
+                description="The uploaded probe fingerprint is being compared against the enrolled gallery."
             />
         );
     }
@@ -92,7 +98,7 @@ export default function LiveResultHero({ resultState, sourceFileName, onRetry }:
             <RequestState
                 variant="empty"
                 title="Result hero ready"
-                description="Upload a fingerprint and run Identify 1:N to populate score, threshold, decision, latency, and candidate details."
+                description="Upload a probe fingerprint and run Identify 1:N to populate score, threshold, decision, latency, and candidate details."
             />
         );
     }
@@ -125,9 +131,16 @@ export default function LiveResultHero({ resultState, sourceFileName, onRetry }:
                             ? `Top candidate ${candidate.full_name} ranked #${candidate.rank} from ${result.candidates.length} shortlisted candidate${result.candidates.length === 1 ? "" : "s"}.`
                             : `No top candidate returned from ${result.candidate_pool_size} eligible enrolled record${result.candidate_pool_size === 1 ? "" : "s"}.`}
                     </p>
-                    {sourceFileName ? (
-                        <p className="mt-1 text-sm leading-6 opacity-75">Source: {sourceFileName}</p>
-                    ) : null}
+                    <div className="mt-3 grid gap-2 text-sm leading-6 opacity-80 sm:grid-cols-2">
+                        <p>
+                            <span className="font-semibold">Enrollment source file:</span>{" "}
+                            {enrollmentSourceFileName ?? "Existing gallery"}
+                        </p>
+                        <p>
+                            <span className="font-semibold">Probe source file:</span>{" "}
+                            {probeSourceFileName ?? "Not available"}
+                        </p>
+                    </div>
                 </div>
 
                 <div className="min-w-40 rounded-2xl border border-current/15 bg-white/75 px-5 py-4 text-right">

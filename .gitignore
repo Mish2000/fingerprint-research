@@ -103,3 +103,6 @@ research_history/
 
 # ---------- Local datasets ----------
 data/
+
+# ---------- Local artifacts / checkpoints ----------
+artifacts/

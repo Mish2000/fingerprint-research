@@ -79,6 +79,14 @@ async function changeInput(input: HTMLInputElement, value: string): Promise<void
     });
 }
 
+async function changeSelect(select: HTMLSelectElement, value: string): Promise<void> {
+    await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+        valueSetter?.call(select, value);
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+}
+
 async function changeCheckbox(input: HTMLInputElement, checked: boolean): Promise<void> {
     await act(async () => {
         if (input.checked !== checked) {
@@ -188,11 +196,15 @@ describe("Fingerprint Live Demo workspace", () => {
         expect(normalizeText(container.textContent)).toContain("Step 2Probe capture");
         expect(normalizeText(container.textContent)).toContain("Step 3Identify 1:N result");
         expect(normalizeText(container.textContent)).toContain("Gallery readiness");
+        expect(normalizeText(container.textContent)).toContain("Shared capture profile");
+        expect(normalizeText(container.textContent)).toContain("Used for both enrollment and probe in this demo.");
         expect(normalizeText(container.textContent)).toContain("Upload a probe fingerprint to search the enrolled gallery.");
         expect(normalizeText(container.textContent)).toContain("You can search an existing gallery, but for a clean demo enroll an identity first.");
         expect(normalizeText(container.textContent)).toContain("Available in Verify tab");
         expect(getButtonByText(container, "Verify 1:1").disabled).toBe(true);
         expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(true);
+        expect(container.querySelectorAll("select")).toHaveLength(1);
+        expect(container.querySelector<HTMLSelectElement>('select[aria-label="Shared capture profile"]')?.value).toBe("plain");
 
         const fileInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
         const enrollmentInput = fileInputs[0];
@@ -217,6 +229,12 @@ describe("Fingerprint Live Demo workspace", () => {
     it("submits enrollmentFile for Enroll and probeFile for Identify", async () => {
         const controls = installFetchMock();
         const { container, root } = await renderWorkspace();
+
+        const sharedCaptureSelect = container.querySelector<HTMLSelectElement>('select[aria-label="Shared capture profile"]');
+        if (!sharedCaptureSelect) {
+            throw new Error("Could not find shared capture profile selector.");
+        }
+        await changeSelect(sharedCaptureSelect, "contactless");
 
         const fileInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
         const enrollmentInput = fileInputs[0];
@@ -253,7 +271,7 @@ describe("Fingerprint Live Demo workspace", () => {
             expect(text).toContain("Ready for Identify 1:N");
             expect(text).toContain("Alex Demo");
             expect(text).toContain("live_identity_001");
-            expect(text).toContain("Plain");
+            expect(text).toContain("Contactless");
             expect(text).toContain("Deep Learning (ResNet50)");
             expect(text).toContain("Deep Learning (ViT)");
         });
@@ -263,7 +281,7 @@ describe("Fingerprint Live Demo workspace", () => {
         expect((enrollFormData?.get("img") as File).name).toBe("enrollment.png");
         expect(enrollFormData?.get("full_name")).toBe("Alex Demo");
         expect(enrollFormData?.get("national_id")).toBe("123456789");
-        expect(enrollFormData?.get("capture")).toBe("plain");
+        expect(enrollFormData?.get("capture")).toBe("contactless");
         expect(enrollFormData?.get("vector_methods")).toBe("dl,vit");
         expect(enrollFormData?.get("replace_existing")).toBe("true");
 
@@ -288,7 +306,7 @@ describe("Fingerprint Live Demo workspace", () => {
         const formData = controls.getSubmittedIdentifyFormData();
         expect(formData).not.toBeNull();
         expect((formData?.get("img") as File).name).toBe("probe.png");
-        expect(formData?.get("capture")).toBe("plain");
+        expect(formData?.get("capture")).toBe("contactless");
         expect(formData?.get("retrieval_method")).toBe("dl");
         expect(formData?.get("rerank_method")).toBe("sift");
         expect(formData?.get("shortlist_size")).toBe("10");

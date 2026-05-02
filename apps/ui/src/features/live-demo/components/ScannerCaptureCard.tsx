@@ -1,8 +1,6 @@
 import { CheckCircle2, CircleDashed, Fingerprint, ScanLine } from "lucide-react";
 import FileDropBox from "../../../components/FileDropBox.tsx";
 import { formatCaptureLabel } from "../../../shared/storytelling.ts";
-import FormField from "../../../shared/ui/FormField.tsx";
-import { INPUT_CLASS_NAME } from "../../../shared/ui/inputClasses.ts";
 import type { Capture } from "../../../types/index.ts";
 
 interface ScannerCaptureCardProps {
@@ -14,17 +12,8 @@ interface ScannerCaptureCardProps {
     description?: string;
     uploadTitle?: string;
     uploadDescription?: string;
-    captureProfileNote?: string;
     onFileChange: (file: File | null) => void;
-    onCaptureChange: (capture: Capture) => void;
 }
-
-const CAPTURE_OPTIONS: Array<{ value: Capture; label: string }> = [
-    { value: "plain", label: "Plain" },
-    { value: "roll", label: "Rolled" },
-    { value: "contactless", label: "Contactless" },
-    { value: "contact_based", label: "Contact-based" },
-];
 
 function StatusRow({
     active,
@@ -63,9 +52,7 @@ export default function ScannerCaptureCard({
     description = "Manual upload fallback; scanner SDK wiring next.",
     uploadTitle = "Manual fingerprint image",
     uploadDescription = "Manual upload fallback until scanner SDK wiring is added.",
-    captureProfileNote = "One shared capture profile is used for enrollment and probe in this demo.",
     onFileChange,
-    onCaptureChange,
 }: ScannerCaptureCardProps) {
     return (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -120,24 +107,6 @@ export default function ScannerCaptureCard({
                             <StatusRow active={false} label="Quality" value="Scanner quality score pending" />
                         </div>
                     </div>
-
-                    <FormField label="Capture profile">
-                        <select
-                            className={INPUT_CLASS_NAME}
-                            value={capture}
-                            disabled={disabled}
-                            onChange={(event) => {
-                                onCaptureChange(event.target.value as Capture);
-                            }}
-                        >
-                            {CAPTURE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                        <p className="mt-2 text-xs leading-5 text-slate-500">{captureProfileNote}</p>
-                    </FormField>
                 </div>
             </div>
         </section>

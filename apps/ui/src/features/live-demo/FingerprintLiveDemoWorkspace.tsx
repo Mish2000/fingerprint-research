@@ -32,6 +32,12 @@ const DEFAULT_ENROLL_VECTOR_METHODS = ["dl", "vit"];
 const ENROLLMENT_CHANGED_MESSAGE = "Enrollment capture changed — enroll again to update this identity.";
 const MISSING_PROBE_MESSAGE = "Upload a probe fingerprint to search the enrolled gallery.";
 const SEEDED_GALLERY_HINT = "You can search an existing gallery, but for a clean demo enroll an identity first.";
+const CAPTURE_OPTIONS: Array<{ value: Capture; label: string }> = [
+    { value: "plain", label: "Plain" },
+    { value: "roll", label: "Rolled" },
+    { value: "contactless", label: "Contactless" },
+    { value: "contact_based", label: "Contact-based" },
+];
 
 interface LiveEnrollForm {
     fullName: string;
@@ -525,6 +531,34 @@ export default function FingerprintLiveDemoWorkspace() {
                 </div>
             </section>
 
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Shared capture profile">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_18rem] md:items-end">
+                    <div>
+                        <h3 className="text-base font-semibold text-slate-900">Shared capture profile</h3>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                            Used for both enrollment and probe in this demo.
+                        </p>
+                    </div>
+                    <FormField label="Profile">
+                        <select
+                            className={INPUT_CLASS_NAME}
+                            value={capture}
+                            disabled={isBusy}
+                            aria-label="Shared capture profile"
+                            onChange={(event) => {
+                                handleCaptureChange(event.target.value as Capture);
+                            }}
+                        >
+                            {CAPTURE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </FormField>
+                </div>
+            </section>
+
             <section className="grid gap-3 md:grid-cols-3" aria-label="Live demo stakeholder flow">
                 <StepSummaryCard
                     step="Step 1"
@@ -583,7 +617,6 @@ export default function FingerprintLiveDemoWorkspace() {
                         uploadTitle="Upload enrollment fingerprint"
                         uploadDescription="Recommended first step: choose the identity image that should enter the gallery."
                         onFileChange={handleEnrollmentFileChange}
-                        onCaptureChange={handleCaptureChange}
                     />
 
                     <EnrollmentFormPanel
@@ -615,7 +648,6 @@ export default function FingerprintLiveDemoWorkspace() {
                         uploadTitle="Upload probe fingerprint"
                         uploadDescription="Primary demo path: use a separate probe image to avoid same-image matching."
                         onFileChange={handleProbeFileChange}
-                        onCaptureChange={handleCaptureChange}
                     />
 
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

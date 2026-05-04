@@ -52,6 +52,17 @@ from apps.api.identify_demo_store import (
 )
 from apps.api.io import save_upload_to_temp
 from apps.api.method_registry import MethodRegistryError, load_api_method_registry
+from apps.api.scanner_capture import (
+    NoScannerCaptureFoundError,
+    ScannerCaptureError,
+    ScannerCaptureNormalizationError,
+    ScannerCapturePathError,
+    ScannerNormalizedCaptureNotFoundError,
+    StaleScannerCaptureError,
+    get_scanner_status,
+    import_latest_capture,
+    resolve_normalized_capture_path,
+)
 from apps.api.schemas import (
     CatalogDatasetBrowserResponse,
     CatalogDatasetsResponse,
@@ -496,6 +507,38 @@ def demo_case_asset(case_id: str, slot: str) -> FileResponse:
 def demo_case_asset_with_filename(case_id: str, slot: str, filename: str) -> FileResponse:
     del filename
     return demo_case_asset(case_id, slot)
+
+
+@router.get("/scanner/status")
+def scanner_status() -> dict[str, Any]:
+    try:
+        return get_scanner_status()
+    except ScannerCaptureError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/scanner/import-latest")
+def scanner_import_latest() -> dict[str, Any]:
+    try:
+        return import_latest_capture()
+    except NoScannerCaptureFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StaleScannerCaptureError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ScannerCaptureNormalizationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ScannerCaptureError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/scanner/captures/{capture_id}")
+def scanner_capture_asset(capture_id: str) -> FileResponse:
+    try:
+        return FileResponse(resolve_normalized_capture_path(capture_id), media_type="image/png")
+    except ScannerCapturePathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ScannerNormalizedCaptureNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/catalog/datasets")

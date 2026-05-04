@@ -68,6 +68,7 @@ apps/api/*.db*
 # ---------- Temporary capture artifacts ----------
 captures/
 tmp_captures/
+data/scanner_captures/
 apps/api/captures/
 apps/api/tmp_captures/
 *_capture_tmp*

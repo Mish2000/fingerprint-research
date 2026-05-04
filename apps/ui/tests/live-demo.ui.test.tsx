@@ -9,10 +9,17 @@ type RenderedWorkspace = {
     root: Root;
 };
 
-function createJsonResponse(payload: unknown): Response {
+function createJsonResponse(payload: unknown, status = 200): Response {
     return new Response(JSON.stringify(payload), {
-        status: 200,
+        status,
         headers: { "content-type": "application/json" },
+    });
+}
+
+function createPngResponse(): Response {
+    return new Response(new Blob(["normalized scanner png"], { type: "image/png" }), {
+        status: 200,
+        headers: { "content-type": "image/png" },
     });
 }
 
@@ -160,12 +167,47 @@ const enrollResponse: EnrollFingerprintResponse = {
     storage_layout: {},
 };
 
-function installFetchMock() {
+interface FetchMockOptions {
+    scannerImport?: "success" | "no-capture";
+    scannerOriginalFilename?: string;
+    scannerNormalizedFilename?: string;
+}
+
+function scannerImportPayload(options: FetchMockOptions = {}) {
+    const normalizedFilename = options.scannerNormalizedFilename ?? "scanner_20260502_120000_abcd1234.png";
+    const captureId = normalizedFilename.replace(/\.png$/i, "");
+    return {
+        capture_id: captureId,
+        original_filename: options.scannerOriginalFilename ?? "umpi_capture.tif",
+        normalized_filename: normalizedFilename,
+        normalized_url: `/api/scanner/captures/${captureId}`,
+        mime_type: "image/png",
+        size_bytes: 2048,
+        modified_at: "2026-05-02T12:00:00Z",
+        age_seconds: 5,
+    };
+}
+
+function installFetchMock(options: FetchMockOptions = {}) {
     let submittedIdentifyFormData: FormData | null = null;
     let submittedEnrollFormData: FormData | null = null;
+    let scannerImportCalls = 0;
 
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const parsed = new URL(String(input), "http://localhost");
+
+        if (parsed.pathname === "/api/scanner/import-latest") {
+            scannerImportCalls += 1;
+            if (options.scannerImport === "no-capture") {
+                return createJsonResponse({ detail: "No saved scanner capture found in the configured folder." }, 404);
+            }
+
+            return createJsonResponse(scannerImportPayload(options));
+        }
+
+        if (parsed.pathname.startsWith("/api/scanner/captures/")) {
+            return createPngResponse();
+        }
 
         if (parsed.pathname === "/api/identify/enroll") {
             submittedEnrollFormData = init?.body instanceof FormData ? init.body : null;
@@ -183,6 +225,7 @@ function installFetchMock() {
     return {
         getSubmittedIdentifyFormData: () => submittedIdentifyFormData,
         getSubmittedEnrollFormData: () => submittedEnrollFormData,
+        getScannerImportCalls: () => scannerImportCalls,
     };
 }
 
@@ -245,7 +288,7 @@ describe("Fingerprint Live Demo workspace", () => {
 
         const enrollmentFile = new File([new Blob(["enrollment"], { type: "image/png" })], "enrollment.png", { type: "image/png" });
         await uploadFile(enrollmentInput, enrollmentFile);
-        expect(normalizeText(container.textContent)).toContain("Enrollment sourceManual upload ready");
+        expect(normalizeText(container.textContent)).toContain("Enrollment sourceImage source ready");
 
         const textInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'));
         const fullNameInput = textInputs[0];
@@ -289,7 +332,7 @@ describe("Fingerprint Live Demo workspace", () => {
         await uploadFile(probeInput, probeFile);
         expect(normalizeText(container.textContent)).toContain("Enrollment completed");
         expect(normalizeText(container.textContent)).toContain("live_identity_001");
-        expect(normalizeText(container.textContent)).toContain("Probe sourceManual upload ready");
+        expect(normalizeText(container.textContent)).toContain("Probe sourceImage source ready");
 
         await click(getButtonByText(container, "Run Identify 1:N"));
 
@@ -310,6 +353,104 @@ describe("Fingerprint Live Demo workspace", () => {
         expect(formData?.get("retrieval_method")).toBe("dl");
         expect(formData?.get("rerank_method")).toBe("sift");
         expect(formData?.get("shortlist_size")).toBe("10");
+
+        await unmountWorkspace(root);
+    });
+
+    it("imports the latest saved UMPI capture as enrollment and enrolls with that normalized file", async () => {
+        const controls = installFetchMock({
+            scannerOriginalFilename: "umpi_enrollment.tif",
+            scannerNormalizedFilename: "scanner_20260502_120000_enroll01.png",
+        });
+        const { container, root } = await renderWorkspace();
+
+        expect(normalizeText(container.textContent)).toContain("Scanner bridge");
+        expect(normalizeText(container.textContent)).toContain(
+            "Use the UMPI Diagnostic Tool to capture a fingerprint, save the .tif file into the configured scanner capture folder, then import the latest saved capture here.",
+        );
+        expect(normalizeText(container.textContent)).toContain("Manual upload remains available.");
+        expect(normalizeText(container.textContent)).toContain("Direct SDK capture is a future milestone.");
+
+        await click(getButtonByText(container, "Import latest saved UMPI capture as enrollment"));
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Imported umpi_enrollment.tif as enrollment capture");
+            expect(text).toContain("scanner_20260502_120000_enroll01.png");
+            expect(text).toContain("Enrollment sourceImage source ready");
+            expect(getButtonByText(container, "Enroll identity").disabled).toBe(false);
+        });
+
+        const textInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'));
+        await changeInput(textInputs[0], "Alex Demo");
+        await changeInput(textInputs[1], "123456789");
+        await click(getButtonByText(container, "Enroll identity"));
+
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("Enrollment completed");
+        });
+
+        const enrollFormData = controls.getSubmittedEnrollFormData();
+        expect(enrollFormData).not.toBeNull();
+        expect((enrollFormData?.get("img") as File).name).toBe("scanner_20260502_120000_enroll01.png");
+        expect(controls.getScannerImportCalls()).toBe(1);
+
+        await unmountWorkspace(root);
+    });
+
+    it("imports the latest saved UMPI capture as probe and identifies with that normalized file", async () => {
+        const controls = installFetchMock({
+            scannerOriginalFilename: "umpi_probe.tif",
+            scannerNormalizedFilename: "scanner_20260502_120500_probe001.png",
+        });
+        const { container, root } = await renderWorkspace();
+
+        expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(true);
+
+        await click(getButtonByText(container, "Import latest saved UMPI capture as probe"));
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Imported umpi_probe.tif as probe capture");
+            expect(text).toContain("scanner_20260502_120500_probe001.png");
+            expect(text).toContain("Probe sourceImage source ready");
+            expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(false);
+        });
+
+        await click(getButtonByText(container, "Run Identify 1:N"));
+
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("Match candidate accepted");
+        });
+
+        const identifyFormData = controls.getSubmittedIdentifyFormData();
+        expect(identifyFormData).not.toBeNull();
+        expect((identifyFormData?.get("img") as File).name).toBe("scanner_20260502_120500_probe001.png");
+        expect(identifyFormData?.get("capture")).toBe("plain");
+
+        await unmountWorkspace(root);
+    });
+
+    it("shows the scanner no-capture import error without removing manual upload", async () => {
+        installFetchMock({ scannerImport: "no-capture" });
+        const { container, root } = await renderWorkspace();
+
+        await click(getButtonByText(container, "Import latest saved UMPI capture as enrollment"));
+
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("No saved scanner capture found in the configured folder");
+        });
+
+        const fileInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+        const enrollmentInput = fileInputs[0];
+        if (!enrollmentInput) {
+            throw new Error("Could not find enrollment upload input.");
+        }
+
+        const manualFile = new File([new Blob(["manual"], { type: "image/png" })], "manual-enrollment.png", { type: "image/png" });
+        await uploadFile(enrollmentInput, manualFile);
+        expect(normalizeText(container.textContent)).toContain("manual-enrollment.png");
+        expect(getButtonByText(container, "Enroll identity").disabled).toBe(false);
 
         await unmountWorkspace(root);
     });

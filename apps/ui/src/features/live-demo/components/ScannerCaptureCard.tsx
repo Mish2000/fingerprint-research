@@ -48,10 +48,10 @@ export default function ScannerCaptureCard({
     capture,
     disabled,
     eyebrow = "Fingerprint source",
-    title = "Place finger / capture fingerprint",
-    description = "Manual upload fallback; scanner SDK wiring next.",
+    title = "Fingerprint image source",
+    description = "Manual upload remains available. Direct SDK capture is a future milestone.",
     uploadTitle = "Manual fingerprint image",
-    uploadDescription = "Manual upload fallback until scanner SDK wiring is added.",
+    uploadDescription = "Choose a saved fingerprint image from disk.",
     onFileChange,
 }: ScannerCaptureCardProps) {
     return (
@@ -89,8 +89,8 @@ export default function ScannerCaptureCard({
                                 <ScanLine className="h-5 w-5" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-slate-900">Scanner flow</p>
-                                <p className="text-xs text-slate-500">Manual upload fallback; scanner SDK wiring next.</p>
+                                <p className="text-sm font-semibold text-slate-900">Capture source</p>
+                                <p className="text-xs text-slate-500">Manual upload and saved-file import share this image slot.</p>
                             </div>
                         </div>
                         <div className="mt-4 space-y-3">
@@ -104,7 +104,7 @@ export default function ScannerCaptureCard({
                                 label="Preprocess"
                                 value={file ? "Backend preprocessing runs on submit" : "Pending capture"}
                             />
-                            <StatusRow active={false} label="Quality" value="Scanner quality score pending" />
+                            <StatusRow active={Boolean(file)} label="Submit" value={file ? "Ready for selected action" : "Waiting for image"} />
                         </div>
                     </div>
                 </div>

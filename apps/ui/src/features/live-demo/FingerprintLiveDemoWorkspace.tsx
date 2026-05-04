@@ -1,7 +1,12 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Fingerprint, Play, ShieldCheck, UserPlus, UserRoundSearch } from "lucide-react";
+import { Fingerprint, FolderInput, Play, ShieldCheck, UserPlus, UserRoundSearch } from "lucide-react";
 import { enrollFingerprint, identifyFingerprint } from "../../api/identificationService.ts";
+import {
+    importLatestSavedScannerCapture,
+    loadScannerCaptureFile,
+    type ScannerImportResponse,
+} from "../../api/scannerCaptureService.ts";
 import {
     createErrorState,
     createIdleState,
@@ -51,6 +56,15 @@ interface LiveEnrollResult {
     sourceFileName: string;
     vectorMethods: string[];
     response: EnrollFingerprintResponse;
+}
+
+type ScannerImportTarget = "enrollment" | "probe";
+
+interface ScannerImportResult {
+    target: ScannerImportTarget;
+    originalFilename: string;
+    normalizedFilename: string;
+    response: ScannerImportResponse;
 }
 
 interface ActionCardProps {
@@ -157,11 +171,11 @@ function QualityStatusPanel({
     const statusItems = [
         {
             label: "Enrollment source",
-            value: enrollmentFile ? "Manual upload ready" : "Waiting",
+            value: enrollmentFile ? "Image source ready" : "Waiting",
         },
         {
             label: "Probe source",
-            value: probeFile ? "Manual upload ready" : "Waiting",
+            value: probeFile ? "Image source ready" : "Waiting",
         },
         {
             label: "Preprocessing",
@@ -180,8 +194,8 @@ function QualityStatusPanel({
                     <Fingerprint className="h-5 w-5" />
                 </div>
                 <div>
-                    <h3 className="text-base font-semibold text-slate-900">Quality / preprocessing status</h3>
-                    <p className="text-sm text-slate-500">Scanner quality score pending; preprocessing runs when you submit.</p>
+                    <h3 className="text-base font-semibold text-slate-900">Capture / preprocessing status</h3>
+                    <p className="text-sm text-slate-500">Preprocessing runs when you submit enrollment or identify requests.</p>
                 </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -202,6 +216,88 @@ function formatVectorMethods(methods: string[]): string {
     }
 
     return methods.map(formatMethodLabel).join(", ");
+}
+
+function scannerImportButtonLabel(target: ScannerImportTarget): string {
+    return `Import latest saved UMPI capture as ${target}`;
+}
+
+function scannerImportSuccessMessage(result: ScannerImportResult): string {
+    return `Imported ${result.originalFilename} as ${result.target} capture`;
+}
+
+function scannerImportErrorMessage(error: unknown): string {
+    const message = toErrorMessage(error);
+    const normalized = message.toLowerCase();
+
+    if (normalized.includes("no saved scanner capture found")) {
+        return "No saved scanner capture found in the configured folder";
+    }
+    if (normalized.includes("latest saved umpi capture is too old") || normalized.includes("too old")) {
+        return "Latest saved UMPI capture is too old; save a new fingerprint scan in UMPI and try again";
+    }
+
+    return message;
+}
+
+function ScannerBridgePanel({
+    state,
+    disabled,
+    onImport,
+}: {
+    state: AsyncState<ScannerImportResult>;
+    disabled: boolean;
+    onImport: (target: ScannerImportTarget) => void | Promise<void>;
+}) {
+    return (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Scanner bridge">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-900">
+                        <FolderInput className="h-3.5 w-3.5" />
+                        Scanner bridge
+                    </div>
+                    <h3 className="mt-3 text-xl font-semibold text-slate-900">Import latest saved UMPI capture</h3>
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                        Use the UMPI Diagnostic Tool to capture a fingerprint, save the .tif file into the configured scanner capture folder, then import the latest saved capture here.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Manual upload remains available.</span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Direct SDK capture is a future milestone.</span>
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+                    {(["enrollment", "probe"] as const).map((target) => (
+                        <button
+                            key={target}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => {
+                                void onImport(target);
+                            }}
+                            className="inline-flex items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-950 shadow-sm transition hover:border-brand-300 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-55"
+                        >
+                            <FolderInput className="mr-2 h-4 w-4" />
+                            {scannerImportButtonLabel(target)}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="mt-4">
+                {state.status === "loading" ? (
+                    <InlineBanner variant="info">Importing latest saved UMPI capture...</InlineBanner>
+                ) : null}
+                {state.status === "success" && state.data ? (
+                    <InlineBanner variant="success">{scannerImportSuccessMessage(state.data)}</InlineBanner>
+                ) : null}
+                {state.status === "error" && state.error ? (
+                    <InlineBanner variant="error">{state.error}</InlineBanner>
+                ) : null}
+            </div>
+        </section>
+    );
 }
 
 function EnrollmentFormPanel({
@@ -364,10 +460,12 @@ export default function FingerprintLiveDemoWorkspace() {
     const [notice, setNotice] = useState<string | null>(null);
     const [enrollmentChangedMessage, setEnrollmentChangedMessage] = useState<string | null>(null);
     const [lastIdentifyProbeFileName, setLastIdentifyProbeFileName] = useState<string | null>(null);
+    const [scannerImportState, setScannerImportState] = useState<AsyncState<ScannerImportResult>>(createIdleState());
 
     const isIdentifyBusy = resultState.status === "loading";
     const isEnrollBusy = enrollState.status === "loading";
-    const isBusy = isIdentifyBusy || isEnrollBusy;
+    const isScannerImportBusy = scannerImportState.status === "loading";
+    const isBusy = isIdentifyBusy || isEnrollBusy || isScannerImportBusy;
     const latestResult = resultState.data;
     const latestEnrollment = enrollState.data;
     const identifyDisabled = !probeFile || isBusy;
@@ -389,11 +487,16 @@ export default function FingerprintLiveDemoWorkspace() {
                 ? "Ready to run"
                 : "Needs probe";
 
-    function handleEnrollmentFileChange(nextFile: File | null): void {
+    function setEnrollmentCaptureFile(nextFile: File | null): void {
         setEnrollmentFile(nextFile);
         setNotice(null);
         setEnrollmentChangedMessage(enrollState.data ? ENROLLMENT_CHANGED_MESSAGE : null);
         setEnrollState((current) => (current.data ? createIdleState(current.data) : createIdleState()));
+    }
+
+    function handleEnrollmentFileChange(nextFile: File | null): void {
+        setEnrollmentCaptureFile(nextFile);
+        setScannerImportState(createIdleState());
     }
 
     function handleCaptureChange(nextCapture: Capture): void {
@@ -409,11 +512,16 @@ export default function FingerprintLiveDemoWorkspace() {
         setLastIdentifyProbeFileName(null);
     }
 
-    function handleProbeFileChange(nextFile: File | null): void {
+    function setProbeCaptureFile(nextFile: File | null): void {
         setProbeFile(nextFile);
         setNotice(null);
         setResultState(createIdleState());
         setLastIdentifyProbeFileName(null);
+    }
+
+    function handleProbeFileChange(nextFile: File | null): void {
+        setProbeCaptureFile(nextFile);
+        setScannerImportState(createIdleState());
     }
 
     function useEnrollmentImageAsProbe(): void {
@@ -421,16 +529,39 @@ export default function FingerprintLiveDemoWorkspace() {
             return;
         }
 
-        setProbeFile(enrollmentFile);
-        setNotice(null);
-        setResultState(createIdleState());
-        setLastIdentifyProbeFileName(null);
+        setProbeCaptureFile(enrollmentFile);
+        setScannerImportState(createIdleState());
     }
 
     function updateEnrollForm(patch: Partial<LiveEnrollForm>): void {
         setEnrollForm((current) => ({ ...current, ...patch }));
         setEnrollState((current) => (current.status === "error" && !current.data ? createIdleState() : current));
         setNotice(null);
+    }
+
+    async function importLatestScannerCapture(target: ScannerImportTarget): Promise<void> {
+        setNotice(null);
+        setScannerImportState((current) => createLoadingState(current.data));
+
+        try {
+            const importedCapture = await importLatestSavedScannerCapture();
+            const scannerFile = await loadScannerCaptureFile(importedCapture);
+
+            if (target === "enrollment") {
+                setEnrollmentCaptureFile(scannerFile);
+            } else {
+                setProbeCaptureFile(scannerFile);
+            }
+
+            setScannerImportState(createSuccessState({
+                target,
+                originalFilename: importedCapture.original_filename,
+                normalizedFilename: importedCapture.normalized_filename,
+                response: importedCapture,
+            }));
+        } catch (error) {
+            setScannerImportState((current) => createErrorState(scannerImportErrorMessage(error), current.data));
+        }
     }
 
     async function runEnroll(): Promise<void> {
@@ -599,6 +730,12 @@ export default function FingerprintLiveDemoWorkspace() {
 
             {!probeFile ? <InlineBanner variant="info">{MISSING_PROBE_MESSAGE}</InlineBanner> : null}
 
+            <ScannerBridgePanel
+                state={scannerImportState}
+                disabled={isBusy}
+                onImport={importLatestScannerCapture}
+            />
+
             <div className="grid gap-5 xl:grid-cols-2">
                 <section className="space-y-5" aria-labelledby="enrollment-capture-heading">
                     <div>
@@ -613,7 +750,7 @@ export default function FingerprintLiveDemoWorkspace() {
                         disabled={isBusy}
                         eyebrow="Enrollment capture"
                         title="Enrollment fingerprint image"
-                        description="Manual upload fallback; scanner SDK wiring next. This image is used only for Enroll identity."
+                        description="Manual upload remains available. This image is used only for Enroll identity."
                         uploadTitle="Upload enrollment fingerprint"
                         uploadDescription="Recommended first step: choose the identity image that should enter the gallery."
                         onFileChange={handleEnrollmentFileChange}
@@ -644,7 +781,7 @@ export default function FingerprintLiveDemoWorkspace() {
                         disabled={isBusy}
                         eyebrow="Probe capture"
                         title="Probe fingerprint image"
-                        description="Manual upload fallback; scanner SDK wiring next. This image is used only for Identify 1:N."
+                        description="Manual upload remains available. This image is used only for Identify 1:N."
                         uploadTitle="Upload probe fingerprint"
                         uploadDescription="Primary demo path: use a separate probe image to avoid same-image matching."
                         onFileChange={handleProbeFileChange}

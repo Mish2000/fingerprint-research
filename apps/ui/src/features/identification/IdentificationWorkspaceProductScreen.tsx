@@ -1,5 +1,6 @@
 import { Database, Search, Sparkles } from "lucide-react";
 import InlineBanner from "../../shared/ui/InlineBanner.tsx";
+import { MetricTile, WorkspaceHero } from "../../shared/ui/presentation.tsx";
 import IdentificationBrowserResultPanel from "./components/IdentificationBrowserResultPanel.tsx";
 import IdentificationBrowserWorkspace from "./components/IdentificationBrowserWorkspace.tsx";
 import IdentificationDemoWorkspace from "./components/IdentificationDemoWorkspace.tsx";
@@ -36,58 +37,31 @@ export default function IdentificationWorkspaceProductScreen() {
 
     return (
         <div className="space-y-6">
-            <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-950 via-emerald-900 to-amber-700 p-6 text-white shadow-sm">
-                <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-                    <div className="space-y-4">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-                            <Sparkles className="h-4 w-4" />
-                            Identification Workspace
-                        </div>
+            <WorkspaceHero
+                eyebrow="Identification Workspace"
+                title="Run guided 1:N demos, browser searches, or operational controls."
+                description="Demo Mode stays curated, Browser Mode builds an isolated gallery, and Operational Mode keeps enroll, search, and delete controls available."
+                icon={Sparkles}
+            >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+                    <IdentificationModeSwitcher
+                        mode={identification.identificationMode}
+                        onChange={identification.setIdentificationMode}
+                    />
 
-                        <div className="space-y-3">
-                            <h2 className="text-3xl font-semibold tracking-tight">
-                                Demo, browser, and operational 1:N search in one Identification workspace.
-                            </h2>
-                            <p className="max-w-3xl text-sm leading-7 text-white/80">
-                                Demo Mode stays curated, Browser Mode adds identity-aware gallery selection plus a dataset-backed probe browser,
-                                and Operational Mode keeps the manual enroll/search/delete controls intact.
-                            </p>
-                        </div>
-
-                        <IdentificationModeSwitcher
-                            mode={identification.identificationMode}
-                            onChange={identification.setIdentificationMode}
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                        <MetricTile label="Demo identities" value={identification.demoIdentities.length} detail="Server-backed gallery" tone="brand" />
+                        <MetricTile label="Browser datasets" value={identification.browserReadyDatasets.length} detail="Catalog-ready" />
+                        <MetricTile label="Demo probes" value={identification.probeCases.length} detail="Curated 1:N stories" />
+                        <MetricTile
+                            label="Browser store"
+                            value={(identification.statsState.data?.browser_seeded_count ?? 0) > 0 ? "Seeded" : "Empty"}
+                            detail={`${identification.statsState.data?.browser_seeded_count ?? 0} identities tracked`}
+                            tone={(identification.statsState.data?.browser_seeded_count ?? 0) > 0 ? "success" : "neutral"}
                         />
                     </div>
-
-                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Demo identities</p>
-                            <p className="mt-2 text-lg font-semibold">{identification.demoIdentities.length}</p>
-                            <p className="mt-1 text-sm text-white/70">Server-backed gallery cards</p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Browser datasets</p>
-                            <p className="mt-2 text-lg font-semibold">{identification.browserReadyDatasets.length}</p>
-                            <p className="mt-1 text-sm text-white/70">Catalog-ready for guided 1:N</p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Demo probes</p>
-                            <p className="mt-2 text-lg font-semibold">{identification.probeCases.length}</p>
-                            <p className="mt-1 text-sm text-white/70">Curated 1:N stories</p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Browser store status</p>
-                            <p className="mt-2 text-lg font-semibold">
-                                {(identification.statsState.data?.browser_seeded_count ?? 0) > 0 ? "Seeded" : "Empty"}
-                            </p>
-                            <p className="mt-1 text-sm text-white/70">
-                                {identification.statsState.data?.browser_seeded_count ?? 0} browser-seeded identities tracked
-                            </p>
-                        </div>
-                    </div>
                 </div>
-            </section>
+            </WorkspaceHero>
 
             {identification.notice ? <InlineBanner variant="success">{identification.notice}</InlineBanner> : null}
 
@@ -108,7 +82,7 @@ export default function IdentificationWorkspaceProductScreen() {
                 <button
                     type="button"
                     onClick={identification.clearPersistedWorkspaceState}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="app-button app-button--secondary"
                 >
                     Clear saved Identification workspace
                 </button>
@@ -191,33 +165,33 @@ export default function IdentificationWorkspaceProductScreen() {
             ) : (
                 <>
                     <InlineBanner variant="info" title="Operational controls preserved">
-                        Demo and Browser add guided product workflows above the existing capabilities. Stats, enroll, manual search, and delete remain available here unchanged.
+                        Demo and Browser add guided workflows. Stats, enroll, manual search, and delete remain available here.
                     </InlineBanner>
                     <IdentificationOperationalWorkspace identification={identification} />
                 </>
             )}
 
             <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                        <Sparkles className="h-4 w-4 text-brand-600" />
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--app-text)]">
+                        <Sparkles className="h-4 w-4 text-[var(--app-brand-text)]" />
                         Guided paths
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">Demo gives a curated walkthrough first, while Browser lets you build a catalog-backed search context without falling back to file uploads.</p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">Demo gives a curated walkthrough. Browser builds a catalog-backed search context without file uploads.</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                        <Search className="h-4 w-4 text-brand-600" />
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--app-text)]">
+                        <Search className="h-4 w-4 text-[var(--app-brand-text)]" />
                         Official endpoint
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">The guided flow still reaches <code>/api/identify/search</code>; there is no parallel identification engine.</p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">Guided flows still reach <code>/api/identify/search</code>; no parallel engine is introduced.</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                        <Database className="h-4 w-4 text-brand-600" />
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--app-text)]">
+                        <Database className="h-4 w-4 text-[var(--app-brand-text)]" />
                         Isolated seeding
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">Browser-selected galleries seed into their own resettable store so operational enrollments stay untouched.</p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">Browser galleries seed into their own resettable store, keeping operational enrollments untouched.</p>
                 </div>
             </div>
         </div>

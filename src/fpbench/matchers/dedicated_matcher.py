@@ -10,7 +10,9 @@ Outputs:
 """
 from __future__ import annotations
 
+import pickle
 import time
+import zipfile
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
@@ -101,6 +103,19 @@ def extract_patch(img_u8: np.ndarray, x: int, y: int, patch: int = PATCH_SIZE) -
 # -------------------------
 # Model definition (must match train_patch_descriptor.py)
 # -------------------------
+DEDICATED_MODEL_VERSION = 2
+SUPPORTED_MODEL_ARCHES = ("v1_small_cnn", "v2_medium_cnn")
+
+
+def encoder_channels_for_arch(model_arch: str) -> list[int]:
+    if model_arch == "v1_small_cnn":
+        return [32, 64, 128]
+    if model_arch == "v2_medium_cnn":
+        return [48, 96, 160, 192]
+    supported = ", ".join(SUPPORTED_MODEL_ARCHES)
+    raise ValueError(f"Unsupported Dedicated model_arch={model_arch!r}. Supported values: {supported}")
+
+
 class SmallEncoder(nn.Module):
     def __init__(self, emb_dim: int = 256):
         super().__init__()
@@ -125,14 +140,54 @@ class SmallEncoder(nn.Module):
         return x
 
 
-class SimCLRModel(nn.Module):
-    def __init__(self, emb_dim: int = 256, proj_dim: int = 128):
+class MediumEncoder(nn.Module):
+    def __init__(self, emb_dim: int = 256):
         super().__init__()
-        self.encoder = SmallEncoder(emb_dim=emb_dim)
+        self.net = nn.Sequential(
+            nn.Conv2d(1, 48, 3, padding=1), nn.BatchNorm2d(48), nn.ReLU(inplace=True),
+            nn.Conv2d(48, 48, 3, padding=1), nn.BatchNorm2d(48), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # 24x24 for patch=48
+
+            nn.Conv2d(48, 96, 3, padding=1), nn.BatchNorm2d(96), nn.ReLU(inplace=True),
+            nn.Conv2d(96, 96, 3, padding=1), nn.BatchNorm2d(96), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # 12x12
+
+            nn.Conv2d(96, 160, 3, padding=1), nn.BatchNorm2d(160), nn.ReLU(inplace=True),
+            nn.Conv2d(160, 160, 3, padding=1), nn.BatchNorm2d(160), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # 6x6
+
+            nn.Conv2d(160, 192, 3, padding=1), nn.BatchNorm2d(192), nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d(1),  # 1x1
+        )
+        self.fc = nn.Linear(192, emb_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.net(x)
+        x = x.flatten(1)
+        x = self.fc(x)
+        return x
+
+
+def build_encoder(model_arch: str, *, emb_dim: int) -> nn.Module:
+    if model_arch == "v1_small_cnn":
+        return SmallEncoder(emb_dim=emb_dim)
+    if model_arch == "v2_medium_cnn":
+        return MediumEncoder(emb_dim=emb_dim)
+    supported = ", ".join(SUPPORTED_MODEL_ARCHES)
+    raise ValueError(f"Unsupported Dedicated model_arch={model_arch!r}. Supported values: {supported}")
+
+
+class SimCLRModel(nn.Module):
+    def __init__(self, emb_dim: int = 256, proj_dim: int = 128, model_arch: str = "v1_small_cnn"):
+        super().__init__()
+        self.model_arch = str(model_arch)
+        self.emb_dim = int(emb_dim)
+        self.proj_dim = int(proj_dim)
+        self.encoder = build_encoder(self.model_arch, emb_dim=self.emb_dim)
         self.proj = nn.Sequential(
-            nn.Linear(emb_dim, emb_dim),
+            nn.Linear(self.emb_dim, self.emb_dim),
             nn.ReLU(inplace=True),
-            nn.Linear(emb_dim, proj_dim),
+            nn.Linear(self.emb_dim, self.proj_dim),
         )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -141,6 +196,41 @@ class SimCLRModel(nn.Module):
         z = F.normalize(z, dim=1)
         h = F.normalize(h, dim=1)
         return h, z
+
+
+def checkpoint_model_config(ckpt: dict) -> dict:
+    if not isinstance(ckpt, dict):
+        raise ValueError("Unexpected checkpoint format. Expected a dict checkpoint.")
+
+    raw = ckpt.get("model_config")
+    train_args = ckpt.get("args", {}) if isinstance(ckpt.get("args", {}), dict) else {}
+
+    if raw is None:
+        cfg = {
+            "dedicated_model_version": 1,
+            "model_arch": "v1_small_cnn",
+            "patch": int(train_args.get("patch", PATCH_SIZE)),
+            "emb_dim": int(train_args.get("emb_dim", 256)),
+            "proj_dim": int(train_args.get("proj_dim", 128)),
+            "encoder_channels": encoder_channels_for_arch("v1_small_cnn"),
+            "legacy_assumed_config": True,
+        }
+    elif isinstance(raw, dict):
+        cfg = dict(raw)
+    else:
+        raise ValueError("Invalid checkpoint model_config. Expected a dict.")
+
+    model_arch = str(cfg.get("model_arch", "v1_small_cnn"))
+    if model_arch not in SUPPORTED_MODEL_ARCHES:
+        supported = ", ".join(SUPPORTED_MODEL_ARCHES)
+        raise ValueError(f"Unsupported Dedicated checkpoint model_arch={model_arch!r}. Supported values: {supported}")
+
+    cfg["model_arch"] = model_arch
+    cfg["patch"] = int(cfg.get("patch", train_args.get("patch", PATCH_SIZE)))
+    cfg["emb_dim"] = int(cfg.get("emb_dim", train_args.get("emb_dim", 256)))
+    cfg["proj_dim"] = int(cfg.get("proj_dim", train_args.get("proj_dim", 128)))
+    cfg.setdefault("encoder_channels", encoder_channels_for_arch(model_arch))
+    return cfg
 
 
 def default_ckpt_path(root: Path) -> Path:
@@ -225,13 +315,17 @@ class DedicatedMatcher:
             ckpt_path = str(default_ckpt_path(self.root))
         self.ckpt_path = Path(ckpt_path)
 
-        self._model = SimCLRModel(emb_dim=256, proj_dim=128).to(self.device).eval()
+        self.model_config: Dict[str, Any] = {}
+        self.model_arch = "v1_small_cnn"
+        self.emb_dim = 256
+        self.proj_dim = 128
+        self._model = SimCLRModel(emb_dim=self.emb_dim, proj_dim=self.proj_dim, model_arch=self.model_arch).to(self.device).eval()
         self._load_ckpt(self.ckpt_path)
 
         # cache: norm_path -> (pts_xy float32 Nx2, emb float32 NxD)
         self._cache: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
 
-    def _load_ckpt(self, ckpt_path: Path) -> None:
+    def _validate_ckpt_file(self, ckpt_path: Path) -> None:
         if not ckpt_path.exists():
             raise FileNotFoundError(
                 f"Descriptor checkpoint not found: {ckpt_path}\n"
@@ -241,20 +335,72 @@ class DedicatedMatcher:
                 "reports/week06+07/patch_descriptor/final/patch_descriptor_ckpt.pth, "
                 "reports/week06/patch_descriptor/final/patch_descriptor_ckpt.pth"
             )
+        if not ckpt_path.is_file():
+            raise ValueError(f"Invalid descriptor checkpoint: path is not a file: {ckpt_path}")
+
         try:
-            ckpt = torch.load(str(ckpt_path), map_location=self.device, weights_only=True)
+            size = int(ckpt_path.stat().st_size)
+        except OSError as exc:
+            raise ValueError(f"Invalid descriptor checkpoint: could not stat checkpoint {ckpt_path}: {exc}") from exc
+
+        if size <= 0:
+            raise ValueError(f"Invalid descriptor checkpoint: file is empty (0 bytes): {ckpt_path}")
+        if size < 16:
+            raise ValueError(
+                f"Invalid descriptor checkpoint: file is too small to be a valid PyTorch checkpoint "
+                f"({size} bytes): {ckpt_path}"
+            )
+
+        try:
+            with ckpt_path.open("rb") as f:
+                header = f.read(4)
+        except OSError as exc:
+            raise ValueError(f"Invalid descriptor checkpoint: could not read checkpoint header {ckpt_path}: {exc}") from exc
+
+        if len(header) < 4:
+            raise ValueError(f"Invalid descriptor checkpoint: incomplete checkpoint header: {ckpt_path}")
+
+    def _read_ckpt(self, ckpt_path: Path) -> Any:
+        try:
+            return torch.load(str(ckpt_path), map_location=self.device, weights_only=True)
         except TypeError:
-            ckpt = torch.load(str(ckpt_path), map_location=self.device)
+            try:
+                return torch.load(str(ckpt_path), map_location=self.device)
+            except (EOFError, RuntimeError, OSError, ValueError, pickle.UnpicklingError, zipfile.BadZipFile) as exc:
+                raise ValueError(f"Invalid descriptor checkpoint: failed to load PyTorch checkpoint {ckpt_path}: {exc}") from exc
+        except (EOFError, RuntimeError, OSError, ValueError, pickle.UnpicklingError, zipfile.BadZipFile) as exc:
+            raise ValueError(f"Invalid descriptor checkpoint: failed to load PyTorch checkpoint {ckpt_path}: {exc}") from exc
+
+    def _load_ckpt(self, ckpt_path: Path) -> None:
+        self._validate_ckpt_file(ckpt_path)
+        ckpt = self._read_ckpt(ckpt_path)
 
         if isinstance(ckpt, dict) and "model" in ckpt:
+            self.model_config = checkpoint_model_config(ckpt)
             state = ckpt["model"]
         elif isinstance(ckpt, dict):
             # allow direct state_dict save
+            self.model_config = checkpoint_model_config(ckpt)
             state = ckpt
         else:
             raise ValueError("Unexpected checkpoint format. Expected dict with key 'model'.")
 
-        self._model.load_state_dict(state, strict=True)
+        self.model_arch = str(self.model_config["model_arch"])
+        self.emb_dim = int(self.model_config["emb_dim"])
+        self.proj_dim = int(self.model_config["proj_dim"])
+        self._model = SimCLRModel(
+            emb_dim=self.emb_dim,
+            proj_dim=self.proj_dim,
+            model_arch=self.model_arch,
+        ).to(self.device).eval()
+
+        try:
+            self._model.load_state_dict(state, strict=True)
+        except RuntimeError as exc:
+            raise ValueError(
+                f"Invalid descriptor checkpoint: state_dict is incompatible with "
+                f"model_arch={self.model_arch!r}, emb_dim={self.emb_dim}, proj_dim={self.proj_dim}: {exc}"
+            ) from exc
 
     @torch.no_grad()
     def embed_image(self, img_path: str, *, capture: str) -> Tuple[np.ndarray, np.ndarray, Dict[str, float]]:
@@ -290,7 +436,7 @@ class DedicatedMatcher:
 
         if len(valid) == 0:
             pts_xy = np.zeros((0, 2), dtype=np.float32)
-            emb = np.zeros((0, 256), dtype=np.float32)
+            emb = np.zeros((0, self.emb_dim), dtype=np.float32)
             self._cache[key] = (pts_xy, emb)
             t_total = (time.perf_counter() - t0) * 1000.0
             return pts_xy, emb, {"preprocess": t_pre, "kpts": (time.perf_counter() - t1) * 1000.0, "embed": 0.0,

@@ -119,6 +119,9 @@ class BenchmarkProvenance(BaseModel):
     data_dir: Optional[str] = None
     git_commit: Optional[str] = None
     available_artifacts: List[str] = Field(default_factory=list)
+    benchmark_source_root: Optional[str] = None
+    benchmark_source_label: Optional[str] = None
+    showcase_exclusion_note: Optional[str] = None
 
 
 class BenchmarkRow(BaseModel):
@@ -149,6 +152,8 @@ class BenchmarkRunInfo(BaseModel):
     benchmark_methods: List[str] = Field(default_factory=list)
     splits: List[str] = Field(default_factory=list)
     dataset_info: Optional[NamedInfo] = None
+    benchmark_source_root: Optional[str] = None
+    benchmark_source_label: Optional[str] = None
 
 
 class BenchmarkRunsResponse(BaseModel):

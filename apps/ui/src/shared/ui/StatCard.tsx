@@ -18,9 +18,9 @@ export default function StatCard({ icon: Icon, label, value, tone = "brand" }: S
                 <div className="stat-card__icon">
                     <Icon className="h-4 w-4" />
                 </div>
-                <div>
-                    <p className="stat-card__label">{label}</p>
-                    <p className="stat-card__value">{value}</p>
+                <div className="min-w-0">
+                    <p className="stat-card__label safe-truncate" title={label}>{label}</p>
+                    <p className="stat-card__value safe-text" title={value}>{value}</p>
                 </div>
             </div>
         </div>

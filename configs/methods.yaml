@@ -298,7 +298,7 @@ methods:
     benchmark_name: dedicated
     ui_label: Dedicated (Patch AI)
     family: learned_patch_matcher
-    status: active
+    status: experimental
     current_sources:
     - src/fpbench/matchers/dedicated_matcher.py
     - apps/api/service.py
@@ -338,6 +338,9 @@ methods:
       (0.25), inlier_ratio (0.25), and stability_term (0.15), clipped to [0,1].
     - Overlay visualizations and detailed tentative/inlier similarity diagnostics
       are available for this method.
+    - Dedicated Patch AI is tracked as experimental and excluded from the canonical
+      h5 benchmark showcase because the current v2 checkpoint did not pass
+      verification-level performance criteria.
     capture_support:
     - plain
     - roll

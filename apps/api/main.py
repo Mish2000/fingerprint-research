@@ -190,6 +190,15 @@ app.add_middleware(
 )
 router = APIRouter()
 
+_BENCHMARK_ARTIFACT_MEDIA_TYPES = {
+    ".png": "image/png",
+    ".csv": "text/csv",
+    ".json": "application/json",
+    ".md": "text/markdown",
+    ".log": "text/plain",
+    ".txt": "text/plain",
+}
+
 
 def _get_match_service() -> api_service.MatchService:
     _initialize_match_service()
@@ -482,7 +491,11 @@ def benchmark_best(
 @router.get("/benchmark/artifacts/{run}/{filename:path}")
 def benchmark_artifact(run: str, filename: str) -> FileResponse:
     try:
-        return FileResponse(resolve_benchmark_artifact(run, filename))
+        artifact_path = resolve_benchmark_artifact(run, filename)
+        return FileResponse(
+            artifact_path,
+            media_type=_BENCHMARK_ARTIFACT_MEDIA_TYPES.get(artifact_path.suffix.lower(), "application/octet-stream"),
+        )
     except Exception as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

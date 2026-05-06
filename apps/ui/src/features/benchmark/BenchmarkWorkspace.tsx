@@ -1,22 +1,25 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { BarChart3, RefreshCcw, Trophy, Zap } from "lucide-react";
 import { BenchmarkComparisonTable } from "../../components/BenchmarkComparisonTable.tsx";
 import RequestState from "../../components/RequestState.tsx";
-import type { BenchmarkBestMetric, BestMethodEntry, ComparisonRow, NamedInfo } from "../../types";
+import { INPUT_CLASS_NAME } from "../../shared/ui/inputClasses.ts";
+import { MetricTile, StatusPill, WorkspaceHero } from "../../shared/ui/presentation.tsx";
+import type { BenchmarkBestMetric, BenchmarkViewMode, BestMethodEntry, ComparisonRow, NamedInfo } from "../../types";
 import BenchmarkEvidencePanel from "./BenchmarkEvidencePanel.tsx";
 import {
     bestMetricLabel,
     championValue,
+    championTradeoffText,
     formatLatency,
     formatMethodLabel,
     formatMetric,
+    formatPairs,
     highlightClassName,
     sortModeForMetric,
     sortModeLabel,
+    viewModeLabel,
 } from "./benchmarkPresentation.ts";
 import { useBenchmark } from "./hooks/useBenchmark.ts";
-
-const FILTER_CLASS_NAME = "w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-500/40 focus:ring-4 focus:ring-sky-500/10";
 
 const SORT_OPTIONS = [
     { key: "best_accuracy", label: "Best accuracy" },
@@ -28,6 +31,7 @@ type ChampionCardProps = {
     entry: BestMethodEntry;
     datasetInfo: Record<string, NamedInfo>;
     splitInfo: Record<string, NamedInfo>;
+    rows: ComparisonRow[];
     onClick: () => void;
 };
 
@@ -35,14 +39,26 @@ function validationStateLabel(validationState: string): string {
     if (validationState === "partial") {
         return "Partial evidence";
     }
-    return "Validated showcase";
+    if (validationState === "snapshot") {
+        return "Smoke snapshot";
+    }
+    if (validationState === "archived") {
+        return "Archive evidence";
+    }
+    return "Validated";
 }
 
-function validationStateClassName(validationState: string): string {
+function validationStateTone(validationState: string): "success" | "warning" | "error" | "neutral" {
     if (validationState === "partial") {
-        return "border-rose-500/25 bg-rose-500/10 text-rose-200";
+        return "error";
     }
-    return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
+    if (validationState === "snapshot") {
+        return "warning";
+    }
+    if (validationState === "archived") {
+        return "neutral";
+    }
+    return "success";
 }
 
 function deriveChampionFallback(rows: ComparisonRow[]): BestMethodEntry[] {
@@ -93,7 +109,7 @@ function mergeChampionEntries(bestEntries: BestMethodEntry[], fallbackEntries: B
         .filter((entry): entry is BestMethodEntry => entry != null);
 }
 
-function ChampionCard({ entry, datasetInfo, splitInfo, onClick }: ChampionCardProps) {
+function ChampionCard({ entry, datasetInfo, splitInfo, rows, onClick }: ChampionCardProps) {
     const value =
         entry.metric === "best_latency"
             ? formatLatency(entry.value)
@@ -106,24 +122,25 @@ function ChampionCard({ entry, datasetInfo, splitInfo, onClick }: ChampionCardPr
         <button
             type="button"
             onClick={onClick}
-            className={`rounded-[1.6rem] border border-slate-800 bg-slate-950/75 p-5 text-left text-slate-100 shadow-[0_20px_80px_rgba(2,6,23,0.35)] transition hover:border-sky-500/35 hover:bg-slate-950 ${highlightClassName(sortModeForMetric(entry.metric))}`}
+            className={`surface-card p-5 text-left transition hover:border-[var(--app-brand-border)] ${highlightClassName(sortModeForMetric(entry.metric))}`}
         >
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="flex min-w-0 items-start justify-between gap-4">
+                <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">
                         {bestMetricLabel(entry.metric)}
                     </p>
-                    <p className="mt-3 text-2xl font-semibold text-slate-50">{formatMethodLabel(entry.method, entry.method_label)}</p>
+                    <p className="mt-3 safe-text text-xl font-semibold text-[var(--app-text)]">{formatMethodLabel(entry.method, entry.method_label)}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-sky-300">
+                <div className="rounded-xl border border-[var(--app-brand-border)] bg-[var(--app-brand-surface)] p-3 text-[var(--app-brand-text)]">
                     {iconNode}
                 </div>
             </div>
-            <div className="mt-5 space-y-2 text-sm text-slate-300">
-                <div className="font-semibold text-slate-50">{value}</div>
-                <div>{datasetInfo[entry.dataset]?.label ?? entry.dataset}</div>
-                <div>{splitInfo[entry.split]?.label ?? entry.split}</div>
-                <div className="text-slate-500">{entry.run_family ?? entry.run}</div>
+            <div className="mt-5 space-y-2 text-sm text-[var(--app-text-muted)]">
+                <div className="font-semibold text-[var(--app-text)]">{value}</div>
+                <div className="safe-text font-medium text-[var(--app-text-soft)]">{championTradeoffText(entry, rows)}</div>
+                <div className="safe-text">{datasetInfo[entry.dataset]?.label ?? entry.dataset}</div>
+                <div className="safe-text">{splitInfo[entry.split]?.label ?? entry.split}</div>
+                <div className="safe-text">{entry.run_family ?? entry.run}</div>
             </div>
         </button>
     );
@@ -131,12 +148,14 @@ function ChampionCard({ entry, datasetInfo, splitInfo, onClick }: ChampionCardPr
 
 function FilterField({
     label,
+    caption,
     value,
     onChange,
     disabled,
     children,
 }: {
     label: string;
+    caption?: string;
     value: string;
     onChange: (value: string) => void;
     disabled?: boolean;
@@ -144,15 +163,16 @@ function FilterField({
 }) {
     return (
         <label className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</span>
+            <span className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">{label}</span>
             <select
-                className={FILTER_CLASS_NAME}
+                className={INPUT_CLASS_NAME}
                 value={value}
                 disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
             >
                 {children}
             </select>
+            {caption ? <p className="text-xs text-[var(--app-text-muted)]">{caption}</p> : null}
         </label>
     );
 }
@@ -160,32 +180,61 @@ function FilterField({
 function LoadingSkeleton() {
     return (
         <div className="space-y-6 animate-pulse">
-            <div className="rounded-[2rem] border border-slate-800 bg-slate-950/75 p-6">
-                <div className="h-6 w-44 rounded-full bg-slate-800" />
-                <div className="mt-4 h-4 w-2/3 rounded-full bg-slate-900" />
-                <div className="mt-2 h-4 w-1/2 rounded-full bg-slate-900" />
+            <div className="surface-card p-6">
+                <div className="h-6 w-44 rounded-full bg-[var(--app-surface-muted)]" />
+                <div className="mt-4 h-4 w-2/3 rounded-full bg-[var(--app-surface-muted)]" />
+                <div className="mt-2 h-4 w-1/2 rounded-full bg-[var(--app-surface-muted)]" />
                 <div className="mt-6 grid gap-4 md:grid-cols-4">
-                    <div className="h-14 rounded-2xl bg-slate-900" />
-                    <div className="h-14 rounded-2xl bg-slate-900" />
-                    <div className="h-14 rounded-2xl bg-slate-900" />
-                    <div className="h-14 rounded-2xl bg-slate-900" />
+                    <div className="h-14 rounded-xl bg-[var(--app-surface-muted)]" />
+                    <div className="h-14 rounded-xl bg-[var(--app-surface-muted)]" />
+                    <div className="h-14 rounded-xl bg-[var(--app-surface-muted)]" />
+                    <div className="h-14 rounded-xl bg-[var(--app-surface-muted)]" />
                 </div>
             </div>
             <div className="grid gap-4 xl:grid-cols-3">
-                <div className="h-40 rounded-[1.6rem] bg-slate-950/75" />
-                <div className="h-40 rounded-[1.6rem] bg-slate-950/75" />
-                <div className="h-40 rounded-[1.6rem] bg-slate-950/75" />
+                <div className="h-40 rounded-xl bg-[var(--app-surface-muted)]" />
+                <div className="h-40 rounded-xl bg-[var(--app-surface-muted)]" />
+                <div className="h-40 rounded-xl bg-[var(--app-surface-muted)]" />
             </div>
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_380px]">
-                <div className="h-[28rem] rounded-[1.75rem] bg-slate-950/75" />
-                <div className="h-[28rem] rounded-[1.75rem] bg-slate-950/75" />
+                <div className="h-[28rem] rounded-xl bg-[var(--app-surface-muted)]" />
+                <div className="h-[28rem] rounded-xl bg-[var(--app-surface-muted)]" />
             </div>
         </div>
     );
 }
 
+function sourceLabelForRow(row: ComparisonRow | null | undefined): string {
+    if (row?.provenance?.benchmark_source_label) {
+        return row.provenance.benchmark_source_label;
+    }
+    if (row?.provenance?.benchmark_source_root === "reference") {
+        return "Reference artifacts";
+    }
+    if (row?.provenance?.benchmark_source_root === "live") {
+        return "Live artifacts";
+    }
+    return "Benchmark artifacts";
+}
+
+function firstRankedRow(rows: ComparisonRow[], rankKey: "auc_rank" | "latency_rank"): ComparisonRow | null {
+    return rows.find((row) => row[rankKey] === 1) ?? rows[0] ?? null;
+}
+
+function viewModeOptions(available: NamedInfo[], selectedViewMode: BenchmarkViewMode): NamedInfo[] {
+    if (available.length > 0) {
+        return available;
+    }
+    return [{
+        key: selectedViewMode,
+        label: viewModeLabel(selectedViewMode),
+        summary: "",
+    }];
+}
+
 export default function BenchmarkWorkspace() {
     const benchmark = useBenchmark();
+    const evidencePanelRef = useRef<HTMLDivElement>(null);
     const summary = benchmark.summary;
     const datasetInfo = benchmark.comparison?.dataset_info ?? {};
     const splitInfo = benchmark.comparison?.split_info ?? {};
@@ -194,6 +243,28 @@ export default function BenchmarkWorkspace() {
     const currentRunFamily = benchmark.selectedRow?.run_family
         ?? summary?.current_run_families?.[0]
         ?? "Resolving run family";
+    const availableViewModes = viewModeOptions(benchmark.availableViewModes, benchmark.selectedViewMode);
+    const bestAccuracyRow = firstRankedRow(benchmark.comparisonRows, "auc_rank");
+    const fastestRow = firstRankedRow(benchmark.comparisonRows, "latency_rank");
+    const storyPairCount = bestAccuracyRow?.n_pairs ?? fastestRow?.n_pairs ?? benchmark.selectedRow?.n_pairs ?? null;
+    const storyArtifactCount = benchmark.selectedRow?.artifact_count
+        ?? Math.max(0, ...benchmark.comparisonRows.map((row) => row.artifact_count));
+    const storySourceLabel = sourceLabelForRow(benchmark.selectedRow ?? bestAccuracyRow);
+    const fastestIsMostAccurate = Boolean(
+        bestAccuracyRow
+        && fastestRow
+        && bestAccuracyRow.run === fastestRow.run
+        && bestAccuracyRow.method === fastestRow.method
+        && bestAccuracyRow.benchmark_method === fastestRow.benchmark_method
+        && bestAccuracyRow.split === fastestRow.split,
+    );
+    const tradeoffDetail = fastestRow
+        ? fastestIsMostAccurate
+            ? "Best balance on this split."
+            : "Fastest is not the top AUC method."
+        : "Latency evidence unavailable.";
+    const hasArchiveAlternative = benchmark.selectedViewMode === "canonical"
+        && benchmark.availableViewModes.some((item) => item.key === "archive");
 
     const handleChampionClick = (entry: BestMethodEntry): void => {
         benchmark.setSelectedSortMode(sortModeForMetric(entry.metric));
@@ -206,114 +277,97 @@ export default function BenchmarkWorkspace() {
         if (matchingRow) {
             benchmark.setSelectedRowKey(benchmark.rowKey(matchingRow));
         }
+        window.requestAnimationFrame(() => {
+            evidencePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            evidencePanelRef.current?.focus({ preventScroll: true });
+        });
     };
 
     return (
-        <div className="space-y-6 text-slate-100">
-            <section className="relative overflow-hidden rounded-[2rem] border border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_30%),linear-gradient(180deg,rgba(15,23,42,0.98),rgba(2,6,23,1))] p-6 shadow-[0_24px_120px_rgba(2,6,23,0.45)]">
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
-                <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="max-w-3xl space-y-5">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-200">
-                                Curated full results
-                            </span>
-                            <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${validationStateClassName(summary?.validation_state ?? "validated")}`}>
-                                {validationStateLabel(summary?.validation_state ?? "validated")}
-                            </span>
-                        </div>
-
-                        <div>
-                            <h2 className="text-3xl font-semibold tracking-tight text-slate-50">Benchmarks</h2>
-                            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                                Curated full benchmark results for validated showcase runs. Compare accuracy, EER, latency,
-                                and method evidence without browsing historical tiers.
-                            </p>
-                        </div>
-
-                        <div className="grid gap-4 md:grid-cols-4">
-                            <FilterField
-                                label="Dataset"
-                                value={benchmark.selectedDataset}
-                                onChange={(value) => benchmark.setSelectedDataset(value)}
-                            >
-                                {benchmark.availableDatasets.map((item) => (
-                                    <option key={item.key} value={item.key}>
-                                        {item.label}
-                                    </option>
-                                ))}
-                            </FilterField>
-
-                            <FilterField
-                                label="Split"
-                                value={benchmark.selectedSplit}
-                                onChange={(value) => benchmark.setSelectedSplit(value)}
-                                disabled={benchmark.availableSplits.length === 0}
-                            >
-                                {benchmark.availableSplits.map((item) => (
-                                    <option key={item.key} value={item.key}>
-                                        {item.label}
-                                    </option>
-                                ))}
-                            </FilterField>
-
-                            <FilterField
-                                label="Sort by"
-                                value={benchmark.selectedSortMode}
-                                onChange={(value) => benchmark.setSelectedSortMode(value as typeof benchmark.selectedSortMode)}
-                            >
-                                {SORT_OPTIONS.map((item) => (
-                                    <option key={item.key} value={item.key}>
-                                        {item.label}
-                                    </option>
-                                ))}
-                            </FilterField>
-
-                            <div className="space-y-2">
-                                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Refresh results</span>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        void benchmark.refreshAll();
-                                    }}
-                                    disabled={benchmark.isLoading}
-                                    className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-sky-500/35 hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    <RefreshCcw className="mr-2 h-4 w-4" />
-                                    Refresh results
-                                </button>
-                            </div>
-                        </div>
+        <div className="space-y-6">
+            <WorkspaceHero
+                eyebrow={viewModeLabel(benchmark.selectedViewMode)}
+                title="Validated fingerprint matching benchmark"
+                description="A curated benchmark view for comparing tested datasets, method winners, speed trade-offs, and evidence artifacts."
+                icon={BarChart3}
+            >
+                <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill tone="brand">{viewModeLabel(benchmark.selectedViewMode)}</StatusPill>
+                        <StatusPill tone={validationStateTone(summary?.validation_state ?? "validated")}>
+                            {validationStateLabel(summary?.validation_state ?? "validated")}
+                        </StatusPill>
+                        <StatusPill>Validated evidence datasets</StatusPill>
                     </div>
 
-                    <div className="w-full max-w-md rounded-[1.6rem] border border-slate-800 bg-slate-950/70 p-5">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Current scope</p>
-                                <p className="mt-3 text-xl font-semibold text-slate-50">
-                                    {summary?.dataset_info?.label ?? "Loading dataset"}
-                                </p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-sky-300">
-                                <BarChart3 className="h-5 w-5" />
-                            </div>
+                    <div className="grid gap-4 md:grid-cols-5">
+                        <FilterField
+                            label="View"
+                            value={benchmark.selectedViewMode}
+                            onChange={(value) => benchmark.setSelectedViewMode(value as BenchmarkViewMode)}
+                        >
+                            {availableViewModes.map((item) => (
+                                <option key={item.key} value={item.key}>
+                                    {viewModeLabel(item.key)}
+                                </option>
+                            ))}
+                        </FilterField>
+
+                        <FilterField
+                            label="Dataset"
+                            caption="Showing datasets with validated benchmark evidence."
+                            value={benchmark.selectedDataset}
+                            onChange={(value) => benchmark.setSelectedDataset(value)}
+                        >
+                            {benchmark.availableDatasets.map((item) => (
+                                <option key={item.key} value={item.key}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </FilterField>
+
+                        <FilterField
+                            label="Split"
+                            value={benchmark.selectedSplit}
+                            onChange={(value) => benchmark.setSelectedSplit(value)}
+                            disabled={benchmark.availableSplits.length === 0}
+                        >
+                            {benchmark.availableSplits.map((item) => (
+                                <option key={item.key} value={item.key}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </FilterField>
+
+                        <FilterField
+                            label="Sort"
+                            value={benchmark.selectedSortMode}
+                            onChange={(value) => benchmark.setSelectedSortMode(value as typeof benchmark.selectedSortMode)}
+                        >
+                            {SORT_OPTIONS.map((item) => (
+                                <option key={item.key} value={item.key}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </FilterField>
+
+                        <div className="space-y-2">
+                            <span className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Refresh</span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    void benchmark.refreshAll();
+                                }}
+                                disabled={benchmark.isLoading}
+                                className="app-button app-button--secondary w-full"
+                            >
+                                <RefreshCcw className="mr-2 h-4 w-4" />
+                                Refresh
+                            </button>
                         </div>
-                        <dl className="mt-4 space-y-3 text-sm text-slate-300">
-                            <div className="flex items-center justify-between gap-4">
-                                <dt className="text-slate-500">Split</dt>
-                                <dd>{summary?.split_info?.label ?? "Resolving split"}</dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-4">
-                                <dt className="text-slate-500">Run family</dt>
-                                <dd className="text-right">{currentRunFamily}</dd>
-                            </div>
-                        </dl>
-                        <p className="mt-4 text-sm leading-6 text-slate-400">
-                            Showing curated full benchmark results.
-                        </p>
                     </div>
                 </div>
-            </section>
+            </WorkspaceHero>
 
             {benchmark.summaryState.status === "loading" && !summary ? <LoadingSkeleton /> : null}
 
@@ -334,22 +388,73 @@ export default function BenchmarkWorkspace() {
                     <section className="space-y-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Executive summary</p>
-                                <h3 className="mt-2 text-2xl font-semibold text-slate-50">
-                                    Showcase winners and trade-offs
+                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Benchmark Story</p>
+                                <h3 className="mt-2 text-2xl font-semibold text-[var(--app-text)]">
+                                    Validated fingerprint matching benchmark
                                 </h3>
                             </div>
-                            <div className="flex flex-wrap gap-3 text-sm text-slate-400">
-                                <div className="rounded-full border border-slate-800 bg-slate-950/80 px-3 py-1.5">
+                            <div className="flex flex-wrap gap-3 text-sm text-[var(--app-text-muted)]">
+                                <StatusPill>
                                     {summary.result_count} comparison rows
-                                </div>
-                                <div className="rounded-full border border-slate-800 bg-slate-950/80 px-3 py-1.5">
-                                    {summary.method_count} methods
-                                </div>
-                                <div className="rounded-full border border-slate-800 bg-slate-950/80 px-3 py-1.5">
+                                </StatusPill>
+                                <StatusPill>
+                                    {summary.method_count} validated benchmark methods
+                                </StatusPill>
+                                <StatusPill tone="brand">
                                     Sorted by {sortModeLabel(benchmark.selectedSortMode)}
-                                </div>
+                                </StatusPill>
                             </div>
+                        </div>
+
+                        <div className="grid gap-4 xl:grid-cols-3">
+                            <MetricTile
+                                icon={BarChart3}
+                                label="Coverage"
+                                value={<span className="safe-truncate">{summary.dataset_info?.label ?? summary.dataset}</span>}
+                                detail={`${summary.split_info?.label ?? summary.split} - ${formatPairs(storyPairCount)} pairs`}
+                                title={`${summary.dataset_info?.label ?? summary.dataset} - ${summary.split_info?.label ?? summary.split}`}
+                                tone="brand"
+                            />
+                            <MetricTile
+                                icon={Trophy}
+                                label="Winner"
+                                value={<span className="safe-truncate">{bestAccuracyRow ? formatMethodLabel(bestAccuracyRow.method, bestAccuracyRow.method_label) : "Resolving"}</span>}
+                                detail={`AUC ${formatMetric(bestAccuracyRow?.auc)}`}
+                                title={bestAccuracyRow ? formatMethodLabel(bestAccuracyRow.method, bestAccuracyRow.method_label) : "Resolving winner"}
+                                tone="success"
+                            />
+                            <MetricTile
+                                icon={Zap}
+                                label="Trade-off"
+                                value={<span className="safe-truncate">{fastestRow ? formatMethodLabel(fastestRow.method, fastestRow.method_label) : "Resolving"}</span>}
+                                detail={`${formatLatency(fastestRow?.latency_ms)} - ${tradeoffDetail}`}
+                                title={fastestRow ? formatMethodLabel(fastestRow.method, fastestRow.method_label) : "Resolving fastest method"}
+                                tone="warning"
+                            />
+                        </div>
+
+                        <div className="flex flex-wrap gap-3">
+                            <StatusPill tone={validationStateTone(summary.validation_state)}>
+                                {validationStateLabel(summary.validation_state)}
+                            </StatusPill>
+                            <StatusPill title={currentRunFamily}>
+                                {currentRunFamily}
+                            </StatusPill>
+                            <StatusPill tone="info">
+                                {storySourceLabel}
+                            </StatusPill>
+                            <StatusPill>
+                                {storyArtifactCount} artifacts
+                            </StatusPill>
+                        </div>
+                    </section>
+
+                    <section className="space-y-4">
+                        <div>
+                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Champion methods</p>
+                            <h3 className="mt-2 text-2xl font-semibold text-[var(--app-text)]">
+                                Winners and trade-offs
+                            </h3>
                         </div>
 
                         {championEntries.length > 0 ? (
@@ -360,48 +465,48 @@ export default function BenchmarkWorkspace() {
                                         entry={entry}
                                         datasetInfo={datasetInfo}
                                         splitInfo={splitInfo}
+                                        rows={benchmark.comparisonRows}
                                         onClick={() => handleChampionClick(entry)}
                                     />
                                 ))}
                             </div>
                         ) : benchmark.bestState.status === "loading" || benchmark.comparisonState.status === "loading" ? (
                             <div className="grid gap-4 xl:grid-cols-3">
-                                <div className="h-40 rounded-[1.6rem] bg-slate-950/75 animate-pulse" />
-                                <div className="h-40 rounded-[1.6rem] bg-slate-950/75 animate-pulse" />
-                                <div className="h-40 rounded-[1.6rem] bg-slate-950/75 animate-pulse" />
+                                <div className="h-40 rounded-xl bg-[var(--app-surface-muted)] animate-pulse" />
+                                <div className="h-40 rounded-xl bg-[var(--app-surface-muted)] animate-pulse" />
+                                <div className="h-40 rounded-xl bg-[var(--app-surface-muted)] animate-pulse" />
                             </div>
                         ) : (
                             <RequestState
                                 variant="empty"
-                                title="No showcase winners for this selection"
-                                description="Choose another dataset or split with curated full benchmark results."
+                                title={`No ${viewModeLabel(benchmark.selectedViewMode).toLowerCase()} winners for this selection`}
+                                description="Choose another dataset, split, or view with benchmark rows."
                             />
                         )}
                     </section>
 
                     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_380px]">
                         <div className="space-y-6">
-                            <div className="rounded-[1.75rem] border border-slate-800 bg-slate-950/80 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.35)]">
+                            <div className="surface-card p-6">
                                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                     <div className="space-y-2">
-                                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Full comparison</p>
-                                        <h3 className="text-2xl font-semibold text-slate-50">Method comparison table</h3>
-                                        <p className="max-w-2xl text-sm leading-6 text-slate-400">
-                                            Compare the validated showcase methods on the active dataset and split. Missing values
-                                            remain stable as N/A so the comparison stays readable.
+                                        <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Full comparison</p>
+                                        <h3 className="text-2xl font-semibold text-[var(--app-text)]">Method comparison table</h3>
+                                        <p className="max-w-2xl text-sm leading-6 text-[var(--app-text-muted)]">
+                                            Compare {viewModeLabel(benchmark.selectedViewMode).toLowerCase()} validated benchmark methods on the active dataset and split.
                                         </p>
                                     </div>
-                                    <div className="rounded-full border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-300">
+                                    <StatusPill title={`${summary.dataset_info?.label ?? summary.dataset} - ${summary.split_info?.label ?? summary.split}`}>
                                         {summary.dataset_info?.label ?? summary.dataset} - {summary.split_info?.label ?? summary.split}
-                                    </div>
+                                    </StatusPill>
                                 </div>
 
                                 <div className="mt-6">
                                     {benchmark.comparisonState.status === "loading" && benchmark.comparisonRows.length === 0 ? (
                                         <RequestState
                                             variant="loading"
-                                            title="Loading curated comparison rows"
-                                            description="Reading validated full benchmark rows for the active dataset and split."
+                                            title="Loading comparison rows"
+                                            description={`Reading ${viewModeLabel(benchmark.selectedViewMode).toLowerCase()} benchmark rows for the active dataset and split.`}
                                         />
                                     ) : null}
 
@@ -420,8 +525,8 @@ export default function BenchmarkWorkspace() {
                                     {benchmark.comparisonState.status === "success" && benchmark.comparisonRows.length === 0 ? (
                                         <RequestState
                                             variant="empty"
-                                            title="No curated full benchmark results for this selection"
-                                            description="Choose another dataset or split to continue browsing the showcase."
+                                            title={`No ${viewModeLabel(benchmark.selectedViewMode).toLowerCase()} rows for this selection`}
+                                            description={hasArchiveAlternative ? "No showcase rows for this selection. Try Archive." : "Choose another dataset, split, or view mode."}
                                         />
                                     ) : null}
 
@@ -438,11 +543,13 @@ export default function BenchmarkWorkspace() {
                             </div>
                         </div>
 
-                        <BenchmarkEvidencePanel
-                            row={benchmark.selectedRow}
-                            datasetInfo={datasetInfo}
-                            splitInfo={splitInfo}
-                        />
+                        <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none">
+                            <BenchmarkEvidencePanel
+                                row={benchmark.selectedRow}
+                                datasetInfo={datasetInfo}
+                                splitInfo={splitInfo}
+                            />
+                        </div>
                     </section>
                 </>
             ) : null}

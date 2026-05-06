@@ -14,6 +14,7 @@ import {
 import type {
     BenchmarkBestMetric,
     BenchmarkSortMode,
+    BenchmarkViewMode,
     BenchmarkSummaryResponse,
     BestMethodsResponse,
     ComparisonResponse,
@@ -29,16 +30,26 @@ const BENCHMARK_SORT_QUERY_PARAM = "benchmarkSort";
 type BenchmarkUrlState = {
     dataset: string;
     split: string;
+    viewMode: BenchmarkViewMode;
     sortMode: BenchmarkSortMode;
 };
 
 type EffectiveSelection = {
     dataset?: string;
     split?: string;
+    viewMode: BenchmarkViewMode;
     sortMode: BenchmarkSortMode;
 };
 
+const DEFAULT_VIEW_MODE: BenchmarkViewMode = "canonical";
 const DEFAULT_SORT_MODE: BenchmarkSortMode = "best_accuracy";
+
+function normalizeViewMode(value: string | null | undefined): BenchmarkViewMode {
+    if (value === "smoke" || value === "archive") {
+        return value;
+    }
+    return DEFAULT_VIEW_MODE;
+}
 
 function normalizeSortMode(value: string | null | undefined): BenchmarkSortMode {
     if (value === "lowest_eer" || value === "lowest_latency") {
@@ -52,6 +63,7 @@ function readBenchmarkUrlState(): BenchmarkUrlState {
         return {
             dataset: "",
             split: "",
+            viewMode: DEFAULT_VIEW_MODE,
             sortMode: DEFAULT_SORT_MODE,
         };
     }
@@ -60,6 +72,7 @@ function readBenchmarkUrlState(): BenchmarkUrlState {
     return {
         dataset: params.get(BENCHMARK_DATASET_QUERY_PARAM) ?? "",
         split: params.get(BENCHMARK_SPLIT_QUERY_PARAM) ?? "",
+        viewMode: normalizeViewMode(params.get(BENCHMARK_VIEW_QUERY_PARAM)),
         sortMode: normalizeSortMode(params.get(BENCHMARK_SORT_QUERY_PARAM)),
     };
 }
@@ -79,7 +92,7 @@ function syncBenchmarkUrlState(state: BenchmarkUrlState): void {
         params.delete(BENCHMARK_SPLIT_QUERY_PARAM);
     }
 
-    params.delete(BENCHMARK_VIEW_QUERY_PARAM);
+    params.set(BENCHMARK_VIEW_QUERY_PARAM, state.viewMode);
     params.set(BENCHMARK_SORT_QUERY_PARAM, state.sortMode);
 
     const query = params.toString();
@@ -128,6 +141,7 @@ function normalizeSelectionFromSummary(summary: BenchmarkSummaryResponse): Effec
     return {
         dataset: summary.dataset,
         split: summary.split,
+        viewMode: summary.view_mode,
         sortMode: DEFAULT_SORT_MODE,
     };
 }
@@ -139,6 +153,7 @@ export function useBenchmark() {
     const [bestState, setBestState] = useState<AsyncState<BestMethodsResponse>>(createIdleState());
     const [selectedDataset, setSelectedDataset] = useState(initialUrlState.dataset);
     const [selectedSplit, setSelectedSplit] = useState(initialUrlState.split);
+    const [selectedViewMode, setSelectedViewMode] = useState<BenchmarkViewMode>(initialUrlState.viewMode);
     const [selectedSortMode, setSelectedSortMode] = useState<BenchmarkSortMode>(initialUrlState.sortMode);
     const [selectedRowKey, setSelectedRowKey] = useState<string>("");
 
@@ -149,10 +164,12 @@ export function useBenchmark() {
             const payload = await fetchBenchmarkSummary({
                 dataset: selection.dataset || undefined,
                 split: selection.split || undefined,
+                view_mode: selection.viewMode,
             });
             setSummaryState(createSuccessState(payload));
             setSelectedDataset(payload.dataset);
             setSelectedSplit(payload.split);
+            setSelectedViewMode(payload.view_mode);
             return payload;
         } catch (error) {
             setSummaryState((current) => createErrorState(toErrorMessage(error), current.data));
@@ -174,6 +191,7 @@ export function useBenchmark() {
             const payload = await fetchBenchmarkComparison({
                 dataset: selection.dataset,
                 split: selection.split || undefined,
+                view_mode: selection.viewMode,
                 sort_mode: selection.sortMode,
             });
             setComparisonState(createSuccessState(payload));
@@ -194,6 +212,7 @@ export function useBenchmark() {
             const payload = await fetchBenchmarkBest({
                 dataset: selection.dataset,
                 split: selection.split || undefined,
+                view_mode: selection.viewMode,
             });
             setBestState(createSuccessState(payload));
         } catch (error) {
@@ -206,6 +225,7 @@ export function useBenchmark() {
             const nextState = readBenchmarkUrlState();
             setSelectedDataset(nextState.dataset);
             setSelectedSplit(nextState.split);
+            setSelectedViewMode(nextState.viewMode);
             setSelectedSortMode(nextState.sortMode);
         };
 
@@ -219,9 +239,10 @@ export function useBenchmark() {
         void loadSummary({
             dataset: selectedDataset || undefined,
             split: selectedSplit || undefined,
+            viewMode: selectedViewMode,
             sortMode: DEFAULT_SORT_MODE,
         });
-    }, [loadSummary, selectedDataset, selectedSplit]);
+    }, [loadSummary, selectedDataset, selectedSplit, selectedViewMode]);
 
     useEffect(() => {
         if (summaryState.status !== "success" || !summaryState.data) {
@@ -243,15 +264,17 @@ export function useBenchmark() {
         syncBenchmarkUrlState({
             dataset: selectedDataset,
             split: selectedSplit,
+            viewMode: selectedViewMode,
             sortMode: selectedSortMode,
         });
-    }, [selectedDataset, selectedSortMode, selectedSplit]);
+    }, [selectedDataset, selectedSortMode, selectedSplit, selectedViewMode]);
 
     const summary = summaryState.data ?? null;
     const comparison = comparisonState.data ?? null;
     const best = bestState.data ?? null;
     const availableDatasets = summary?.available_datasets ?? [];
     const availableSplits = summary?.available_splits ?? [];
+    const availableViewModes = summary?.available_view_modes ?? [];
     const comparisonRows = useMemo(
         () => comparison?.rows ?? [],
         [comparison?.rows],
@@ -275,14 +298,16 @@ export function useBenchmark() {
         await loadSummary({
             dataset: selectedDataset || undefined,
             split: selectedSplit || undefined,
+            viewMode: selectedViewMode,
             sortMode: DEFAULT_SORT_MODE,
         });
-    }, [loadSummary, selectedDataset, selectedSplit]);
+    }, [loadSummary, selectedDataset, selectedSplit, selectedViewMode]);
 
     const refreshAll = useCallback(async (): Promise<void> => {
         const payload = await loadSummary({
             dataset: selectedDataset || undefined,
             split: selectedSplit || undefined,
+            viewMode: selectedViewMode,
             sortMode: selectedSortMode,
         });
 
@@ -290,11 +315,13 @@ export function useBenchmark() {
             ? {
                 dataset: payload.dataset,
                 split: payload.split,
+                viewMode: payload.view_mode,
                 sortMode: selectedSortMode,
             }
             : {
                 dataset: selectedDataset || undefined,
                 split: selectedSplit || undefined,
+                viewMode: selectedViewMode,
                 sortMode: selectedSortMode,
             };
 
@@ -302,7 +329,7 @@ export function useBenchmark() {
             loadComparison(effectiveSelection),
             loadBest(effectiveSelection),
         ]);
-    }, [loadBest, loadComparison, loadSummary, selectedDataset, selectedSortMode, selectedSplit]);
+    }, [loadBest, loadComparison, loadSummary, selectedDataset, selectedSortMode, selectedSplit, selectedViewMode]);
 
     const isLoading =
         summaryState.status === "loading"
@@ -320,10 +347,13 @@ export function useBenchmark() {
         bestEntries: best?.entries ?? [],
         availableDatasets,
         availableSplits,
+        availableViewModes,
         selectedDataset,
         setSelectedDataset,
         selectedSplit,
         setSelectedSplit,
+        selectedViewMode,
+        setSelectedViewMode,
         selectedSortMode,
         setSelectedSortMode,
         selectedRow,
@@ -340,6 +370,7 @@ export function useBenchmark() {
             await loadComparison({
                 dataset: summary?.dataset ?? (selectedDataset || undefined),
                 split: summary?.split ?? (selectedSplit || undefined),
+                viewMode: summary?.view_mode ?? selectedViewMode,
                 sortMode: selectedSortMode,
             });
         },
@@ -347,6 +378,7 @@ export function useBenchmark() {
             await loadBest({
                 dataset: summary?.dataset ?? (selectedDataset || undefined),
                 split: summary?.split ?? (selectedSplit || undefined),
+                viewMode: summary?.view_mode ?? selectedViewMode,
                 sortMode: selectedSortMode,
             });
         },

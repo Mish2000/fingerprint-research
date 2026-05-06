@@ -46,8 +46,8 @@ MATERIALIZED_ASSET_KIND = "binary_image"
 MATERIALIZED_ASSET_EXT = ".png"
 MATERIALIZED_ASSET_THUMBNAIL_SIZE = 192
 BENCHMARK_SHOWCASE_RUNS: Dict[str, Tuple[str, ...]] = {
-    "nist_sd300b": ("full_nist_sd300b_h6", "full_nist_sd300b"),
-    "nist_sd300c": ("full_nist_sd300c_h6", "full_nist_sd300c"),
+    "nist_sd300b": ("full_nist_sd300b_h5", "full_nist_sd300b_h6", "full_nist_sd300b"),
+    "nist_sd300c": ("full_nist_sd300c_h5", "full_nist_sd300c_h6", "full_nist_sd300c"),
     "polyu_cross": ("full_polyu_cross_h5", "full_polyu_cross"),
 }
 BENCHMARK_EXCLUDED_RUN_TOKENS = ("tmp", "tmp2", "scratch", "partial", "broken")

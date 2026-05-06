@@ -29,7 +29,7 @@ const MODES = [
 
 export default function IdentificationModeSwitcher({ mode, onChange }: IdentificationModeSwitcherProps) {
     return (
-        <div className="flex flex-wrap gap-3">
+        <div className="grid gap-3 lg:grid-cols-3">
             {MODES.map((entry) => {
                 const Icon = entry.icon;
                 const isActive = mode === entry.value;
@@ -39,33 +39,28 @@ export default function IdentificationModeSwitcher({ mode, onChange }: Identific
                         key={entry.value}
                         type="button"
                         onClick={() => onChange(entry.value)}
-                        className={[
-                            "min-w-56 rounded-2xl border px-4 py-3 text-left transition",
-                            isActive
-                                ? "border-white/30 bg-white/15 shadow-sm"
-                                : "border-white/10 bg-black/10 hover:border-white/20 hover:bg-white/10",
-                        ].join(" ")}
+                        className={`mode-card ${isActive ? "mode-card--active" : ""}`.trim()}
                         aria-pressed={isActive}
                     >
-                        <div className="flex items-start gap-3">
-                            <div className="rounded-xl bg-white/10 p-2 text-white">
+                        <div className="mode-card__content">
+                            <div className="mode-card__icon">
                                 <Icon className="h-4 w-4" />
                             </div>
-                            <div>
-                                <div className="font-semibold text-white">{entry.label}</div>
-                                <div className="mt-1 text-sm text-white/70">{entry.description}</div>
+                            <div className="min-w-0">
+                                <div className="mode-card__label">{entry.label}</div>
+                                <div className="mode-card__description text-clamp-2">{entry.description}</div>
                             </div>
                         </div>
                     </button>
                 );
             })}
 
-            <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/75">
-                <div className="flex items-center gap-2 font-semibold text-white">
+            <div className="rounded-xl border border-[var(--app-brand-border)] bg-[var(--app-brand-surface)] px-4 py-3 text-sm text-[var(--app-brand-text)] lg:col-span-3">
+                <div className="flex items-center gap-2 font-semibold">
                     <Fingerprint className="h-4 w-4" />
                     Recommended first path
                 </div>
-                <p className="mt-1">Start in Demo Mode, switch to Browser Mode for guided catalog-backed 1:N, then drop into Operational Mode for manual controls.</p>
+                <p className="mt-1">Start in Demo Mode, use Browser Mode for guided catalog-backed 1:N, then drop into Operational Mode for manual controls.</p>
             </div>
         </div>
     );

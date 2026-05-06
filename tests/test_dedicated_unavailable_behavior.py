@@ -8,6 +8,7 @@ import pytest
 
 import apps.api.main as api_main
 from apps.api.service import MatchService, MethodUnavailableError
+from src.fpbench.matchers.dedicated_matcher import DedicatedMatcher
 
 
 def _write_png(path: Path, seed: int) -> Path:
@@ -22,6 +23,24 @@ def _write_png(path: Path, seed: int) -> Path:
 class _BrokenDedicatedMatcher:
     def __init__(self, *args, **kwargs):
         raise FileNotFoundError("Descriptor checkpoint not found: missing-test-checkpoint.pth")
+
+
+def test_zero_byte_dedicated_checkpoint_reports_clear_invalid_error(tmp_path: Path) -> None:
+    ckpt_path = tmp_path / "empty_ckpt.pth"
+    ckpt_path.write_bytes(b"")
+
+    with pytest.raises(ValueError, match="Invalid descriptor checkpoint: file is empty \\(0 bytes\\)"):
+        DedicatedMatcher(ckpt_path=str(ckpt_path), device="cpu")
+
+    class _ZeroByteDedicatedMatcher:
+        def __init__(self, *args, **kwargs):
+            DedicatedMatcher(ckpt_path=str(ckpt_path), device="cpu")
+
+    service = MatchService(dedicated_factory=_ZeroByteDedicatedMatcher)
+    availability = service.method_availability()
+
+    assert availability["dedicated"]["available"] is False
+    assert "Invalid descriptor checkpoint: file is empty (0 bytes)" in str(availability["dedicated"]["error"])
 
 
 def test_dedicated_unavailable_is_reported_without_killing_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

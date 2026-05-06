@@ -11,7 +11,21 @@ import argparse
 import numpy as np
 import torch
 
-from pipelines.benchmark.train_patch_descriptor import PatchPairStream, SimCLRModel  # <-- robust import
+from pipelines.benchmark.train_patch_descriptor import PatchPairStream, SimCLRModel, checkpoint_model_config  # <-- robust import
+
+
+def load_sanity_checkpoint(ckpt_path: str | Path) -> tuple[dict, dict]:
+    ckpt_path = Path(ckpt_path)
+    if not ckpt_path.is_file():
+        raise FileNotFoundError(f"Descriptor checkpoint not found: {ckpt_path}")
+    try:
+        ckpt = torch.load(str(ckpt_path), map_location="cpu", weights_only=True)
+    except TypeError:
+        ckpt = torch.load(str(ckpt_path), map_location="cpu")
+    if not isinstance(ckpt, dict):
+        raise ValueError("Unexpected checkpoint format. Expected a dict checkpoint.")
+    model_config = checkpoint_model_config(ckpt)
+    return ckpt, model_config
 
 
 def main():
@@ -27,15 +41,26 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ckpt = torch.load(args.ckpt, map_location="cpu")
+    ckpt, model_config = load_sanity_checkpoint(args.ckpt)
     train_args = ckpt.get("args", {})
-    patch = int(train_args.get("patch", 48))
+    patch = int(model_config.get("patch", train_args.get("patch", 48)))
     max_kpts = int(train_args.get("max_kpts", 800))
     patches_per_image = int(train_args.get("patches_per_image", 32))
 
-    model = SimCLRModel(emb_dim=256, proj_dim=128).to(device)
+    model = SimCLRModel(
+        emb_dim=int(model_config["emb_dim"]),
+        proj_dim=int(model_config["proj_dim"]),
+        model_arch=str(model_config["model_arch"]),
+    ).to(device)
     model.load_state_dict(ckpt["model"], strict=True)
     model.eval()
+    print(
+        "[SANITY] "
+        f"model_arch={model_config['model_arch']} "
+        f"emb_dim={model_config['emb_dim']} "
+        f"proj_dim={model_config['proj_dim']} "
+        f"patch={patch}"
+    )
 
     ds = PatchPairStream(
         manifest_csv=args.manifest,

@@ -1,5 +1,7 @@
-import { useState } from "react";
-import type { ComparisonRow, NamedInfo } from "../../types";
+import { useEffect, useState } from "react";
+import { ExternalLink } from "lucide-react";
+import type { BenchmarkArtifactLink, ComparisonRow, NamedInfo } from "../../types";
+import { CompactEmptyState, MetricTile } from "../../shared/ui/presentation.tsx";
 import {
     formatLatency,
     formatMethodLabel,
@@ -15,8 +17,156 @@ type Props = {
     splitInfo: Record<string, NamedInfo>;
 };
 
+const ARTIFACT_GROUPS = [
+    { title: "Data", keys: ["summary_csv", "scores_csv"] },
+    { title: "Metadata", keys: ["meta_json", "run_manifest"] },
+    { title: "Report", keys: ["markdown_summary", "run_log"] },
+] as const;
+
 function artifactByKey(row: ComparisonRow, key: string) {
     return row.artifacts.find((item) => item.key === key) ?? null;
+}
+
+function basenameFromPath(value: string | null | undefined): string {
+    const text = (value ?? "").trim();
+    if (!text) {
+        return "N/A";
+    }
+
+    const normalized = text.replace(/\\/g, "/");
+    return normalized.split("/").filter(Boolean).pop() ?? text;
+}
+
+function artifactSourceLabel(row: ComparisonRow): string {
+    if (row.provenance?.benchmark_source_label) {
+        return row.provenance.benchmark_source_label;
+    }
+    if (row.provenance?.benchmark_source_root === "reference") {
+        return "Reference artifacts";
+    }
+    if (row.provenance?.benchmark_source_root === "live") {
+        return "Live artifacts";
+    }
+    return "Benchmark artifacts";
+}
+
+function TrustField({ label, value, title }: { label: string; value: string; title?: string }) {
+    return (
+        <div className="min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+            <p className="text-[11px] font-semibold uppercase text-[var(--app-text-muted)]">{label}</p>
+            <p className="mt-1 safe-truncate text-sm font-medium text-[var(--app-text)]" title={title ?? value}>
+                {value}
+            </p>
+        </div>
+    );
+}
+
+function ArtifactLink({ artifact }: { artifact: BenchmarkArtifactLink | null }) {
+    if (!artifact) {
+        return null;
+    }
+
+    if (artifact.available && artifact.url) {
+        return (
+            <a
+                href={artifact.url}
+                target="_blank"
+                rel="noreferrer"
+                className="safe-truncate rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm text-[var(--app-text-soft)] transition hover:border-[var(--app-brand-border)] hover:text-[var(--app-brand-text)]"
+                title={artifact.label}
+            >
+                {artifact.label}
+            </a>
+        );
+    }
+
+    return (
+        <div
+            className="safe-truncate rounded-lg border border-[var(--app-border-muted)] bg-[var(--app-surface-muted)] px-3 py-2 text-sm text-[var(--app-text-muted)]"
+            title={`${artifact.label} - unavailable`}
+        >
+            {artifact.label} unavailable
+        </div>
+    );
+}
+
+function ArtifactGroup({ title, row, keys }: { title: string; row: ComparisonRow; keys: readonly string[] }) {
+    const artifacts = keys.map((key) => artifactByKey(row, key)).filter((item): item is BenchmarkArtifactLink => item != null);
+
+    return (
+        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">{title}</p>
+            <div className="mt-3 grid gap-2">
+                {artifacts.length > 0 ? (
+                    artifacts.map((artifact) => <ArtifactLink key={artifact.key} artifact={artifact} />)
+                ) : (
+                    <div className="rounded-lg border border-[var(--app-border-muted)] bg-[var(--app-surface-muted)] px-3 py-2 text-sm text-[var(--app-text-muted)]">
+                        No artifacts listed.
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function RocPreview({ artifact, row }: { artifact: BenchmarkArtifactLink | null; row: ComparisonRow }) {
+    const [failed, setFailed] = useState(false);
+    const hasUrl = Boolean(artifact?.available && artifact.url);
+
+    useEffect(() => {
+        setFailed(false);
+    }, [artifact?.url, row.run, row.benchmark_method, row.split]);
+
+    const openButton = artifact?.url ? (
+        <a
+            href={artifact.url}
+            target="_blank"
+            rel="noreferrer"
+            className="app-button app-button--secondary"
+        >
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Open ROC artifact
+        </a>
+    ) : null;
+
+    if (!hasUrl) {
+        return (
+            <div className="space-y-3">
+                <div className="flex h-56 items-center justify-center rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-6 text-center text-sm text-[var(--app-text-muted)]">
+                    ROC preview is not available for this row.
+                </div>
+                {openButton}
+            </div>
+        );
+    }
+
+    if (failed) {
+        return (
+            <div className="space-y-3">
+                <div className="flex h-56 items-center justify-center rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-6 text-center text-sm text-[var(--app-text-muted)]">
+                    ROC preview could not be rendered. Open artifact instead.
+                </div>
+                {openButton}
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <div className="overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)]">
+                <img
+                    src={artifact?.url ?? ""}
+                    alt=""
+                    aria-label={`${formatMethodLabel(row.method, row.method_label)} ROC preview`}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setFailed(true)}
+                    className="h-56 w-full object-contain"
+                />
+            </div>
+            {openButton}
+        </div>
+    );
 }
 
 export default function BenchmarkEvidencePanel({ row, datasetInfo, splitInfo }: Props) {
@@ -24,190 +174,103 @@ export default function BenchmarkEvidencePanel({ row, datasetInfo, splitInfo }: 
 
     if (!row) {
         return (
-            <section className="rounded-[1.75rem] border border-slate-800 bg-slate-950/80 p-6 text-slate-300 shadow-[0_20px_80px_rgba(2,6,23,0.35)]">
-                <div className="space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Evidence</p>
-                    <h3 className="text-xl font-semibold text-slate-100">Selected method evidence</h3>
-                    <p className="text-sm leading-6 text-slate-400">
-                        Preparing benchmark evidence for the top-ranked showcase method.
-                    </p>
-                </div>
-            </section>
+            <CompactEmptyState
+                title="Selected method evidence"
+                description="Select a comparison row to inspect run provenance, artifacts, and validation state."
+                className="h-full"
+            />
         );
     }
 
     const datasetLabel = datasetInfo[row.dataset]?.label ?? row.dataset;
     const splitLabel = splitInfo[row.split]?.label ?? row.split;
     const rocArtifact = artifactByKey(row, "roc_png");
-    const rawMetaArtifact = artifactByKey(row, "meta_json");
+    const runManifestArtifact = artifactByKey(row, "run_manifest");
+    const provenance = row.provenance;
+    const sourceLabel = artifactSourceLabel(row);
+    const manifestDisplayPath = provenance?.manifest_path ?? runManifestArtifact?.url;
 
     return (
-        <section className="rounded-[1.75rem] border border-slate-800 bg-slate-950/80 p-6 text-slate-200 shadow-[0_20px_80px_rgba(2,6,23,0.35)]">
-            <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Evidence</p>
-                    <h3 className="text-xl font-semibold text-slate-50">{formatMethodLabel(row.method, row.method_label)}</h3>
-                    <p className="text-sm text-slate-400">
-                        {datasetLabel} - {splitLabel} - {row.run_family ?? row.run}
+        <section className="surface-card p-6">
+            <div className="flex min-w-0 items-start justify-between gap-4">
+                <div className="min-w-0 space-y-2">
+                    <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Evidence</p>
+                    <h3 className="safe-text text-xl font-semibold text-[var(--app-text)]">{formatMethodLabel(row.method, row.method_label)}</h3>
+                    <p className="safe-text text-sm text-[var(--app-text-muted)]">
+                        {datasetLabel} - {splitLabel}
                     </p>
                 </div>
-                <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${statusToneClassName(row.status)}`}>
+                <span className={`status-pill ${statusToneClassName(row.status)}`}>
                     {statusLabel(row.status)}
                 </span>
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">AUC</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-50">{formatMetric(row.auc)}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">EER</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-50">{formatMetric(row.eer)}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Latency</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-50">{formatLatency(row.latency_ms)}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Pairs</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-50">{formatPairs(row.n_pairs)}</p>
+                <MetricTile label="AUC" value={formatMetric(row.auc)} tone="success" />
+                <MetricTile label="EER" value={formatMetric(row.eer)} />
+                <MetricTile label="Latency" value={formatLatency(row.latency_ms)} tone="warning" />
+                <MetricTile label="Pairs" value={formatPairs(row.n_pairs)} />
+            </div>
+
+            <div className="mt-6 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-5">
+                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Trust & provenance</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <TrustField label="Source" value={sourceLabel} />
+                    <TrustField label="Run family" value={row.run_family ?? row.run} />
+                    <TrustField label="Artifact source" value={provenance?.artifact_source ?? "results_summary.csv"} />
+                    <TrustField label="Pairs source" value={basenameFromPath(provenance?.pairs_path)} title={provenance?.pairs_path ?? undefined} />
+                    <TrustField label="Manifest" value={basenameFromPath(manifestDisplayPath)} title={manifestDisplayPath ?? undefined} />
+                    <TrustField label="Validation" value={provenance?.validation_state ?? row.validation_state} />
                 </div>
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70">
-                {rocArtifact?.available && rocArtifact.url ? (
-                    <img
-                        src={rocArtifact.url}
-                        alt={`${formatMethodLabel(row.method, row.method_label)} ROC preview`}
-                        className="h-56 w-full object-contain bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_55%),linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))]"
-                    />
-                ) : (
-                    <div className="flex h-56 items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_55%),linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] px-6 text-center text-sm text-slate-500">
-                        ROC preview is not available for this row. The rest of the evidence remains usable.
-                    </div>
-                )}
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Summary</p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">{row.summary_text}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-400">
-                    Selected method evidence for the active curated full benchmark comparison.
-                </p>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+            <div className="mt-6 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-5">
                 <div className="flex items-center justify-between gap-4">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Artifacts</p>
-                        <p className="mt-1 text-sm text-slate-400">{row.artifact_count} artifact links available for this method row.</p>
+                        <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Visual evidence</p>
+                        <p className="mt-1 text-sm text-[var(--app-text-muted)]">ROC Preview</p>
                     </div>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {row.artifacts.map((artifact) => (
-                        artifact.available && artifact.url ? (
-                            <a
-                                key={artifact.key}
-                                href={artifact.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-200 transition hover:border-sky-500/40 hover:text-sky-200"
-                            >
-                                {artifact.label}
-                            </a>
-                        ) : (
-                            <div
-                                key={artifact.key}
-                                className="rounded-2xl border border-slate-900 bg-slate-950/60 px-4 py-3 text-sm text-slate-500"
-                            >
-                                {artifact.label} - N/A
-                            </div>
-                        )
+                <div className="mt-4">
+                    <RocPreview artifact={rocArtifact} row={row} />
+                </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+                <div>
+                    <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Artifacts</p>
+                    <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                        {row.artifact_count} available links for this method row.
+                    </p>
+                </div>
+                <div className="grid gap-4">
+                    {ARTIFACT_GROUPS.map((group) => (
+                        <ArtifactGroup key={group.title} title={group.title} row={row} keys={group.keys} />
                     ))}
                 </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+            <div className="mt-6 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-5">
                 <button
                     type="button"
                     onClick={() => setProvenanceOpen((current) => !current)}
-                    className="text-sm font-semibold text-slate-200 transition hover:text-sky-200"
+                    className="text-sm font-semibold text-[var(--app-brand-text)] transition hover:opacity-80"
                 >
-                    {provenanceOpen ? "Hide provenance" : "Open provenance"}
+                    {provenanceOpen ? "Hide provenance details" : "Open provenance details"}
                 </button>
                 {provenanceOpen ? (
-                    <div className="mt-4 space-y-3 text-sm text-slate-300">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">API method</p>
-                                <p className="mt-2 font-medium text-slate-100">
-                                    {formatMethodLabel(row.provenance?.canonical_method ?? row.method, row.provenance?.method_label ?? row.method_label)}
-                                </p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Benchmark method</p>
-                                <p className="mt-2 font-mono text-slate-300">
-                                    {row.provenance?.benchmark_method ?? row.benchmark_method}
-                                </p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Run</p>
-                                <p className="mt-2 font-medium text-slate-100">{row.provenance?.run ?? row.run}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Source</p>
-                                <p className="mt-2 font-medium text-slate-100">{row.provenance?.source_type ?? "summary_csv"}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Validation</p>
-                                <p className="mt-2 font-medium text-slate-100">{row.provenance?.validation_state ?? row.validation_state}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Artifacts available</p>
-                                <p className="mt-2 font-medium text-slate-100">
-                                    {(row.provenance?.available_artifacts ?? row.available_artifacts).join(", ") || "N/A"}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Methods in run</p>
-                            <p className="mt-2 font-medium text-slate-100">
-                                {(row.provenance?.methods_in_run ?? []).map((method) => formatMethodLabel(method)).join(", ") || "N/A"}
-                            </p>
-                        </div>
-                        {(row.provenance?.benchmark_methods_in_run ?? []).length > 0 ? (
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Raw benchmark methods in run</p>
-                                <p className="mt-2 font-mono text-slate-300">
-                                    {(row.provenance?.benchmark_methods_in_run ?? []).join(", ")}
-                                </p>
-                            </div>
-                        ) : null}
-                        {row.provenance?.git_commit ? (
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Git commit</p>
-                                <p className="mt-2 break-all text-slate-300">{row.provenance.git_commit}</p>
-                            </div>
-                        ) : null}
-                        {row.provenance?.pairs_path ? (
-                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Pair source</p>
-                                <p className="mt-2 break-all text-slate-300">{row.provenance.pairs_path}</p>
-                            </div>
-                        ) : null}
-                        {rawMetaArtifact?.available && rawMetaArtifact.url ? (
-                            <div className="pt-1">
-                                <a
-                                    href={rawMetaArtifact.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-sm font-medium text-sky-300 transition hover:text-sky-200"
-                                >
-                                    Show raw metadata
-                                </a>
-                            </div>
-                        ) : null}
+                    <div className="mt-4 space-y-3 text-sm text-[var(--app-text-soft)]">
+                        <TrustField label="API method" value={formatMethodLabel(provenance?.canonical_method ?? row.method, provenance?.method_label ?? row.method_label)} />
+                        <TrustField label="Benchmark method" value={provenance?.benchmark_method ?? row.benchmark_method} />
+                        <TrustField label="Run" value={provenance?.run ?? row.run} />
+                        <TrustField label="Available artifacts" value={(provenance?.available_artifacts ?? row.available_artifacts).join(", ") || "N/A"} />
+                        <TrustField label="Methods in run" value={(provenance?.methods_in_run ?? []).map((method) => formatMethodLabel(method)).join(", ") || "N/A"} />
+                        <TrustField label="Raw methods in run" value={(provenance?.benchmark_methods_in_run ?? []).join(", ") || "N/A"} />
+                        <TrustField label="Pairs path" value={provenance?.pairs_path ?? "N/A"} />
+                        <TrustField label="Manifest path" value={provenance?.manifest_path ?? "N/A"} />
+                        <TrustField label="Data directory" value={provenance?.data_dir ?? "N/A"} />
+                        {provenance?.showcase_exclusion_note ? <TrustField label="Showcase note" value={provenance.showcase_exclusion_note} /> : null}
+                        {provenance?.git_commit ? <TrustField label="Git commit" value={provenance.git_commit} /> : null}
                     </div>
                 ) : null}
             </div>

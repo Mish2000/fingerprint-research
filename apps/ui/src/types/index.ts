@@ -124,6 +124,9 @@ export type BenchmarkProvenance = {
     data_dir?: string | null;
     git_commit?: string | null;
     available_artifacts: string[];
+    benchmark_source_root?: "live" | "reference" | null;
+    benchmark_source_label?: string | null;
+    showcase_exclusion_note?: string | null;
 };
 
 export type BenchmarkRow = {
@@ -154,6 +157,8 @@ export type BenchmarkRunInfo = {
     benchmark_methods: string[];
     splits: string[];
     dataset_info?: NamedInfo | null;
+    benchmark_source_root?: "live" | "reference" | null;
+    benchmark_source_label?: string | null;
 };
 
 export type BenchmarkRunsResponse = {

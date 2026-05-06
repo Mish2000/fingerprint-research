@@ -101,8 +101,8 @@ function createExpectationState(
         expectedLabel,
         actualLabel,
         summary: expectedLabel === actualLabel
-            ? "Expected and actual verification outcomes are aligned."
-            : "Expected and actual verification outcomes diverge for this run.",
+            ? "Actual decision matched the expected outcome."
+            : "Actual decision did not match the expected outcome.",
     };
 }
 
@@ -148,12 +148,17 @@ function createCaseContextState(context: VerifyRunContext | null): VerifyCaseCon
 
 function createDifficultyState(context: VerifyRunContext | null): VerifyDifficultyState | null {
     if (!context?.difficulty && !context?.caseType && !context?.selectionReason) {
-        return null;
+        return {
+            label: "Unavailable",
+            summary: "Difficulty metadata is not available for this pair.",
+        };
     }
 
     return {
         label: formatWords(context.difficulty ?? context.caseType ?? "Case context"),
-        summary: context.selectionReason ?? context.description ?? "Catalog metadata describes why this pair was selected.",
+        summary: context.modalityRelation === "cross_sensor"
+            ? "Cross-capture setup."
+            : context.selectionReason ?? context.description ?? "Catalog metadata describes why this pair was selected.",
     };
 }
 

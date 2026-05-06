@@ -1,6 +1,7 @@
 import { Activity, CheckCircle2, Clock, GitBranch, Layers3, XCircle, Zap } from "lucide-react";
 import type { MatchMeta, MatchResponse } from "../types/index.ts";
 import { formatMethodLabel } from "../shared/storytelling.ts";
+import { MetricTile, StatusPill } from "../shared/ui/presentation.tsx";
 
 interface ResultSummaryProps {
     resp: MatchResponse;
@@ -68,129 +69,83 @@ export function ResultSummary({ resp }: ResultSummaryProps) {
     const isDedicated = method === "dedicated";
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col gap-6 mb-6">
+        <div className="surface-card mb-6 p-5">
             <div
-                className={`flex items-center justify-between p-5 rounded-lg border ${
-                    decision ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"
+                className={`rounded-xl border p-4 ${
+                    decision
+                        ? "border-[var(--app-success-border)] bg-[var(--app-success-surface)] text-[var(--app-success-text)]"
+                        : "border-[var(--app-error-border)] bg-[var(--app-error-surface)] text-[var(--app-error-text)]"
                 }`}
             >
-                <div className="flex items-center space-x-4">
-                    {decision ? (
-                        <CheckCircle2 className="w-10 h-10 text-emerald-600" />
-                    ) : (
-                        <XCircle className="w-10 h-10 text-red-500" />
-                    )}
-                    <div>
-                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-0.5">
-                            Decision
-                        </p>
-                        <h3
-                            className={`text-2xl font-bold ${
-                                decision ? "text-emerald-700" : "text-red-700"
-                            }`}
-                        >
-                            {decision ? "MATCH CONFIRMED" : "NO MATCH"}
-                        </h3>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
+                        {decision ? (
+                            <CheckCircle2 className="h-9 w-9 shrink-0" />
+                        ) : (
+                            <XCircle className="h-9 w-9 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                            <StatusPill tone={decision ? "success" : "error"}>Decision</StatusPill>
+                            <h3 className="mt-2 text-2xl font-bold leading-tight">
+                                {decision ? "MATCH CONFIRMED" : "NO MATCH"}
+                            </h3>
+                        </div>
                     </div>
-                </div>
-                <div className="text-right">
-                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-0.5">
-                        Similarity score
-                    </p>
-                    <h3 className="text-3xl font-bold text-slate-800">
-                        {Math.min(Math.max(score, 0), 1).toFixed(4)}
-                    </h3>
+                    <MetricTile
+                        label="Similarity score"
+                        value={Math.min(Math.max(score, 0), 1).toFixed(4)}
+                        tone={decision ? "success" : "error"}
+                        className="min-w-40"
+                    />
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                    <span className="text-slate-500 text-sm font-medium flex items-center mb-1">
-                        <GitBranch className="w-4 h-4 mr-1.5" /> Method
-                    </span>
-                    <span className="text-slate-800 font-semibold text-lg">{formatMethodLabel(method)}</span>
-                </div>
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                    <span className="text-slate-500 text-sm font-medium flex items-center mb-1">
-                        <Activity className="w-4 h-4 mr-1.5" /> Threshold
-                    </span>
-                    <span className="text-slate-800 font-semibold text-lg">{formatNumber(threshold, 2)}</span>
-                </div>
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                    <span className="text-slate-500 text-sm font-medium flex items-center mb-1">
-                        <Clock className="w-4 h-4 mr-1.5" /> Latency
-                    </span>
-                    <span className="text-slate-800 font-semibold text-lg">{latency_ms.toFixed(0)} ms</span>
-                </div>
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                    <span className="text-slate-500 text-sm font-medium flex items-center mb-1">
-                        <Layers3 className="w-4 h-4 mr-1.5" /> Overlay
-                    </span>
-                    <span className="text-slate-800 font-semibold text-lg">
-                        {resp.overlay?.matches.length ?? 0} matches
-                    </span>
-                </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricTile icon={GitBranch} label="Method" value={formatMethodLabel(method)} title={formatMethodLabel(method)} />
+                <MetricTile icon={Activity} label="Threshold" value={formatNumber(threshold, 2)} />
+                <MetricTile icon={Clock} label="Latency" value={`${latency_ms.toFixed(0)} ms`} />
+                <MetricTile icon={Layers3} label="Overlay" value={`${resp.overlay?.matches.length ?? 0} matches`} />
 
-                {isClassic && (
+                {isClassic ? (
                     <>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                            <span className="text-slate-500 text-sm font-medium mb-1">Raw matches</span>
-                            <span className="text-slate-800 font-semibold text-lg">{formatNumber(classicMatches, 0)}</span>
-                        </div>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                            <span className="text-slate-500 text-sm font-medium mb-1">Inliers</span>
-                            <span className="text-slate-800 font-semibold text-lg">{formatNumber(classicInliers, 0)}</span>
-                        </div>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                            <span className="text-slate-500 text-sm font-medium mb-1">Keypoints A/B</span>
-                            <span className="text-slate-800 font-semibold text-lg">
-                                {formatNumber(classicK1, 0)} / {formatNumber(classicK2, 0)}
-                            </span>
-                        </div>
+                        <MetricTile label="Raw matches" value={formatNumber(classicMatches, 0)} />
+                        <MetricTile label="Inliers" value={formatNumber(classicInliers, 0)} />
+                        <MetricTile
+                            label="Keypoints A/B"
+                            value={`${formatNumber(classicK1, 0)} / ${formatNumber(classicK2, 0)}`}
+                        />
                     </>
-                )}
+                ) : null}
 
-                {isEmbeddingModel && (
+                {isEmbeddingModel ? (
                     <>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                            <span className="text-slate-500 text-sm font-medium mb-1">Backbone</span>
-                            <span className="text-slate-800 font-semibold text-lg truncate" title={readDlBackbone(meta)}>
-                                {readDlBackbone(meta)}
-                            </span>
-                        </div>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                            <span className="text-slate-500 text-sm font-medium flex items-center mb-1">
-                                <Zap className="w-4 h-4 mr-1.5" /> Embed A/B
-                            </span>
-                            <span className="text-slate-800 font-semibold text-lg">
-                                {formatNumber(readNumber(meta, "embed_ms_a"), 0)} / {formatNumber(readNumber(meta, "embed_ms_b"), 0)} ms
-                            </span>
-                        </div>
+                        <MetricTile
+                            label="Backbone"
+                            value={<span className="safe-truncate">{readDlBackbone(meta)}</span>}
+                            title={readDlBackbone(meta)}
+                        />
+                        <MetricTile
+                            icon={Zap}
+                            label="Embed A/B"
+                            value={`${formatNumber(readNumber(meta, "embed_ms_a"), 0)} / ${formatNumber(readNumber(meta, "embed_ms_b"), 0)} ms`}
+                        />
                     </>
-                )}
+                ) : null}
 
-                {isDedicated && (
+                {isDedicated ? (
                     <>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                            <span className="text-slate-500 text-sm font-medium mb-1">Tentative / Inliers</span>
-                            <span className="text-slate-800 font-semibold text-lg">
-                                {formatNumber(dedicatedTentative, 0)} / {formatNumber(dedicatedInliers, 0)}
-                            </span>
-                        </div>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col">
-                            <span className="text-slate-500 text-sm font-medium mb-1">Mean inlier sim</span>
-                            <span className="text-slate-800 font-semibold text-lg">
-                                {formatNumber(dedicatedStats.mean_inlier_sim, 4)}
-                            </span>
-                        </div>
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col md:col-span-2">
-                            <span className="text-slate-500 text-sm font-medium mb-1">Latency breakdown</span>
-                            <span className="text-slate-800 font-semibold text-sm leading-6">
-                                {formatKeyValueRecord(dedicatedLatencyBreakdown)}
-                            </span>
-                        </div>
+                        <MetricTile
+                            label="Tentative / Inliers"
+                            value={`${formatNumber(dedicatedTentative, 0)} / ${formatNumber(dedicatedInliers, 0)}`}
+                        />
+                        <MetricTile label="Mean inlier sim" value={formatNumber(dedicatedStats.mean_inlier_sim, 4)} />
+                        <MetricTile
+                            label="Latency breakdown"
+                            value={<span className="text-sm leading-6">{formatKeyValueRecord(dedicatedLatencyBreakdown)}</span>}
+                            className="md:col-span-2"
+                        />
                     </>
-                )}
+                ) : null}
             </div>
         </div>
     );

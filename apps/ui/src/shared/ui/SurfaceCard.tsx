@@ -13,11 +13,11 @@ export default function SurfaceCard({ title, description, actions, children, cla
         <section className={`surface-card ${className}`.trim()}>
             {title || description || actions ? (
                 <div className="surface-card__header">
-                    <div>
+                    <div className="min-w-0">
                         {title ? <h3 className="surface-card__title">{title}</h3> : null}
                         {description ? <p className="surface-card__description">{description}</p> : null}
                     </div>
-                    {actions ? <div className="shrink-0">{actions}</div> : null}
+                    {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
                 </div>
             ) : null}
             <div className="surface-card__body">{children}</div>

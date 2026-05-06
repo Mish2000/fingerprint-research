@@ -111,13 +111,12 @@ export default function FileDropBox({
     }
 
     const containerClassName = [
-        "relative flex w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 text-center transition-all duration-300 ease-in-out",
+        "file-drop-zone relative flex w-full cursor-pointer flex-col items-center justify-center overflow-hidden text-center transition-all duration-300 ease-in-out",
         className,
-        disabled ? "cursor-not-allowed border-slate-200 bg-slate-100 opacity-70" : "",
-        !disabled && isDragging ? "scale-[1.01] border-brand-500 bg-brand-50 ring-2 ring-brand-100 shadow-lg" : "",
-        !disabled && !isDragging && selectedFile ? "border-slate-200 bg-white" : "",
-        !disabled && !isDragging && !selectedFile ? "border-dashed border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100" : "",
-        activeError ? "border-red-300 ring-2 ring-red-100" : "",
+        disabled ? "file-drop-zone--disabled" : "",
+        !disabled && isDragging ? "file-drop-zone--dragging" : "",
+        !disabled && !isDragging && selectedFile ? "file-drop-zone--ready" : "",
+        activeError ? "file-drop-zone--error" : "",
     ]
         .filter(Boolean)
         .join(" ");
@@ -158,14 +157,14 @@ export default function FileDropBox({
                         <button
                             type="button"
                             onClick={clearFile}
-                            className="absolute top-4 right-4 z-10 rounded-full border border-slate-100 bg-white/80 p-1.5 text-slate-500 shadow-md backdrop-blur-sm transition-colors hover:bg-red-50 hover:text-red-500"
+                            className="absolute top-4 right-4 z-10 rounded-full border border-[var(--app-border)] bg-[var(--app-surface)] p-1.5 text-[var(--app-text-muted)] shadow-md backdrop-blur-sm transition-colors hover:bg-[var(--app-error-surface)] hover:text-[var(--app-error-text)]"
                             title="Remove file"
                             disabled={disabled}
                         >
                             <X className="h-4 w-4" />
                         </button>
 
-                        <div className="flex flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                        <div className="file-drop-zone__preview flex flex-1 items-center justify-center overflow-hidden rounded-lg">
                             <img
                                 src={previewUrl}
                                 alt="Uploaded fingerprint preview"
@@ -173,19 +172,19 @@ export default function FileDropBox({
                             />
                         </div>
 
-                        <div className="flex items-center justify-between px-1 pt-3 text-left">
-                            <div className="flex items-center gap-2.5 overflow-hidden">
-                                <div className="shrink-0 rounded-lg border border-emerald-100 bg-emerald-50 p-1.5 text-emerald-600">
+                        <div className="flex min-w-0 items-center justify-between gap-3 px-1 pt-3 text-left">
+                            <div className="flex min-w-0 items-center gap-2.5 overflow-hidden">
+                                <div className="shrink-0 rounded-lg border border-[var(--app-success-border)] bg-[var(--app-success-surface)] p-1.5 text-[var(--app-success-text)]">
                                     <ImageIcon className="h-4 w-4" />
                                 </div>
-                                <div className="overflow-hidden">
-                                    <p className="truncate text-sm font-medium text-slate-800" title={selectedFile.name}>
+                                <div className="min-w-0 overflow-hidden">
+                                    <p className="safe-truncate text-sm font-medium text-[var(--app-text-soft)]" title={selectedFile.name}>
                                         {selectedFile.name}
                                     </p>
-                                    <p className="text-xs text-slate-500">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                                    <p className="text-xs text-[var(--app-text-muted)]">{(selectedFile.size / 1024).toFixed(1)} KB</p>
                                 </div>
                             </div>
-                            <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                            <span className="status-pill status-pill--success shrink-0">
                                 Ready
                             </span>
                         </div>
@@ -193,21 +192,19 @@ export default function FileDropBox({
                 ) : (
                     <div className="pointer-events-none flex flex-col items-center p-10 py-16">
                         <div
-                            className={`mb-5 rounded-full p-5 transition-all ${
-                                isDragging ? "scale-110 bg-brand-100 text-brand-600" : "bg-white text-slate-400 shadow-inner"
-                            }`}
+                            className={`file-drop-zone__icon mb-5 transition-all ${isDragging ? "scale-110 text-[var(--app-brand-text)]" : "shadow-inner"}`}
                         >
                             {isDragging ? <UploadCloud className="h-10 w-10" /> : <FileImage className="h-10 w-10" />}
                         </div>
-                        <h3 className={`mb-1.5 text-xl font-semibold ${isDragging ? "text-brand-700" : "text-slate-700"}`}>
+                        <h3 className={`mb-1.5 text-xl font-semibold ${isDragging ? "text-[var(--app-brand-text)]" : "text-[var(--app-text-soft)]"}`}>
                             {title}
                         </h3>
-                        <p className="max-w-xs text-sm text-slate-500">{description}</p>
+                        <p className="max-w-xs text-sm text-[var(--app-text-muted)]">{description}</p>
                     </div>
                 )}
             </div>
 
-            {activeError ? <p className="text-sm text-red-600">{activeError}</p> : null}
+            {activeError ? <p className="safe-text text-sm text-[var(--app-error-text)]">{activeError}</p> : null}
         </div>
     );
 }

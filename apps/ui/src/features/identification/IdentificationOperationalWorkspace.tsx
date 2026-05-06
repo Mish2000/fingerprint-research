@@ -189,8 +189,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
     return (
         <div className="space-y-6">
             <InlineBanner variant="info" title="Identification workspace">
-                Identification keeps the operational structure while adding clearer negative-path messaging, keyboard submit flow,
-                and stronger empty-state behavior for shortlist-zero and no-candidate responses.
+                Operational controls stay intact with clearer readiness, enrollment, search, and deletion evidence.
             </InlineBanner>
 
             {identification.notice ? <InlineBanner variant="success">{identification.notice}</InlineBanner> : null}
@@ -226,7 +225,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
             <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
                 <SurfaceCard
                     title="Store statistics"
-                    description="Operational totals and storage layout are loaded once and refreshed after destructive or mutating actions."
+                    description="Operational totals and storage layout."
                     actions={
                         <button
                             type="button"
@@ -234,7 +233,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                 void identification.refreshStats();
                             }}
                             disabled={isStatsLoading}
-                            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="app-button app-button--secondary"
                         >
                             <RefreshCcw className="mr-2 h-4 w-4" />
                             Refresh stats
@@ -278,7 +277,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
 
                 <SurfaceCard
                     title="Runtime readiness"
-                    description="Live inspection of backend readiness, dual-database topology, and reconciliation posture for the operational identification runtime."
+                    description="Backend readiness, database topology, and reconciliation posture."
                     actions={(
                         <div className="flex flex-wrap gap-2">
                             <button
@@ -287,7 +286,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                     void identification.refreshRuntimeReadiness();
                                 }}
                                 disabled={isRuntimeInspectionLoading}
-                                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="app-button app-button--secondary"
                             >
                                 <RefreshCcw className="mr-2 h-4 w-4" />
                                 Refresh inspection
@@ -298,7 +297,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                     void identification.refreshAdminReconciliationReport();
                                 }}
                                 disabled={isReconciliationLoading}
-                                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="app-button app-button--secondary"
                             >
                                 <ShieldCheck className="mr-2 h-4 w-4" />
                                 {reconciliationReport ? "Refresh reconciliation" : "Fetch reconciliation report"}
@@ -327,12 +326,12 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                     ) : null}
 
                     {runtimeInspectionErrors.map((error) => (
-                        <div key={error.key} className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                        <div key={error.key} className="rounded-xl border border-[var(--app-error-border)] bg-[var(--app-error-surface)] p-4 text-sm text-[var(--app-error-text)]">
                             <p className="font-semibold">{error.label} request failed</p>
-                            <p className="mt-1 text-red-800">
+                            <p className="mt-1">
                                 Keeping the exact backend error visible so readiness failures remain presentation-safe.
                             </p>
-                            <code className="mt-3 block whitespace-pre-wrap break-words rounded-xl bg-white/80 px-3 py-2 text-xs text-red-900">
+                            <code className="mt-3 block whitespace-pre-wrap rounded-xl border border-[var(--app-error-border)] bg-[var(--app-surface)] px-3 py-2 text-xs text-[var(--app-error-text)] safe-text">
                                 {error.message}
                             </code>
                         </div>
@@ -410,60 +409,60 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                             </div>
 
                             <div className="grid gap-4 xl:grid-cols-2">
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                                    <h4 className="text-sm font-semibold text-slate-900">Runtime topology</h4>
+                                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                                    <h4 className="text-sm font-semibold text-[var(--app-text)]">Runtime topology</h4>
                                     <dl className="mt-4 space-y-3 text-sm">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <dt className="text-slate-600">Operational runtime</dt>
-                                            <dd className="text-right font-medium text-slate-900">
+                                        <div className="flex min-w-0 items-start justify-between gap-4">
+                                            <dt className="shrink-0 text-[var(--app-text-muted)]">Operational runtime</dt>
+                                            <dd className="safe-text text-right font-medium text-[var(--app-text)]">
                                                 {formatDisplayLabel(health?.identify_status, "Not reported")}
                                             </dd>
                                         </div>
-                                        <div className="flex items-start justify-between gap-4">
-                                            <dt className="text-slate-600">Browser runtime</dt>
-                                            <dd className="text-right font-medium text-slate-900">
+                                        <div className="flex min-w-0 items-start justify-between gap-4">
+                                            <dt className="shrink-0 text-[var(--app-text-muted)]">Browser runtime</dt>
+                                            <dd className="safe-text text-right font-medium text-[var(--app-text)]">
                                                 {formatDisplayLabel(health?.identify_browser_status, "Not reported")}
                                             </dd>
                                         </div>
-                                        <div className="flex items-start justify-between gap-4">
-                                            <dt className="text-slate-600">Backend</dt>
-                                            <dd className="text-right font-medium text-slate-900">{adminLayout.backend}</dd>
+                                        <div className="flex min-w-0 items-start justify-between gap-4">
+                                            <dt className="shrink-0 text-[var(--app-text-muted)]">Backend</dt>
+                                            <dd className="safe-text text-right font-medium text-[var(--app-text)]">{adminLayout.backend}</dd>
                                         </div>
-                                        <div className="flex items-start justify-between gap-4">
-                                            <dt className="text-slate-600">Layout version</dt>
-                                            <dd className="text-right font-medium text-slate-900">{adminLayout.layout_version}</dd>
+                                        <div className="flex min-w-0 items-start justify-between gap-4">
+                                            <dt className="shrink-0 text-[var(--app-text-muted)]">Layout version</dt>
+                                            <dd className="safe-text text-right font-medium text-[var(--app-text)]">{adminLayout.layout_version}</dd>
                                         </div>
-                                        <div className="flex items-start justify-between gap-4">
-                                            <dt className="text-slate-600">Biometric database</dt>
-                                            <dd className="text-right font-medium text-slate-900">{adminLayout.redacted_database_urls.biometric_db}</dd>
+                                        <div className="flex min-w-0 items-start justify-between gap-4">
+                                            <dt className="shrink-0 text-[var(--app-text-muted)]">Biometric database</dt>
+                                            <dd className="safe-text text-right font-medium text-[var(--app-text)]">{adminLayout.redacted_database_urls.biometric_db}</dd>
                                         </div>
-                                        <div className="flex items-start justify-between gap-4">
-                                            <dt className="text-slate-600">Identity database</dt>
-                                            <dd className="text-right font-medium text-slate-900">{adminLayout.redacted_database_urls.identity_db}</dd>
+                                        <div className="flex min-w-0 items-start justify-between gap-4">
+                                            <dt className="shrink-0 text-[var(--app-text-muted)]">Identity database</dt>
+                                            <dd className="safe-text text-right font-medium text-[var(--app-text)]">{adminLayout.redacted_database_urls.identity_db}</dd>
                                         </div>
                                     </dl>
 
                                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                        <div className="rounded-xl border border-white bg-white p-3">
-                                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Identity role tables</p>
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Identity role tables</p>
                                             <dl className="mt-3 space-y-2 text-sm">
                                                 {Object.entries(adminLayout.table_presence.identity_db).map(([key, value]) => (
                                                     <div key={key} className="flex items-center justify-between gap-4">
-                                                        <dt className="text-slate-600">{formatDisplayLabel(key)}</dt>
-                                                        <dd className={value ? "font-medium text-emerald-700" : "font-medium text-amber-700"}>
+                                                        <dt className="text-[var(--app-text-muted)]">{formatDisplayLabel(key)}</dt>
+                                                        <dd className={value ? "font-medium text-[var(--app-success-text)]" : "font-medium text-[var(--app-warning-text)]"}>
                                                             {value ? "Present" : "Missing"}
                                                         </dd>
                                                     </div>
                                                 ))}
                                             </dl>
                                         </div>
-                                        <div className="rounded-xl border border-white bg-white p-3">
-                                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Biometric role tables</p>
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Biometric role tables</p>
                                             <dl className="mt-3 space-y-2 text-sm">
                                                 {Object.entries(adminLayout.table_presence.biometric_db).map(([key, value]) => (
                                                     <div key={key} className="flex items-center justify-between gap-4">
-                                                        <dt className="text-slate-600">{formatDisplayLabel(key)}</dt>
-                                                        <dd className={value ? "font-medium text-emerald-700" : "font-medium text-amber-700"}>
+                                                        <dt className="text-[var(--app-text-muted)]">{formatDisplayLabel(key)}</dt>
+                                                        <dd className={value ? "font-medium text-[var(--app-success-text)]" : "font-medium text-[var(--app-warning-text)]"}>
                                                             {value ? "Present" : "Missing"}
                                                         </dd>
                                                     </div>
@@ -473,34 +472,34 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                     </div>
                                 </div>
 
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                                    <h4 className="text-sm font-semibold text-slate-900">Data readiness</h4>
+                                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                                    <h4 className="text-sm font-semibold text-[var(--app-text)]">Data readiness</h4>
                                     <dl className="mt-4 grid gap-3 sm:grid-cols-2 text-sm">
-                                        <div className="rounded-xl border border-white bg-white p-3">
-                                            <dt className="text-slate-500">People rows</dt>
-                                            <dd className="mt-1 text-lg font-semibold text-slate-900">
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <dt className="text-[var(--app-text-muted)]">People rows</dt>
+                                            <dd className="mt-1 text-lg font-semibold text-[var(--app-text)]">
                                                 {formatCount(adminLayout.row_counts.people)}
                                             </dd>
                                         </div>
-                                        <div className="rounded-xl border border-white bg-white p-3">
-                                            <dt className="text-slate-500">Identity rows</dt>
-                                            <dd className="mt-1 text-lg font-semibold text-slate-900">
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <dt className="text-[var(--app-text-muted)]">Identity rows</dt>
+                                            <dd className="mt-1 text-lg font-semibold text-[var(--app-text)]">
                                                 {formatCount(adminLayout.row_counts.identity)}
                                             </dd>
                                         </div>
-                                        <div className="rounded-xl border border-white bg-white p-3">
-                                            <dt className="text-slate-500">Raw biometric rows</dt>
-                                            <dd className="mt-1 text-lg font-semibold text-slate-900">
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <dt className="text-[var(--app-text-muted)]">Raw biometric rows</dt>
+                                            <dd className="mt-1 text-lg font-semibold text-[var(--app-text)]">
                                                 {formatCount(adminLayout.row_counts.raw)}
                                             </dd>
                                         </div>
-                                        <div className="rounded-xl border border-white bg-white p-3">
-                                            <dt className="text-slate-500">Resolved tables</dt>
-                                            <dd className="mt-2 space-y-1 text-sm text-slate-800">
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <dt className="text-[var(--app-text-muted)]">Resolved tables</dt>
+                                            <dd className="mt-2 space-y-1 text-sm text-[var(--app-text-soft)]">
                                                 {Object.entries(adminLayout.resolved_table_names).map(([key, value]) => (
-                                                    <div key={key} className="flex items-center justify-between gap-4">
-                                                        <span className="text-slate-600">{formatDisplayLabel(key)}</span>
-                                                        <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-800">{value}</code>
+                                                    <div key={key} className="flex min-w-0 items-center justify-between gap-4">
+                                                        <span className="shrink-0 text-[var(--app-text-muted)]">{formatDisplayLabel(key)}</span>
+                                                        <code className="safe-text rounded bg-[var(--app-surface-muted)] px-2 py-1 text-xs text-[var(--app-text)]">{value}</code>
                                                     </div>
                                                 ))}
                                             </dd>
@@ -508,26 +507,26 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                     </dl>
 
                                     <div className="mt-4 space-y-3">
-                                        <div className="rounded-xl border border-white bg-white p-3">
-                                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Vector rows by method</p>
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Vector rows by method</p>
                                             {vectorRowEntries.length > 0 ? (
                                                 <dl className="mt-3 space-y-2 text-sm">
                                                     {vectorRowEntries.map(([method, count]) => (
                                                         <div key={method} className="flex items-center justify-between gap-4">
-                                                            <dt className="text-slate-600">{formatDisplayLabel(method)}</dt>
-                                                            <dd className="font-medium text-slate-900">{formatCount(count)}</dd>
+                                                            <dt className="text-[var(--app-text-muted)]">{formatDisplayLabel(method)}</dt>
+                                                            <dd className="font-medium text-[var(--app-text)]">{formatCount(count)}</dd>
                                                         </div>
                                                     ))}
                                                 </dl>
                                             ) : (
-                                                <p className="mt-3 text-sm text-slate-600">No vector row counts were reported.</p>
+                                                <p className="mt-3 text-sm text-[var(--app-text-muted)]">No vector row counts were reported.</p>
                                             )}
                                         </div>
 
                                         {unexpectedVectorEntries.length > 0 ? (
-                                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-800">Unexpected vector methods</p>
-                                                <dl className="mt-3 space-y-2 text-sm text-amber-900">
+                                            <div className="rounded-xl border border-[var(--app-warning-border)] bg-[var(--app-warning-surface)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-warning-text)]">Unexpected vector methods</p>
+                                                <dl className="mt-3 space-y-2 text-sm text-[var(--app-warning-text)]">
                                                     {unexpectedVectorEntries.map(([method, count]) => (
                                                         <div key={method} className="flex items-center justify-between gap-4">
                                                             <dt>{formatDisplayLabel(method)}</dt>
@@ -558,8 +557,8 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                             {readinessIssues.length > 0 ? (
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-4">
-                                        <h4 className="text-sm font-semibold text-slate-900">Readiness issues</h4>
-                                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                                        <h4 className="text-sm font-semibold text-[var(--app-text)]">Readiness issues</h4>
+                                        <p className="text-xs font-medium uppercase text-[var(--app-text-muted)]">
                                             {readinessIssues.length} reported
                                         </p>
                                     </div>
@@ -572,34 +571,34 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                             return (
                                                 <div
                                                     key={`${issue.code}-${issue.database_role}-${issue.message}`}
-                                                    className={`rounded-2xl border p-4 ${
+                                                    className={`rounded-xl border p-4 ${
                                                         isError
-                                                            ? "border-red-200 bg-red-50"
-                                                            : "border-amber-200 bg-amber-50"
+                                                            ? "border-[var(--app-error-border)] bg-[var(--app-error-surface)]"
+                                                            : "border-[var(--app-warning-border)] bg-[var(--app-warning-surface)]"
                                                     }`}
                                                 >
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${
+                                                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase ${
                                                             isError
-                                                                ? "bg-red-100 text-red-800"
-                                                                : "bg-amber-100 text-amber-800"
+                                                                ? "bg-[var(--app-error-surface)] text-[var(--app-error-text)]"
+                                                                : "bg-[var(--app-warning-surface)] text-[var(--app-warning-text)]"
                                                         }`}>
                                                             {formatDisplayLabel(issue.severity)}
                                                         </span>
-                                                        <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                                        <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--app-text-soft)] safe-truncate">
                                                             {issue.code}
                                                         </span>
-                                                        <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                                        <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--app-text-soft)]">
                                                             {formatDisplayLabel(issue.database_role)}
                                                         </span>
                                                     </div>
-                                                    <p className="mt-3 text-sm font-medium text-slate-900">{issue.message}</p>
+                                                    <p className="mt-3 safe-text text-sm font-medium text-[var(--app-text)]">{issue.message}</p>
                                                     {hasMetadata ? (
                                                         <details className="mt-3">
-                                                            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                                                            <summary className="cursor-pointer text-xs font-semibold uppercase text-[var(--app-text-soft)]">
                                                                 Extra issue metadata
                                                             </summary>
-                                                            <code className="mt-3 block whitespace-pre-wrap break-words rounded-xl bg-slate-950 px-3 py-2 text-xs text-slate-100">
+                                                            <code className="mt-3 block whitespace-pre-wrap rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-xs text-[var(--app-text)] safe-text">
                                                                 {JSON.stringify(metadata, null, 2)}
                                                             </code>
                                                         </details>
@@ -615,23 +614,23 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                 </InlineBanner>
                             )}
 
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
                                 <div className="flex flex-wrap items-start justify-between gap-4">
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-slate-900">Reconciliation report</h4>
-                                        <p className="mt-1 text-sm text-slate-600">
+                                    <div className="min-w-0">
+                                        <h4 className="text-sm font-semibold text-[var(--app-text)]">Reconciliation report</h4>
+                                        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                                             Report-only inspection for manual cleanup risk. No repairs are triggered from the UI.
                                         </p>
                                     </div>
                                     {reconciliationReport ? (
-                                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                                        <p className="safe-text text-xs font-medium uppercase text-[var(--app-text-muted)]">
                                             Generated {reconciliationReport.generated_at}
                                         </p>
                                     ) : null}
                                 </div>
 
                                 {reconciliationReport == null && identification.adminReconciliationState.status === "idle" ? (
-                                    <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                                    <div className="mt-4 rounded-xl border border-dashed border-[var(--app-border-strong)] bg-[var(--app-surface-subtle)] p-4 text-sm text-[var(--app-text-muted)]">
                                         Fetch the reconciliation report when you want a live summary of repairability, severity mix,
                                         and whether manual reconciliation is required.
                                     </div>
@@ -648,9 +647,9 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                 ) : null}
 
                                 {identification.adminReconciliationState.error ? (
-                                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                                    <div className="mt-4 rounded-xl border border-[var(--app-error-border)] bg-[var(--app-error-surface)] p-4 text-sm text-[var(--app-error-text)]">
                                         <p className="font-semibold">Reconciliation report request failed</p>
-                                        <code className="mt-3 block whitespace-pre-wrap break-words rounded-xl bg-white/80 px-3 py-2 text-xs text-red-900">
+                                        <code className="mt-3 block whitespace-pre-wrap rounded-xl border border-[var(--app-error-border)] bg-[var(--app-surface)] px-3 py-2 text-xs safe-text">
                                             {identification.adminReconciliationState.error}
                                         </code>
                                     </div>
@@ -665,80 +664,80 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                         ) : null}
 
                                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Report mode</p>
-                                                <p className="mt-2 text-sm font-semibold text-slate-900">
+                                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Report mode</p>
+                                                <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">
                                                     {formatDisplayLabel(reconciliationReport.report_mode)}
                                                 </p>
                                             </div>
-                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Manual reconciliation</p>
-                                                <p className="mt-2 text-sm font-semibold text-slate-900">{manualReconciliationLabel}</p>
+                                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Manual reconciliation</p>
+                                                <p className="mt-2 safe-text text-sm font-semibold text-[var(--app-text)]">{manualReconciliationLabel}</p>
                                             </div>
-                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Available repairs</p>
-                                                <p className="mt-2 text-sm font-semibold text-slate-900">
+                                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Available repairs</p>
+                                                <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">
                                                     {reconciliationReport.available_repairs.length.toLocaleString()}
                                                 </p>
                                             </div>
-                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Applied repairs</p>
-                                                <p className="mt-2 text-sm font-semibold text-slate-900">
+                                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Applied repairs</p>
+                                                <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">
                                                     {reconciliationReport.applied_repairs.length.toLocaleString()}
                                                 </p>
                                             </div>
                                         </div>
 
                                         <div className="grid gap-4 xl:grid-cols-3">
-                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Severity mix</p>
+                                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Severity mix</p>
                                                 {reconciliationSeverityEntries.length > 0 ? (
                                                     <dl className="mt-3 space-y-2 text-sm">
                                                         {reconciliationSeverityEntries.map(([key, value]) => (
                                                             <div key={key} className="flex items-center justify-between gap-4">
-                                                                <dt className="text-slate-600">{formatDisplayLabel(key)}</dt>
-                                                                <dd className="font-medium text-slate-900">{formatCount(value)}</dd>
+                                                                <dt className="text-[var(--app-text-muted)]">{formatDisplayLabel(key)}</dt>
+                                                                <dd className="font-medium text-[var(--app-text)]">{formatCount(value)}</dd>
                                                             </div>
                                                         ))}
                                                     </dl>
                                                 ) : (
-                                                    <p className="mt-3 text-sm text-slate-600">No severity breakdown was reported.</p>
+                                                    <p className="mt-3 text-sm text-[var(--app-text-muted)]">No severity breakdown was reported.</p>
                                                 )}
                                             </div>
 
-                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Repairability</p>
+                                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Repairability</p>
                                                 {reconciliationRepairabilityEntries.length > 0 ? (
                                                     <dl className="mt-3 space-y-2 text-sm">
                                                         {reconciliationRepairabilityEntries.map(([key, value]) => (
                                                             <div key={key} className="flex items-center justify-between gap-4">
-                                                                <dt className="text-slate-600">{formatDisplayLabel(key)}</dt>
-                                                                <dd className="font-medium text-slate-900">{formatCount(value)}</dd>
+                                                                <dt className="text-[var(--app-text-muted)]">{formatDisplayLabel(key)}</dt>
+                                                                <dd className="font-medium text-[var(--app-text)]">{formatCount(value)}</dd>
                                                             </div>
                                                         ))}
                                                     </dl>
                                                 ) : (
-                                                    <p className="mt-3 text-sm text-slate-600">No repairability breakdown was reported.</p>
+                                                    <p className="mt-3 text-sm text-[var(--app-text-muted)]">No repairability breakdown was reported.</p>
                                                 )}
                                             </div>
 
-                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Suggested commands</p>
+                                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-3">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Suggested commands</p>
                                                 {reconciliationCommandEntries.length > 0 ? (
                                                     <div className="mt-3 space-y-2">
                                                         {reconciliationCommandEntries.map(([key, value]) => (
-                                                            <div key={key} className="rounded-lg bg-white p-3">
-                                                                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                                                            <div key={key} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">
                                                                     {formatDisplayLabel(key)}
                                                                 </p>
-                                                                <code className="mt-2 block whitespace-pre-wrap break-words text-xs text-slate-900">
+                                                                <code className="mt-2 block whitespace-pre-wrap text-xs text-[var(--app-text)] safe-text">
                                                                     {value}
                                                                 </code>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 ) : (
-                                                    <p className="mt-3 text-sm text-slate-600">No command hints were returned.</p>
+                                                    <p className="mt-3 text-sm text-[var(--app-text-muted)]">No command hints were returned.</p>
                                                 )}
                                             </div>
                                         </div>
@@ -823,11 +822,11 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                             </FormField>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                            <p className="text-sm font-medium text-slate-700">Vector methods</p>
+                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                            <p className="text-sm font-medium text-[var(--app-text-soft)]">Vector methods</p>
 
                             <div className="mt-3 flex flex-wrap gap-4">
-                                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                <label className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                     <input
                                         type="checkbox"
                                         className={CHECKBOX_CLASS_NAME}
@@ -840,7 +839,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                     DL
                                 </label>
 
-                                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                <label className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                     <input
                                         type="checkbox"
                                         className={CHECKBOX_CLASS_NAME}
@@ -853,7 +852,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                     ViT
                                 </label>
 
-                                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                <label className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                     <input
                                         type="checkbox"
                                         className={CHECKBOX_CLASS_NAME}
@@ -882,7 +881,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                         <button
                             type="submit"
                             disabled={isEnrollLoading}
-                            className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="app-button app-button--primary"
                         >
                             <UserPlus className="mr-2 h-4 w-4" />
                             {isEnrollLoading ? "Enrolling..." : "Enroll identity"}
@@ -910,7 +909,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                             />
                         </FormField>
 
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <label className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
                             <input
                                 type="checkbox"
                                 className={CHECKBOX_CLASS_NAME}
@@ -939,7 +938,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                         <button
                             type="submit"
                             disabled={isDeleteLoading}
-                            className="inline-flex items-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="app-button app-button--danger"
                         >
                             <Trash2 className="mr-2 h-4 w-4" />
                             {isDeleteLoading ? "Deleting..." : "Delete identity"}
@@ -1093,7 +1092,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                     <button
                         type="submit"
                         disabled={isSearchLoading}
-                        className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="app-button app-button--primary"
                     >
                         <Search className="mr-2 h-4 w-4" />
                         {isSearchLoading ? "Searching..." : "Search identities"}
@@ -1136,9 +1135,9 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                 {hintEntries.length > 0 ? (
                                     <dl className="space-y-2 text-sm">
                                         {hintEntries.map(([key, value]) => (
-                                            <div key={key} className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
-                                                <dt className="font-medium text-slate-600">{key}</dt>
-                                                <dd className="text-right text-slate-800">{value}</dd>
+                                            <div key={key} className="flex min-w-0 items-start justify-between gap-4 rounded-xl bg-[var(--app-surface-subtle)] px-4 py-3">
+                                                <dt className="safe-text font-medium text-[var(--app-text-muted)]">{key}</dt>
+                                                <dd className="safe-text text-right text-[var(--app-text)]">{value}</dd>
                                             </div>
                                         ))}
                                     </dl>
@@ -1155,9 +1154,9 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                 {latencyEntries.length > 0 ? (
                                     <dl className="space-y-2 text-sm">
                                         {latencyEntries.map(([key, value]) => (
-                                            <div key={key} className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
-                                                <dt className="font-medium text-slate-600">{key}</dt>
-                                                <dd className="text-right text-slate-800">{formatLatency(value)}</dd>
+                                            <div key={key} className="flex min-w-0 items-start justify-between gap-4 rounded-xl bg-[var(--app-surface-subtle)] px-4 py-3">
+                                                <dt className="safe-text font-medium text-[var(--app-text-muted)]">{key}</dt>
+                                                <dd className="safe-text text-right text-[var(--app-text)]">{formatLatency(value)}</dd>
                                             </div>
                                         ))}
                                     </dl>
@@ -1172,17 +1171,17 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                         </div>
 
                         {candidates.length > 0 ? (
-                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                <div className="border-b border-slate-100 px-6 py-5">
-                                    <h3 className="text-lg font-semibold text-slate-800">Candidate ranking</h3>
-                                    <p className="mt-1 text-sm text-slate-500">
-                                        Retrieval score, re-rank score, decision, and masked national ID are rendered directly from the normalized IdentifyResponse.
+                            <div className="overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm">
+                                <div className="border-b border-[var(--app-border-muted)] px-6 py-5">
+                                    <h3 className="text-lg font-semibold text-[var(--app-text)]">Candidate ranking</h3>
+                                    <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                                        Retrieval, re-rank, decision, and masked ID from the normalized IdentifyResponse.
                                     </p>
                                 </div>
 
                                 <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                                        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                                    <table className="min-w-full divide-y divide-[var(--app-border)] text-left text-sm">
+                                        <thead className="bg-[var(--app-surface-subtle)] text-xs uppercase text-[var(--app-text-muted)]">
                                         <tr>
                                             <th className="px-4 py-3">Rank</th>
                                             <th className="px-4 py-3">Person</th>
@@ -1195,16 +1194,16 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                         </tr>
                                         </thead>
 
-                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                        <tbody className="divide-y divide-[var(--app-border-muted)] bg-[var(--app-surface)]">
                                         {candidates.map((candidate) => (
-                                            <tr key={`${candidate.random_id}_${candidate.rank}`} className="hover:bg-slate-50">
-                                                <td className="px-4 py-3 font-medium text-slate-800">{candidate.rank}</td>
-                                                <td className="px-4 py-3 text-slate-800">{candidate.full_name}</td>
-                                                <td className="px-4 py-3 text-slate-600">{candidate.random_id}</td>
-                                                <td className="px-4 py-3 text-slate-600">{candidate.national_id_masked}</td>
-                                                <td className="px-4 py-3 text-slate-600">{candidate.capture}</td>
-                                                <td className="px-4 py-3 text-right text-slate-800">{candidate.retrieval_score.toFixed(4)}</td>
-                                                <td className="px-4 py-3 text-right text-slate-800">
+                                            <tr key={`${candidate.random_id}_${candidate.rank}`} className="hover:bg-[var(--app-surface-subtle)]">
+                                                <td className="px-4 py-3 font-medium text-[var(--app-text)]">{candidate.rank}</td>
+                                                <td className="px-4 py-3 safe-text text-[var(--app-text)]">{candidate.full_name}</td>
+                                                <td className="px-4 py-3 safe-text text-[var(--app-text-soft)]">{candidate.random_id}</td>
+                                                <td className="px-4 py-3 safe-text text-[var(--app-text-soft)]">{candidate.national_id_masked}</td>
+                                                <td className="px-4 py-3 safe-text text-[var(--app-text-soft)]">{candidate.capture}</td>
+                                                <td className="px-4 py-3 text-right text-[var(--app-text)]">{candidate.retrieval_score.toFixed(4)}</td>
+                                                <td className="px-4 py-3 text-right text-[var(--app-text)]">
                                                     {typeof candidate.rerank_score === "number" ? candidate.rerank_score.toFixed(4) : "-"}
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
@@ -1213,7 +1212,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                                     ) : candidate.decision === false ? (
                                                         <ShieldAlert className="mx-auto h-4 w-4 text-amber-600" />
                                                     ) : (
-                                                        <span className="text-slate-400">-</span>
+                                                        <span className="text-[var(--app-text-muted)]">-</span>
                                                     )}
                                                 </td>
                                             </tr>

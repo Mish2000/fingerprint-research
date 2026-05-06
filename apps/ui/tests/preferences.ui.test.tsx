@@ -184,9 +184,9 @@ describe("global preferences UI", () => {
         expect(document.documentElement.dir).toBe("rtl");
         expect(container.textContent).toContain("העדפות משתמש");
         expect(container.textContent).toContain("מצב חיסכון באנרגיה");
-        expect(container.textContent).toContain("תקציר מנהלים");
+        expect(container.textContent).toContain("דמו חי");
         expect(container.textContent).not.toContain("צפיפות");
-        expect(container.querySelector("main h2")?.textContent).toBe("מדדי ביצועים");
+        expect(container.querySelector("main h2")?.textContent).toBe("דמו חי");
         expect(document.documentElement.dataset.density).toBe("comfortable");
         expect(document.documentElement.classList.contains("density-compact")).toBe(false);
 

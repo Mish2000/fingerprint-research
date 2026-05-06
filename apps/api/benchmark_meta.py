@@ -90,18 +90,36 @@ VIEW_MODE_INFO: Dict[str, Dict[str, str]] = {
 BEST_ORDER = {"best_auc": 0, "best_eer": 1, "best_latency": 2}
 
 CANONICAL_FULL_RUNS = [
-    "full_nist_sd300b_h6",
-    "full_nist_sd300c_h6",
+    "full_nist_sd300b_h5",
+    "full_nist_sd300c_h5",
     "full_polyu_cross_h5",
 ]
 
 CANONICAL_SMOKE_RUNS = [
-    "smoke_nist_sd300b_h6",
-    "smoke_nist_sd300c_h6",
+    "smoke_nist_sd300b_h5",
+    "smoke_nist_sd300c_h5",
     "smoke_polyu_cross_h5",
 ]
 
-PREFERRED_RUN_ORDER = CANONICAL_FULL_RUNS + CANONICAL_SMOKE_RUNS
+REFERENCE_CANONICAL_FULL_RUNS = [
+    "full_nist_sd300b_h6",
+    "full_nist_sd300c_h6",
+]
+
+REFERENCE_CANONICAL_SMOKE_RUNS = [
+    "smoke_nist_sd300b_h6",
+    "smoke_nist_sd300c_h6",
+]
+
+ACCEPTED_CANONICAL_FULL_RUNS = CANONICAL_FULL_RUNS + REFERENCE_CANONICAL_FULL_RUNS
+ACCEPTED_CANONICAL_SMOKE_RUNS = CANONICAL_SMOKE_RUNS + REFERENCE_CANONICAL_SMOKE_RUNS
+
+PREFERRED_RUN_ORDER = (
+    CANONICAL_FULL_RUNS
+    + REFERENCE_CANONICAL_FULL_RUNS
+    + CANONICAL_SMOKE_RUNS
+    + REFERENCE_CANONICAL_SMOKE_RUNS
+)
 
 _CAPTURE_ALIASES = {
     "plain": "plain",
@@ -402,10 +420,14 @@ def is_showcase_dataset(dataset: Optional[str]) -> bool:
     return bool(dataset and dataset in SHOWCASE_DATASETS)
 
 
-def infer_view_mode(run: str, validated: bool = False) -> str:
-    if run in CANONICAL_FULL_RUNS and validated:
+def infer_view_mode(run: str, validated: bool = False, source: Optional[str] = None) -> str:
+    if run in CANONICAL_FULL_RUNS:
         return "canonical"
     if run in CANONICAL_SMOKE_RUNS:
+        return "smoke"
+    if source == "reference" and validated and run in REFERENCE_CANONICAL_FULL_RUNS:
+        return "canonical"
+    if source == "reference" and validated and run in REFERENCE_CANONICAL_SMOKE_RUNS:
         return "smoke"
     return "archive"
 
@@ -425,6 +447,10 @@ def format_run_label(run: str) -> str:
         return "Canonical full benchmark"
     if run in CANONICAL_SMOKE_RUNS:
         return "Smoke benchmark"
+    if run in REFERENCE_CANONICAL_FULL_RUNS:
+        return "Reference full benchmark"
+    if run in REFERENCE_CANONICAL_SMOKE_RUNS:
+        return "Reference smoke benchmark"
     if run.startswith("full_"):
         return "Archived full benchmark"
     if run.startswith("smoke_"):

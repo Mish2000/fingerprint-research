@@ -177,6 +177,13 @@ function normalizeBenchmarkViewMode(value: unknown, label = "view_mode"): Benchm
     return normalizeEnumValue(value, BENCHMARK_VIEW_MODE_VALUES, label);
 }
 
+function normalizeBenchmarkSourceRoot(value: unknown, label = "benchmark_source_root"): BenchmarkProvenance["benchmark_source_root"] {
+    if (value == null) {
+        return null;
+    }
+    return normalizeEnumValue(value, ["live", "reference"] as const, label);
+}
+
 function normalizeBenchmarkBestMetric(value: unknown, label = "metric"): BenchmarkBestMetric {
     return normalizeEnumValue(value, BENCHMARK_BEST_METRIC_VALUES, label);
 }
@@ -246,6 +253,9 @@ function normalizeBenchmarkProvenance(payload: unknown): BenchmarkProvenance {
         data_dir: maybeString(record, "data_dir"),
         git_commit: maybeString(record, "git_commit"),
         available_artifacts: expectStringArray(record.available_artifacts ?? [], "BenchmarkProvenance.available_artifacts"),
+        benchmark_source_root: normalizeBenchmarkSourceRoot(record.benchmark_source_root, "BenchmarkProvenance.benchmark_source_root"),
+        benchmark_source_label: maybeString(record, "benchmark_source_label"),
+        showcase_exclusion_note: maybeString(record, "showcase_exclusion_note"),
     };
 }
 
@@ -506,6 +516,8 @@ function normalizeBenchmarkRunInfo(payload: unknown): BenchmarkRunInfo {
         benchmark_methods: expectStringArray(record.benchmark_methods ?? [], "BenchmarkRunInfo.benchmark_methods"),
         splits: expectStringArray(record.splits, "BenchmarkRunInfo.splits"),
         dataset_info: record.dataset_info == null ? null : normalizeNamedInfo(record.dataset_info, "BenchmarkRunInfo.dataset_info"),
+        benchmark_source_root: normalizeBenchmarkSourceRoot(record.benchmark_source_root, "BenchmarkRunInfo.benchmark_source_root"),
+        benchmark_source_label: maybeString(record, "benchmark_source_label"),
     };
 }
 

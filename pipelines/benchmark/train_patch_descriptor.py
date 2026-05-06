@@ -7,6 +7,8 @@ sys.path.insert(0, str(ROOT))
 
 import argparse
 import json
+import os
+import tempfile
 import time
 from typing import Iterator, Tuple
 
@@ -178,8 +180,21 @@ class PatchPairStream(torch.utils.data.IterableDataset):
                     yield v1, v2
 
 # -------------------------
-# Model (small CNN + projection head)
+# Model (CNN encoder + projection head)
 # -------------------------
+
+DEDICATED_MODEL_VERSION = 2
+SUPPORTED_MODEL_ARCHES = ("v1_small_cnn", "v2_medium_cnn")
+
+
+def encoder_channels_for_arch(model_arch: str) -> list[int]:
+    if model_arch == "v1_small_cnn":
+        return [32, 64, 128]
+    if model_arch == "v2_medium_cnn":
+        return [48, 96, 160, 192]
+    supported = ", ".join(SUPPORTED_MODEL_ARCHES)
+    raise ValueError(f"Unsupported Dedicated model_arch={model_arch!r}. Supported values: {supported}")
+
 
 class SmallEncoder(nn.Module):
     def __init__(self, emb_dim: int = 256):
@@ -204,14 +219,55 @@ class SmallEncoder(nn.Module):
         x = self.fc(x)
         return x
 
-class SimCLRModel(nn.Module):
-    def __init__(self, emb_dim: int = 256, proj_dim: int = 128):
+
+class MediumEncoder(nn.Module):
+    def __init__(self, emb_dim: int = 256):
         super().__init__()
-        self.encoder = SmallEncoder(emb_dim=emb_dim)
+        self.net = nn.Sequential(
+            nn.Conv2d(1, 48, 3, padding=1), nn.BatchNorm2d(48), nn.ReLU(inplace=True),
+            nn.Conv2d(48, 48, 3, padding=1), nn.BatchNorm2d(48), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # 24x24 for patch=48
+
+            nn.Conv2d(48, 96, 3, padding=1), nn.BatchNorm2d(96), nn.ReLU(inplace=True),
+            nn.Conv2d(96, 96, 3, padding=1), nn.BatchNorm2d(96), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # 12x12
+
+            nn.Conv2d(96, 160, 3, padding=1), nn.BatchNorm2d(160), nn.ReLU(inplace=True),
+            nn.Conv2d(160, 160, 3, padding=1), nn.BatchNorm2d(160), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # 6x6
+
+            nn.Conv2d(160, 192, 3, padding=1), nn.BatchNorm2d(192), nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d(1),  # 1x1
+        )
+        self.fc = nn.Linear(192, emb_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.net(x)
+        x = x.flatten(1)
+        x = self.fc(x)
+        return x
+
+
+def build_encoder(model_arch: str, *, emb_dim: int) -> nn.Module:
+    if model_arch == "v1_small_cnn":
+        return SmallEncoder(emb_dim=emb_dim)
+    if model_arch == "v2_medium_cnn":
+        return MediumEncoder(emb_dim=emb_dim)
+    supported = ", ".join(SUPPORTED_MODEL_ARCHES)
+    raise ValueError(f"Unsupported Dedicated model_arch={model_arch!r}. Supported values: {supported}")
+
+
+class SimCLRModel(nn.Module):
+    def __init__(self, emb_dim: int = 256, proj_dim: int = 128, model_arch: str = "v1_small_cnn"):
+        super().__init__()
+        self.model_arch = str(model_arch)
+        self.emb_dim = int(emb_dim)
+        self.proj_dim = int(proj_dim)
+        self.encoder = build_encoder(self.model_arch, emb_dim=self.emb_dim)
         self.proj = nn.Sequential(
-            nn.Linear(emb_dim, emb_dim),
+            nn.Linear(self.emb_dim, self.emb_dim),
             nn.ReLU(inplace=True),
-            nn.Linear(emb_dim, proj_dim),
+            nn.Linear(self.emb_dim, self.proj_dim),
         )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -220,6 +276,109 @@ class SimCLRModel(nn.Module):
         z = F.normalize(z, dim=1)
         h = F.normalize(h, dim=1)
         return h, z
+
+
+def build_model_config(args: argparse.Namespace) -> dict:
+    model_arch = str(args.model_arch)
+    return {
+        "dedicated_model_version": DEDICATED_MODEL_VERSION,
+        "model_arch": model_arch,
+        "patch": int(args.patch),
+        "emb_dim": int(args.emb_dim),
+        "proj_dim": int(args.proj_dim),
+        "encoder_channels": encoder_channels_for_arch(model_arch),
+        "train": {
+            "manifest": str(args.manifest),
+            "split": str(args.split),
+            "max_kpts": int(args.max_kpts),
+            "patches_per_image": int(args.patches_per_image),
+            "limit_images": int(args.limit_images),
+            "batch": int(args.batch),
+            "steps": int(args.steps),
+            "lr": float(args.lr),
+            "wd": float(args.wd),
+            "temp": float(args.temp),
+            "seed": int(args.seed),
+            "num_workers": int(args.num_workers),
+            "out_dir": str(args.out_dir),
+        },
+    }
+
+
+def checkpoint_model_config(ckpt: dict) -> dict:
+    if not isinstance(ckpt, dict):
+        raise ValueError("Unexpected checkpoint format. Expected a dict checkpoint.")
+
+    raw = ckpt.get("model_config")
+    train_args = ckpt.get("args", {}) if isinstance(ckpt.get("args", {}), dict) else {}
+
+    if raw is None:
+        cfg = {
+            "dedicated_model_version": 1,
+            "model_arch": "v1_small_cnn",
+            "patch": int(train_args.get("patch", 48)),
+            "emb_dim": int(train_args.get("emb_dim", 256)),
+            "proj_dim": int(train_args.get("proj_dim", 128)),
+            "encoder_channels": encoder_channels_for_arch("v1_small_cnn"),
+            "legacy_assumed_config": True,
+        }
+    elif isinstance(raw, dict):
+        cfg = dict(raw)
+    else:
+        raise ValueError("Invalid checkpoint model_config. Expected a dict.")
+
+    model_arch = str(cfg.get("model_arch", "v1_small_cnn"))
+    if model_arch not in SUPPORTED_MODEL_ARCHES:
+        supported = ", ".join(SUPPORTED_MODEL_ARCHES)
+        raise ValueError(f"Unsupported Dedicated checkpoint model_arch={model_arch!r}. Supported values: {supported}")
+
+    cfg["model_arch"] = model_arch
+    cfg["patch"] = int(cfg.get("patch", train_args.get("patch", 48)))
+    cfg["emb_dim"] = int(cfg.get("emb_dim", train_args.get("emb_dim", 256)))
+    cfg["proj_dim"] = int(cfg.get("proj_dim", train_args.get("proj_dim", 128)))
+    cfg.setdefault("encoder_channels", encoder_channels_for_arch(model_arch))
+    return cfg
+
+
+def atomic_save_checkpoint(ckpt: dict, final_path: Path) -> None:
+    final_path = Path(final_path)
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Path | None = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            prefix=f".{final_path.name}.",
+            suffix=".tmp",
+            dir=str(final_path.parent),
+            delete=False,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            torch.save(ckpt, tmp)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+
+        if tmp_path is None or not tmp_path.is_file():
+            raise RuntimeError(f"Atomic checkpoint save failed before replace: temp file was not created for {final_path}")
+        size = int(tmp_path.stat().st_size)
+        if size <= 0:
+            raise RuntimeError(f"Atomic checkpoint save failed before replace: temp checkpoint is empty for {final_path}")
+
+        try:
+            try:
+                torch.load(str(tmp_path), map_location="cpu", weights_only=True)
+            except TypeError:
+                torch.load(str(tmp_path), map_location="cpu")
+            except Exception:
+                torch.load(str(tmp_path), map_location="cpu", weights_only=False)
+        except Exception as exc:
+            raise RuntimeError(f"Atomic checkpoint save failed before replace: sanity torch.load failed for {tmp_path}") from exc
+
+        os.replace(str(tmp_path), str(final_path))
+        tmp_path = None
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
 
 # -------------------------
 # NT-Xent loss
@@ -265,6 +424,9 @@ def main():
     ap.add_argument("--temp", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--num_workers", type=int, default=0)
+    ap.add_argument("--model_arch", type=str, default="v1_small_cnn", choices=SUPPORTED_MODEL_ARCHES)
+    ap.add_argument("--emb_dim", type=int, default=256)
+    ap.add_argument("--proj_dim", type=int, default=128)
 
     ap.add_argument("--out_dir", type=str, default="reports/week06+07+07/patch_descriptor/run_smoke")
     args = ap.parse_args()
@@ -281,12 +443,14 @@ def main():
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    model_config = build_model_config(args)
 
     # Save meta
     meta = {
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         "args": vars(args),
-        "torch_version": torch.__version__,
+        "model_config": model_config,
+        "torch_version": str(torch.__version__),
         "cuda": torch.cuda.is_available(),
         "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
     }
@@ -314,7 +478,11 @@ def main():
     )
     it = iter(loader)
 
-    model = SimCLRModel(emb_dim=256, proj_dim=128).to(device)
+    model = SimCLRModel(
+        emb_dim=int(args.emb_dim),
+        proj_dim=int(args.proj_dim),
+        model_arch=str(args.model_arch),
+    ).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
 
     use_amp = torch.cuda.is_available()
@@ -355,8 +523,10 @@ def main():
                 "step": step,
                 "model": model.state_dict(),
                 "args": vars(args),
+                "model_config": model_config,
+                "torch_version": str(torch.__version__),
             }
-            torch.save(ckpt, out_dir / "ckpt_last.pth")
+            atomic_save_checkpoint(ckpt, out_dir / "ckpt_last.pth")
 
     print(f"\n[DONE] Wrote run to: {out_dir.resolve()}")
     print(f"[DONE] Checkpoint: {str((out_dir / 'ckpt_last.pth').resolve())}")

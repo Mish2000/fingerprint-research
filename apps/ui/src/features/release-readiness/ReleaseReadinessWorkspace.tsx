@@ -53,7 +53,7 @@ const smokeChecklist: ChecklistItem[] = [
         evidence: [
             "reports/benchmark/april_comparison/benchmark_comparison.md",
             "reports/benchmark/april_comparison/best_methods.json",
-            "reports/benchmark/full_nist_sd300b_h6/validation.ok",
+            "reports/benchmark/full_nist_sd300b_h5/validation.ok",
         ],
     },
 ];
@@ -144,11 +144,11 @@ const accessibilityChecklist: ChecklistItem[] = [
 ];
 
 const benchmarkRunFamilies = [
-    "full_nist_sd300b_h6",
-    "full_nist_sd300c_h6",
+    "full_nist_sd300b_h5",
+    "full_nist_sd300c_h5",
     "full_polyu_cross_h5",
-    "smoke_nist_sd300b_h6",
-    "smoke_nist_sd300c_h6",
+    "smoke_nist_sd300b_h5",
+    "smoke_nist_sd300c_h5",
     "smoke_polyu_cross_h5",
 ];
 

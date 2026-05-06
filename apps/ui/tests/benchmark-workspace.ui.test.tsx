@@ -35,6 +35,24 @@ const splitInfos = {
     },
 } as const;
 
+const viewInfos = {
+    canonical: {
+        key: "canonical",
+        label: "Canonical",
+        summary: "Validated showcase runs.",
+    },
+    smoke: {
+        key: "smoke",
+        label: "Smoke",
+        summary: "Smoke regression anchors.",
+    },
+    archive: {
+        key: "archive",
+        label: "Archive",
+        summary: "Archived benchmark rows.",
+    },
+} as const;
+
 function createJsonResponse(payload: unknown): Response {
     return new Response(JSON.stringify(payload), {
         status: 200,
@@ -131,6 +149,9 @@ function createRow({
     eerRank,
     latencyRank,
     artifacts,
+    viewMode = "canonical",
+    status = "validated",
+    validationState = "validated",
 }: {
     dataset: "nist_sd300b" | "polyu_cross";
     split: "val" | "test";
@@ -146,6 +167,9 @@ function createRow({
     eerRank: number;
     latencyRank: number;
     artifacts?: ReturnType<typeof availableArtifacts>;
+    viewMode?: "canonical" | "smoke" | "archive";
+    status?: "validated" | "smoke" | "archived" | "partial";
+    validationState?: "validated" | "snapshot" | "archived" | "partial";
 }) {
     const rawBenchmarkMethod = benchmarkMethod ?? method;
     const resolvedArtifacts = artifacts ?? availableArtifacts(run, rawBenchmarkMethod, split);
@@ -172,9 +196,9 @@ function createRow({
         run_family: run,
         run_label: runLabel,
         run_kind: "full",
-        view_mode: "canonical",
-        status: "validated",
-        validation_state: "validated",
+        view_mode: viewMode,
+        status,
+        validation_state: validationState,
         artifact_count: available.length,
         available_artifacts: available,
         summary_text: `${runLabel} on ${split} with ${nPairs} pairs.`,
@@ -183,9 +207,9 @@ function createRow({
             run,
             run_label: runLabel,
             run_kind: "full",
-            view_mode: "canonical",
-            status: "validated",
-            validation_state: "validated",
+            view_mode: viewMode,
+            status,
+            validation_state: validationState,
             source_type: "summary_csv",
             artifact_source: "results_summary.csv",
             methods_in_run: ["sift", "dl", "vit"],
@@ -200,6 +224,8 @@ function createRow({
             data_dir: "C:\\data\\manifests\\nist_sd300b",
             git_commit: "deadbeef",
             available_artifacts: available,
+            benchmark_source_root: viewMode === "canonical" ? "reference" : "live",
+            benchmark_source_label: viewMode === "canonical" ? "Reference artifacts" : "Live artifacts",
         },
     };
 }
@@ -316,7 +342,61 @@ const canonicalPolyuTestRows = [
     }),
 ];
 
-function selectionRows(dataset: string, split: string) {
+function applyViewMode(rows: ReturnType<typeof selectionRowsBase>, viewMode: string) {
+    if (viewMode === "smoke") {
+        return rows.map((row) => ({
+            ...row,
+            run: row.run.replace("full_", "smoke_"),
+            run_family: row.run_family.replace("full_", "smoke_"),
+            run_label: "Smoke benchmark",
+            run_kind: "smoke",
+            view_mode: "smoke",
+            status: "smoke",
+            validation_state: "snapshot",
+            split: "val",
+            n_pairs: Math.min(row.n_pairs, 200),
+            provenance: {
+                ...row.provenance,
+                run: row.provenance.run.replace("full_", "smoke_"),
+                run_label: "Smoke benchmark",
+                run_kind: "smoke",
+                view_mode: "smoke",
+                status: "smoke",
+                validation_state: "snapshot",
+                benchmark_source_root: "live",
+                benchmark_source_label: "Live artifacts",
+            },
+        }));
+    }
+
+    if (viewMode === "archive") {
+        return rows.map((row) => ({
+            ...row,
+            run: "current",
+            run_family: "current",
+            run_label: "Archived benchmark",
+            run_kind: "legacy",
+            view_mode: "archive",
+            status: "archived",
+            validation_state: "archived",
+            provenance: {
+                ...row.provenance,
+                run: "current",
+                run_label: "Archived benchmark",
+                run_kind: "legacy",
+                view_mode: "archive",
+                status: "archived",
+                validation_state: "archived",
+                benchmark_source_root: "live",
+                benchmark_source_label: "Live artifacts",
+            },
+        }));
+    }
+
+    return rows;
+}
+
+function selectionRowsBase(dataset: string, split: string) {
     if (dataset === "polyu_cross") {
         return canonicalPolyuTestRows;
     }
@@ -324,6 +404,10 @@ function selectionRows(dataset: string, split: string) {
         return canonicalBValRows;
     }
     return canonicalBTestRows;
+}
+
+function selectionRows(dataset: string, split: string, viewMode = "canonical") {
+    return applyViewMode(selectionRowsBase(dataset, split), viewMode);
 }
 
 function sortRows(rows: ReturnType<typeof selectionRows>, sortMode: string) {
@@ -337,8 +421,8 @@ function sortRows(rows: ReturnType<typeof selectionRows>, sortMode: string) {
     return items.sort((a, b) => a.auc_rank - b.auc_rank);
 }
 
-function bestEntriesFor(dataset: string, split: string) {
-    const rows = selectionRows(dataset, split);
+function bestEntriesFor(dataset: string, split: string, viewMode = "canonical") {
+    const rows = selectionRows(dataset, split, viewMode);
     const byRank = (metric: "auc_rank" | "eer_rank" | "latency_rank") => rows.find((row) => row[metric] === 1) ?? null;
     const bestAuc = byRank("auc_rank");
     const bestEer = byRank("eer_rank");
@@ -393,72 +477,74 @@ function bestEntriesFor(dataset: string, split: string) {
     ].filter((entry) => entry != null);
 }
 
-function summaryPayload(dataset: string, split: string) {
+function summaryPayload(dataset: string, split: string, viewMode = "canonical") {
     const effectiveDataset = dataset === "polyu_cross" ? "polyu_cross" : "nist_sd300b";
-    const effectiveSplit = effectiveDataset === "polyu_cross" ? "test" : (split === "val" ? "val" : "test");
-    const rows = selectionRows(effectiveDataset, effectiveSplit);
+    const effectiveSplit = viewMode === "smoke"
+        ? "val"
+        : effectiveDataset === "polyu_cross"
+            ? "test"
+            : (split === "val" ? "val" : "test");
+    const rows = selectionRows(effectiveDataset, effectiveSplit, viewMode);
 
     return {
         dataset: effectiveDataset,
         split: effectiveSplit,
-        view_mode: "canonical",
+        view_mode: viewMode,
         dataset_info: datasetInfos[effectiveDataset as keyof typeof datasetInfos],
         split_info: splitInfos[effectiveSplit as keyof typeof splitInfos],
-        view_info: {
-            key: "canonical",
-            label: "Canonical",
-            summary: "Validated showcase runs.",
-        },
-        validation_state: "validated",
+        view_info: viewInfos[viewMode as keyof typeof viewInfos],
+        validation_state: viewMode === "smoke" ? "snapshot" : viewMode === "archive" ? "archived" : "validated",
         selection_note: "Showing curated full benchmark results from validated showcase runs.",
         selection_policy: "Curated full benchmark showcase restricted to validated canonical families with usable evidence.",
         result_count: rows.length,
         method_count: new Set(rows.map((row) => row.method)).size,
         run_count: new Set(rows.map((row) => row.run)).size,
         available_datasets: Object.values(datasetInfos),
-        available_splits: effectiveDataset === "polyu_cross"
+        available_splits: viewMode === "smoke"
+            ? [splitInfos.val]
+            : effectiveDataset === "polyu_cross"
             ? [splitInfos.test]
             : [splitInfos.val, splitInfos.test],
-        available_view_modes: [{
-            key: "canonical",
-            label: "Canonical",
-            summary: "Validated showcase runs.",
-        }],
+        available_view_modes: Object.values(viewInfos),
         current_run_families: [...new Set(rows.map((row) => row.run))],
         artifact_note: "Artifact links surface stored benchmark evidence when files are available.",
     };
 }
 
-function comparisonPayload(dataset: string, split: string, sortMode: string) {
+function comparisonPayload(dataset: string, split: string, sortMode: string, viewMode = "canonical") {
     const effectiveDataset = dataset === "polyu_cross" ? "polyu_cross" : "nist_sd300b";
-    const effectiveSplit = effectiveDataset === "polyu_cross" ? "test" : (split === "val" ? "val" : "test");
-    const rows = sortRows(selectionRows(effectiveDataset, effectiveSplit), sortMode);
+    const effectiveSplit = viewMode === "smoke"
+        ? "val"
+        : effectiveDataset === "polyu_cross"
+            ? "test"
+            : (split === "val" ? "val" : "test");
+    const rows = sortRows(selectionRows(effectiveDataset, effectiveSplit, viewMode), sortMode);
 
     return {
         rows,
         datasets: Object.keys(datasetInfos),
-        splits: effectiveDataset === "polyu_cross" ? ["test"] : ["val", "test"],
+        splits: viewMode === "smoke" ? ["val"] : effectiveDataset === "polyu_cross" ? ["test"] : ["val", "test"],
         default_dataset: effectiveDataset,
         default_split: effectiveSplit,
-        view_mode: "canonical",
-        view_info: {
-            key: "canonical",
-            label: "Canonical",
-            summary: "Validated showcase runs.",
-        },
+        view_mode: viewMode,
+        view_info: viewInfos[viewMode as keyof typeof viewInfos],
         dataset_info: datasetInfos,
         split_info: splitInfos,
     };
 }
 
-function bestPayload(dataset: string, split: string) {
+function bestPayload(dataset: string, split: string, viewMode = "canonical") {
     const effectiveDataset = dataset === "polyu_cross" ? "polyu_cross" : "nist_sd300b";
-    const effectiveSplit = effectiveDataset === "polyu_cross" ? "test" : (split === "val" ? "val" : "test");
+    const effectiveSplit = viewMode === "smoke"
+        ? "val"
+        : effectiveDataset === "polyu_cross"
+            ? "test"
+            : (split === "val" ? "val" : "test");
     return {
         dataset: effectiveDataset,
         split: effectiveSplit,
-        view_mode: "canonical",
-        entries: bestEntriesFor(effectiveDataset, effectiveSplit),
+        view_mode: viewMode,
+        entries: bestEntriesFor(effectiveDataset, effectiveSplit, viewMode),
     };
 }
 
@@ -567,18 +653,19 @@ function installBenchmarkFetchMock() {
         const parsed = new URL(url, "http://localhost");
         const dataset = parsed.searchParams.get("dataset") ?? "nist_sd300b";
         const split = parsed.searchParams.get("split") ?? "test";
+        const viewMode = parsed.searchParams.get("view_mode") ?? "canonical";
         const sortMode = parsed.searchParams.get("sort_mode") ?? "best_accuracy";
 
         if (parsed.pathname === "/api/benchmark/summary") {
-            return createJsonResponse(summaryPayload(dataset, split));
+            return createJsonResponse(summaryPayload(dataset, split, viewMode));
         }
 
         if (parsed.pathname === "/api/benchmark/comparison") {
-            return createJsonResponse(comparisonPayload(dataset, split, sortMode));
+            return createJsonResponse(comparisonPayload(dataset, split, sortMode, viewMode));
         }
 
         if (parsed.pathname === "/api/benchmark/best") {
-            return createJsonResponse(bestPayload(dataset, split));
+            return createJsonResponse(bestPayload(dataset, split, viewMode));
         }
 
         throw new Error(`Unexpected fetch call: ${url}`);
@@ -595,21 +682,24 @@ afterEach(() => {
 });
 
 describe("Benchmark workspace showcase", () => {
-    it("renders showcase-only controls and populates evidence immediately", async () => {
+    it("renders view controls and populates evidence immediately", async () => {
         installBenchmarkFetchMock();
         const { container, root } = await renderWorkspace();
 
         await waitFor(() => {
-            expect(normalizeText(container.textContent)).toContain("Curated full benchmark results");
-            expect(normalizeText(container.textContent)).toContain("Showcase winners and trade-offs");
+            expect(normalizeText(container.textContent)).toContain("Validated fingerprint matching benchmark");
+            expect(normalizeText(container.textContent)).toContain("Benchmark Story");
             expect(normalizeText(container.textContent)).toContain("Classic (SIFT)");
-            expect(normalizeText(container.textContent)).toContain("Selected method evidence");
+            expect(normalizeText(container.textContent)).toContain("Trust & provenance");
             expect(normalizeText(container.textContent)).toContain("full_nist_sd300b_h6");
         });
 
-        expect(normalizeText(container.textContent)).not.toContain("View mode");
-        expect(normalizeText(container.textContent)).not.toContain("Smoke");
-        expect(normalizeText(container.textContent)).not.toContain("Archive");
+        const viewField = getLabelField<HTMLSelectElement>(container, "View");
+        expect(Array.from(viewField.options).map((option) => option.textContent)).toEqual([
+            "Showcase",
+            "Smoke",
+            "Archive",
+        ]);
 
         const datasetField = getLabelField<HTMLSelectElement>(container, "Dataset");
         const splitField = getLabelField<HTMLSelectElement>(container, "Split");
@@ -644,16 +734,39 @@ describe("Benchmark workspace showcase", () => {
         await unmountWorkspace(root);
     });
 
-    it("normalizes legacy benchmarkView urls into the canonical showcase flow", async () => {
+    it("preserves benchmarkView urls and sends view_mode to benchmark endpoints", async () => {
         const { requests } = installBenchmarkFetchMock();
         const { container, root } = await renderWorkspace("/?benchmarkView=archive&benchmarkDataset=polyu_cross&benchmarkSplit=test");
 
         await waitFor(() => {
-            expect(normalizeText(container.textContent)).toContain("full_polyu_cross_h5");
+            expect(normalizeText(container.textContent)).toContain("current");
+            expect(getLabelField<HTMLSelectElement>(container, "View").value).toBe("archive");
         });
 
-        expect(window.location.search).not.toContain("benchmarkView");
-        expect(requests.some((url) => url.includes("view_mode="))).toBe(false);
+        expect(window.location.search).toContain("benchmarkView=archive");
+        expect(requests.some((url) => url.includes("view_mode=archive"))).toBe(true);
+
+        await unmountWorkspace(root);
+    });
+
+    it("changing view mode reloads benchmark endpoints with view_mode", async () => {
+        const { requests } = installBenchmarkFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        await waitFor(() => {
+            expect(getLabelField<HTMLSelectElement>(container, "View").value).toBe("canonical");
+        });
+
+        await changeSelect(getLabelField<HTMLSelectElement>(container, "View"), "smoke");
+        await waitFor(() => {
+            expect(getLabelField<HTMLSelectElement>(container, "View").value).toBe("smoke");
+            expect(normalizeText(container.textContent)).toContain("Smoke benchmark");
+        });
+
+        expect(window.location.search).toContain("benchmarkView=smoke");
+        expect(requests.some((url) => url.includes("/api/benchmark/summary") && url.includes("view_mode=smoke"))).toBe(true);
+        expect(requests.some((url) => url.includes("/api/benchmark/comparison") && url.includes("view_mode=smoke"))).toBe(true);
+        expect(requests.some((url) => url.includes("/api/benchmark/best") && url.includes("view_mode=smoke"))).toBe(true);
 
         await unmountWorkspace(root);
     });
@@ -671,15 +784,40 @@ describe("Benchmark workspace showcase", () => {
         await clickRowByText(container, "Deep Learning (ViT)");
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("ROC preview is not available for this row");
-            expect(normalizeText(container.textContent)).toContain("Meta JSON - N/A");
+            expect(normalizeText(container.textContent)).toContain("Meta JSON unavailable");
         });
 
-        await click(getButtonByText(container, "Open provenance"));
+        await click(getButtonByText(container, "Open provenance details"));
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("Methods in run");
             expect(normalizeText(container.textContent)).toContain("Benchmark method");
             expect(normalizeText(container.textContent)).toContain("vit");
             expect(normalizeText(container.textContent)).toContain("deadbeef");
+        });
+
+        await unmountWorkspace(root);
+    });
+
+    it("falls back cleanly when the ROC image cannot render", async () => {
+        installBenchmarkFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        await waitFor(() => {
+            expect(container.querySelector("img[aria-label*='ROC preview']")).not.toBeNull();
+        });
+
+        const image = container.querySelector("img[aria-label*='ROC preview']");
+        if (!image) {
+            throw new Error("ROC preview image was not rendered.");
+        }
+
+        await act(async () => {
+            image.dispatchEvent(new Event("error", { bubbles: false }));
+        });
+
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("ROC preview could not be rendered. Open artifact instead.");
+            expect(normalizeText(container.textContent)).toContain("Open ROC artifact");
         });
 
         await unmountWorkspace(root);

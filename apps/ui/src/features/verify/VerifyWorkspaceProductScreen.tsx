@@ -8,6 +8,7 @@ import InlineBanner from "../../shared/ui/InlineBanner.tsx";
 import SurfaceCard from "../../shared/ui/SurfaceCard.tsx";
 import FormField from "../../shared/ui/FormField.tsx";
 import { CHECKBOX_CLASS_NAME, INPUT_CLASS_NAME } from "../../shared/ui/inputClasses.ts";
+import { MetricTile, StatusPill, WorkspaceHero } from "../../shared/ui/presentation.tsx";
 import { formatMethodLabel } from "../../shared/storytelling.ts";
 import { CAPTURE_OPTIONS, METHOD_PROFILES } from "./config.ts";
 import DatasetBrowserPanel from "./components/DatasetBrowserPanel.tsx";
@@ -129,82 +130,56 @@ export default function VerifyWorkspaceProductScreen() {
 
     return (
         <div className="space-y-6">
-            <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-700 p-6 text-white shadow-sm">
-                <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
-                    <div className="space-y-4">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-                            <Sparkles className="h-4 w-4" />
-                            Verify Workspace
-                        </div>
+            <WorkspaceHero
+                eyebrow="Verify Workspace"
+                title="Run curated cases, browse datasets, or upload a pair."
+                description="Demo Mode stays first. Dataset Browser builds a server-backed pair, and Manual Upload keeps the direct 1:1 flow available."
+                icon={Sparkles}
+            >
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
+                    <div className="grid gap-3 md:grid-cols-3">
+                        {[
+                            { value: "demo" as const, label: "Demo Mode", description: "Curated one-click verify", icon: Sparkles },
+                            { value: "browser" as const, label: "Dataset Browser", description: "Build a pair from real data", icon: Database },
+                            { value: "manual" as const, label: "Manual Upload", description: "Bring your own two files", icon: Upload },
+                        ].map((mode) => {
+                            const Icon = mode.icon;
+                            const isActive = verify.activeMode === mode.value;
 
-                        <div className="space-y-3">
-                            <h2 className="text-3xl font-semibold tracking-tight">
-                                Run curated demos, browse real datasets, or upload your own pair.
-                            </h2>
-                            <p className="max-w-3xl text-sm leading-7 text-white/80">
-                                Demo Mode stays the default, Manual Upload stays separate, and Dataset Browser / Pair Builder adds a
-                                third path that turns real catalog-backed assets into a verify-ready pair without touching File Explorer.
-                            </p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3">
-                            {[
-                                { value: "demo" as const, label: "Demo Mode", description: "Curated one-click verify", icon: Sparkles },
-                                { value: "browser" as const, label: "Dataset Browser", description: "Build a pair from real data", icon: Database },
-                                { value: "manual" as const, label: "Manual Upload", description: "Bring your own two files", icon: Upload },
-                            ].map((mode) => {
-                                const Icon = mode.icon;
-                                const isActive = verify.activeMode === mode.value;
-
-                                return (
-                                    <button
-                                        key={mode.value}
-                                        type="button"
-                                        onClick={() => verify.setActiveMode(mode.value)}
-                                        className={[
-                                            "min-w-52 rounded-2xl border px-4 py-3 text-left transition",
-                                            isActive
-                                                ? "border-white/30 bg-white/15 shadow-sm"
-                                                : "border-white/10 bg-black/10 hover:border-white/20 hover:bg-white/10",
-                                        ].join(" ")}
-                                        aria-pressed={isActive}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className="rounded-xl bg-white/10 p-2 text-white">
-                                                <Icon className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <div className="font-semibold">{mode.label}</div>
-                                                <div className="mt-1 text-sm text-white/70">{mode.description}</div>
-                                            </div>
+                            return (
+                                <button
+                                    key={mode.value}
+                                    type="button"
+                                    onClick={() => verify.setActiveMode(mode.value)}
+                                    className={`mode-card ${isActive ? "mode-card--active" : ""}`.trim()}
+                                    aria-pressed={isActive}
+                                >
+                                    <div className="mode-card__content">
+                                        <div className="mode-card__icon">
+                                            <Icon className="h-4 w-4" />
                                         </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                                        <div className="min-w-0">
+                                            <div className="mode-card__label">{mode.label}</div>
+                                            <div className="mode-card__description text-clamp-2">{mode.description}</div>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Default Path</p>
-                            <p className="mt-2 text-lg font-semibold">Demo Mode</p>
-                            <p className="mt-1 text-sm text-white/70">Curated first-run experience</p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Browser-Ready Datasets</p>
-                            <p className="mt-2 text-lg font-semibold">{browser.browserReadyDatasets.length}</p>
-                            <p className="mt-1 text-sm text-white/70">Loaded from catalog datasets</p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Latest Context</p>
-                            <p className="mt-2 text-lg font-semibold">{verify.lastRunContext?.title ?? "No run yet"}</p>
-                            <p className="mt-1 text-sm text-white/70">
-                                {verify.lastRunContext ? formatMethodLabel(verify.lastRunContext.method) : "Waiting for first execution"}
-                            </p>
-                        </div>
+                        <MetricTile label="Default Path" value="Demo Mode" detail="Curated first run" tone="brand" />
+                        <MetricTile label="Browser datasets" value={browser.browserReadyDatasets.length} detail="Catalog-ready" />
+                        <MetricTile
+                            label="Latest Context"
+                            value={<span className="safe-truncate">{verify.lastRunContext?.title ?? "No run yet"}</span>}
+                            detail={verify.lastRunContext ? formatMethodLabel(verify.lastRunContext.method) : "Waiting for first execution"}
+                            title={verify.lastRunContext?.title ?? "No run yet"}
+                        />
                     </div>
                 </div>
-            </section>
+            </WorkspaceHero>
 
             {verify.notice ? <InlineBanner variant="success">{verify.notice}</InlineBanner> : null}
 
@@ -226,7 +201,7 @@ export default function VerifyWorkspaceProductScreen() {
                 <button
                     type="button"
                     onClick={verify.clearPersistedWorkspaceState}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="app-button app-button--secondary"
                 >
                     Clear saved Verify workspace
                 </button>
@@ -249,18 +224,17 @@ export default function VerifyWorkspaceProductScreen() {
                                     </InlineBanner>
                                 ) : null}
 
-                                <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-4 text-sm leading-6 text-brand-900">
-                                    Pick a case to inspect its metadata, keep the recommended method or override it, then run the same
-                                    workspace flow you would use for manual verification.
+                                <div className="rounded-xl border border-[var(--app-brand-border)] bg-[var(--app-brand-surface)] px-4 py-3 text-sm leading-6 text-[var(--app-brand-text)]">
+                                    Pick a case, keep the recommended method or override it, then run the same verify flow.
                                 </div>
 
                                 {selectedDemoCase ? (
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-5">
                                         <div className="flex flex-wrap items-start justify-between gap-4">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Case</p>
-                                                <h3 className="mt-2 text-xl font-semibold text-slate-900">{selectedDemoCase.title}</h3>
-                                                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{selectedDemoCase.description}</p>
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Selected Case</p>
+                                                <h3 className="mt-2 safe-text text-xl font-semibold text-[var(--app-text)]">{selectedDemoCase.title}</h3>
+                                                <p className="mt-2 max-w-3xl text-clamp-2 text-sm leading-6 text-[var(--app-text-muted)]">{selectedDemoCase.description}</p>
                                             </div>
 
                                             <div className="flex flex-wrap gap-2">
@@ -270,10 +244,10 @@ export default function VerifyWorkspaceProductScreen() {
                                                         verify.togglePinnedDemoCase(selectedDemoCase);
                                                     }}
                                                     className={[
-                                                        "rounded-xl border px-4 py-2 text-sm font-medium transition",
+                                                        "app-button",
                                                         isSelectedDemoCasePinned
-                                                            ? "border-amber-200 bg-amber-50 text-amber-800"
-                                                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+                                                            ? "app-button--secondary border-[var(--app-warning-border)] bg-[var(--app-warning-surface)] text-[var(--app-warning-text)]"
+                                                            : "app-button--secondary",
                                                     ].join(" ")}
                                                 >
                                                     {isSelectedDemoCasePinned ? "Unpin case" : "Pin case"}
@@ -285,7 +259,7 @@ export default function VerifyWorkspaceProductScreen() {
                                                         void verify.runSelectedDemoCase();
                                                     }}
                                                     disabled={verify.isBusy}
-                                                    className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-brand-300"
+                                                    className="app-button app-button--primary"
                                                 >
                                                     {verify.isBusy && verify.runningDemoCaseId === selectedDemoCase.case_id ? (
                                                         <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -297,28 +271,26 @@ export default function VerifyWorkspaceProductScreen() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-slate-600">
-                                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1">{selectedDemoCase.dataset_label}</span>
-                                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1">{selectedDemoCase.split}</span>
-                                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                                                {formatGroundTruthLabel(selectedDemoCase.ground_truth)}
-                                            </span>
-                                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                                        <div className="mt-4 flex min-w-0 flex-wrap gap-2">
+                                            <StatusPill title={selectedDemoCase.dataset_label}>{selectedDemoCase.dataset_label}</StatusPill>
+                                            <StatusPill title={selectedDemoCase.split}>{selectedDemoCase.split}</StatusPill>
+                                            <StatusPill>{formatGroundTruthLabel(selectedDemoCase.ground_truth)}</StatusPill>
+                                            <StatusPill tone="brand">
                                                 Recommended {formatMethodLabel(selectedDemoCase.recommended_method)}
-                                            </span>
+                                            </StatusPill>
                                             {selectedDemoCase.evidence_quality ? (
-                                                <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                                                <StatusPill tone={selectedDemoCase.evidence_quality.evidence_status === "strong" ? "success" : "warning"}>
                                                     {selectedDemoCase.evidence_quality.evidence_status === "strong"
                                                         ? "Strong evidence"
                                                         : selectedDemoCase.evidence_quality.evidence_status === "fallback"
                                                             ? "Fallback evidence"
                                                             : "Degraded evidence"}
-                                                </span>
+                                                </StatusPill>
                                             ) : null}
                                         </div>
 
                                         {selectedDemoCase.evidence_quality ? (
-                                            <p className="mt-3 text-sm leading-6 text-slate-600">
+                                            <p className="mt-3 text-clamp-2 text-sm leading-6 text-[var(--app-text-muted)]">
                                                 {selectedDemoCase.evidence_quality.evidence_note}
                                             </p>
                                         ) : null}
@@ -326,24 +298,24 @@ export default function VerifyWorkspaceProductScreen() {
                                 ) : null}
 
                                 {verify.pinnedDemoCases.length > 0 ? (
-                                    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                                    <div className="rounded-xl border border-[var(--app-warning-border)] bg-[var(--app-warning-surface)] p-4">
                                         <div className="flex flex-wrap items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Pinned demo cases</p>
-                                                <p className="mt-1 text-sm text-amber-900">
-                                                    Keep a small verify playlist ready across reloads without restoring old results.
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-semibold uppercase text-[var(--app-warning-text)]">Pinned demo cases</p>
+                                                <p className="mt-1 text-sm text-[var(--app-warning-text)]">
+                                                    Keep a small verify playlist ready across reloads.
                                                 </p>
                                             </div>
-                                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                                            <StatusPill tone="warning">
                                                 {verify.pinnedDemoCases.length} pinned
-                                            </span>
+                                            </StatusPill>
                                         </div>
 
                                         <div className="mt-4 grid gap-3 md:grid-cols-2">
                                             {verify.pinnedDemoCases.map((demoCase) => (
-                                                <div key={demoCase.case_id} className="rounded-2xl border border-amber-200 bg-white p-4">
-                                                    <p className="text-sm font-semibold text-slate-900">{demoCase.title}</p>
-                                                    <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">
+                                                <div key={demoCase.case_id} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                                                    <p className="safe-text text-sm font-semibold text-[var(--app-text)]">{demoCase.title}</p>
+                                                    <p className="mt-1 safe-text text-xs uppercase text-[var(--app-text-muted)]">
                                                         {demoCase.dataset_label} / {demoCase.split}
                                                     </p>
 
@@ -351,7 +323,7 @@ export default function VerifyWorkspaceProductScreen() {
                                                         <button
                                                             type="button"
                                                             onClick={() => verify.selectDemoCase(demoCase, true)}
-                                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                                                            className="app-button app-button--secondary"
                                                         >
                                                             Select
                                                         </button>
@@ -360,7 +332,7 @@ export default function VerifyWorkspaceProductScreen() {
                                                             onClick={() => {
                                                                 verify.togglePinnedDemoCase(demoCase);
                                                             }}
-                                                            className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
+                                                            className="app-button app-button--secondary border-[var(--app-warning-border)] bg-[var(--app-warning-surface)] text-[var(--app-warning-text)]"
                                                         >
                                                             Unpin
                                                         </button>
@@ -381,10 +353,10 @@ export default function VerifyWorkspaceProductScreen() {
                                                 type="button"
                                                 onClick={() => verify.setDemoFilter(filter.value)}
                                                 className={[
-                                                    "rounded-full border px-3 py-1.5 text-sm font-medium transition",
+                                                    "status-pill cursor-pointer transition",
                                                     isActive
-                                                        ? "border-brand-200 bg-brand-50 text-brand-700"
-                                                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                                                        ? "status-pill--brand"
+                                                        : "status-pill--neutral hover:border-[var(--app-brand-border)]",
                                                 ].join(" ")}
                                                 aria-pressed={isActive}
                                             >
@@ -485,10 +457,8 @@ export default function VerifyWorkspaceProductScreen() {
                             description="Bring your own two files, keep control over capture metadata and method selection, and run the same verify endpoint."
                         >
                             <div className="space-y-5">
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-                                    Manual Upload stays intentionally separate from Demo Mode and Dataset Browser. Nothing here depends on
-                                    local file paths or catalog manifests: you pick two files, choose method and captures, and run verify
-                                    directly.
+                                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] px-4 py-3 text-sm leading-6 text-[var(--app-text-soft)]">
+                                    Manual Upload stays intentionally separate from Demo Mode and Dataset Browser. Pick two files, choose method and captures, and run verify directly.
                                 </div>
 
                                 {showManualReuploadHint ? (
@@ -541,41 +511,41 @@ export default function VerifyWorkspaceProductScreen() {
                     >
                         <div className="space-y-5">
                             {verify.activeMode === "demo" && selectedDemoCase ? (
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div>
-                                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Ready To Run</p>
-                                            <p className="mt-1 text-base font-semibold text-slate-900">{selectedDemoCase.title}</p>
-                                            <p className="mt-1 text-sm text-slate-600">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Ready To Run</p>
+                                            <p className="mt-1 safe-text text-base font-semibold text-[var(--app-text)]">{selectedDemoCase.title}</p>
+                                            <p className="mt-1 safe-text text-sm text-[var(--app-text-muted)]">
                                                 {selectedDemoCase.dataset_label} / {selectedDemoCase.split} / {formatGroundTruthLabel(selectedDemoCase.ground_truth)}
                                             </p>
                                         </div>
-                                        <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                        <StatusPill tone="brand">
                                             Recommended {formatMethodLabel(selectedDemoCase.recommended_method)}
-                                        </div>
+                                        </StatusPill>
                                     </div>
                                 </div>
                             ) : null}
 
                             {verify.activeMode === "browser" ? (
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div>
-                                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Ready To Run</p>
-                                            <p className="mt-1 text-base font-semibold text-slate-900">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Ready To Run</p>
+                                            <p className="mt-1 safe-text text-base font-semibold text-[var(--app-text)]">
                                                 {browser.selectedAssetA && browser.selectedAssetB
                                                     ? `${browser.selectedAssetA.asset_id} vs ${browser.selectedAssetB.asset_id}`
                                                     : "Select both sides in Pair Builder"}
                                             </p>
-                                            <p className="mt-1 text-sm text-slate-600">
+                                            <p className="mt-1 safe-text text-sm text-[var(--app-text-muted)]">
                                                 {browser.selectedDataset
                                                     ? `${browser.selectedDataset.dataset_label} / ${browser.selectedAssetA?.split ?? "-"} to ${browser.selectedAssetB?.split ?? "-"}`
                                                     : "Choose a browser-ready dataset first."}
                                             </p>
                                         </div>
-                                        <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                        <StatusPill tone={verify.isCurrentBrowserPairApplied ? "success" : "warning"}>
                                             {verify.isCurrentBrowserPairApplied ? "Pair Applied" : "Apply Pair First"}
-                                        </div>
+                                        </StatusPill>
                                     </div>
                                 </div>
                             ) : null}
@@ -676,10 +646,10 @@ export default function VerifyWorkspaceProductScreen() {
                                 </FormField>
                             </div>
 
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <p className="text-sm font-semibold text-slate-800">Execution Toggles</p>
+                            <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                                <p className="text-sm font-semibold text-[var(--app-text)]">Execution Toggles</p>
                                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                    <label className="inline-flex min-w-0 items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                         <input
                                             type="checkbox"
                                             className={CHECKBOX_CLASS_NAME}
@@ -692,7 +662,7 @@ export default function VerifyWorkspaceProductScreen() {
                                         Return overlay
                                     </label>
 
-                                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                    <label className="inline-flex min-w-0 items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                         <input
                                             type="checkbox"
                                             className={CHECKBOX_CLASS_NAME}
@@ -705,7 +675,7 @@ export default function VerifyWorkspaceProductScreen() {
                                         Warm up matcher
                                     </label>
 
-                                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                    <label className="inline-flex min-w-0 items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                         <input
                                             type="checkbox"
                                             className={CHECKBOX_CLASS_NAME}
@@ -718,7 +688,7 @@ export default function VerifyWorkspaceProductScreen() {
                                         Show outliers on canvas
                                     </label>
 
-                                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                    <label className="inline-flex min-w-0 items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                         <input
                                             type="checkbox"
                                             className={CHECKBOX_CLASS_NAME}
@@ -738,26 +708,23 @@ export default function VerifyWorkspaceProductScreen() {
                                     type="button"
                                     onClick={runPrimaryAction}
                                     disabled={!canRunPrimaryAction}
-                                    className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-brand-300"
+                                    className="app-button app-button--primary"
                                 >
                                     {verify.isBusy ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                                     {stageLabel(verify.stage, verify.activeMode)}
                                 </button>
 
-                                <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                                    <SlidersHorizontal className="mr-2 h-4 w-4" />
+                                <StatusPill icon={SlidersHorizontal} title={verify.selectedMethod.label}>
                                     {verify.selectedMethod.label}
-                                </span>
+                                </StatusPill>
 
-                                <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                                    <Thermometer className="mr-2 h-4 w-4" />
+                                <StatusPill icon={Thermometer}>
                                     Threshold {verify.form.thresholdMode === "default" ? "default" : verify.form.thresholdText || "custom"}
-                                </span>
+                                </StatusPill>
 
-                                <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                                    <ChevronRight className="mr-2 h-4 w-4" />
+                                <StatusPill icon={ChevronRight}>
                                     Max {verify.maxMatches} canvas matches
-                                </span>
+                                </StatusPill>
                             </div>
                         </div>
                     </SurfaceCard>
@@ -768,36 +735,36 @@ export default function VerifyWorkspaceProductScreen() {
                     >
                         <div className="space-y-5">
                             {verify.lastRunContext ? (
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div>
-                                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">
                                                 {verify.lastRunContext.mode === "demo"
                                                     ? "Demo Result Context"
                                                     : verify.lastRunContext.mode === "browser"
                                                         ? "Browser Result Context"
                                                         : "Manual Result Context"}
                                             </p>
-                                            <p className="mt-1 text-base font-semibold text-slate-900">{verify.lastRunContext.title}</p>
-                                            <p className="mt-1 text-sm text-slate-600">{verify.lastRunContext.subtitle}</p>
+                                            <p className="mt-1 safe-text text-base font-semibold text-[var(--app-text)]">{verify.lastRunContext.title}</p>
+                                            <p className="mt-1 safe-text text-sm text-[var(--app-text-muted)]">{verify.lastRunContext.subtitle}</p>
                                         </div>
-                                        <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold tracking-[0.16em] text-slate-600">
+                                        <StatusPill tone="brand">
                                             Method {formatMethodLabel(verify.lastRunContext.method)}
-                                        </div>
+                                        </StatusPill>
                                     </div>
 
-                                    <div className="mt-4 grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
+                                    <div className="mt-4 grid gap-3 text-sm text-[var(--app-text-soft)] sm:grid-cols-2">
                                         {verify.lastRunContext.mode === "demo" ? (
                                             <>
-                                                <div>
-                                                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Dataset / Split</p>
-                                                    <p className="mt-1 font-medium text-slate-900">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium uppercase text-[var(--app-text-muted)]">Dataset / Split</p>
+                                                    <p className="mt-1 safe-text font-medium text-[var(--app-text)]">
                                                         {verify.lastRunContext.datasetLabel} / {verify.lastRunContext.split}
                                                     </p>
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Method Behavior</p>
-                                                    <p className="mt-1 font-medium text-slate-900">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium uppercase text-[var(--app-text-muted)]">Method Behavior</p>
+                                                    <p className="mt-1 safe-text font-medium text-[var(--app-text)]">
                                                         {usingMethodOverride && verify.lastRunContext.recommendedMethod
                                                             ? `Override from ${formatMethodLabel(verify.lastRunContext.recommendedMethod)}`
                                                             : "Using recommended method"}
@@ -806,28 +773,28 @@ export default function VerifyWorkspaceProductScreen() {
                                             </>
                                         ) : verify.lastRunContext.mode === "browser" ? (
                                             <>
-                                                <div>
-                                                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Dataset / Split</p>
-                                                    <p className="mt-1 font-medium text-slate-900">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium uppercase text-[var(--app-text-muted)]">Dataset / Split</p>
+                                                    <p className="mt-1 safe-text font-medium text-[var(--app-text)]">
                                                         {verify.lastRunContext.datasetLabel} / {verify.lastRunContext.split}
                                                     </p>
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Asset Pair</p>
-                                                    <p className="mt-1 font-medium text-slate-900">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium uppercase text-[var(--app-text-muted)]">Asset Pair</p>
+                                                    <p className="mt-1 safe-text font-medium text-[var(--app-text)]">
                                                         {verify.lastRunContext.assetAId ?? "-"} vs {verify.lastRunContext.assetBId ?? "-"}
                                                     </p>
                                                 </div>
                                             </>
                                         ) : (
                                             <>
-                                                <div>
-                                                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Probe File</p>
-                                                    <p className="mt-1 font-medium text-slate-900">{verify.lastRunContext.probeFileName ?? "-"}</p>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium uppercase text-[var(--app-text-muted)]">Probe File</p>
+                                                    <p className="mt-1 safe-text font-medium text-[var(--app-text)]">{verify.lastRunContext.probeFileName ?? "-"}</p>
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Reference File</p>
-                                                    <p className="mt-1 font-medium text-slate-900">{verify.lastRunContext.referenceFileName ?? "-"}</p>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium uppercase text-[var(--app-text-muted)]">Reference File</p>
+                                                    <p className="mt-1 safe-text font-medium text-[var(--app-text)]">{verify.lastRunContext.referenceFileName ?? "-"}</p>
                                                 </div>
                                             </>
                                         )}
@@ -858,12 +825,12 @@ export default function VerifyWorkspaceProductScreen() {
                             {verify.resultState.status === "success" && verify.currentResult ? (
                                 <>
                                     <VerifyOutcomeStoryPanel story={verify.verifyStoryState} />
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
                                         <div className="flex flex-wrap items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-sm font-semibold text-slate-900">Raw metrics</p>
-                                                <p className="mt-1 text-sm text-slate-600">
-                                                    The storytelling layer stays on top, while the original metric block remains available underneath.
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-[var(--app-text)]">Raw metrics</p>
+                                                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                                                    Original score, threshold, latency, and overlay metrics remain available.
                                                 </p>
                                             </div>
                                             <button
@@ -873,7 +840,7 @@ export default function VerifyWorkspaceProductScreen() {
                                                         rawDetailsExpanded: !verify.storyVisibilityState.rawDetailsExpanded,
                                                     });
                                                 }}
-                                                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                                                className="app-button app-button--secondary"
                                             >
                                                 {verify.storyVisibilityState.rawDetailsExpanded ? "Hide raw metrics" : "Show raw metrics"}
                                             </button>

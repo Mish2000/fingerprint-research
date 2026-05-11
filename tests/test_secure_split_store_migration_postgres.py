@@ -13,9 +13,11 @@ RUNBOOK_PATH = Path(__file__).resolve().parents[1] / "LOCAL_DUAL_DB_RUNBOOK.md"
 LOCAL_SETUP_HINT = (
     "Dual-database migration tests require two distinct PostgreSQL URLs.\n"
     "PowerShell quick start:\n"
+    '  $env:BIOMETRIC_POSTGRES_PASSWORD = "change_me_biometric_dev_password"\n'
+    '  $env:IDENTITY_POSTGRES_PASSWORD = "change_me_identity_dev_password"\n'
     "  docker compose -f apps/api/docker-compose.yml up -d biometric_db identity_db\n"
-    '  $env:IDENTIFICATION_TEST_BIOMETRIC_DATABASE_URL = "postgresql://admin:biometric_secret@127.0.0.1:5432/biometric_db"\n'
-    '  $env:IDENTIFICATION_TEST_IDENTITY_DATABASE_URL = "postgresql://admin:identity_secret@127.0.0.1:5433/identity_db"\n'
+    '  $env:IDENTIFICATION_TEST_BIOMETRIC_DATABASE_URL = "postgresql://admin:$env:BIOMETRIC_POSTGRES_PASSWORD@127.0.0.1:5432/biometric_db"\n'
+    '  $env:IDENTIFICATION_TEST_IDENTITY_DATABASE_URL = "postgresql://admin:$env:IDENTITY_POSTGRES_PASSWORD@127.0.0.1:5433/identity_db"\n'
     f"See {RUNBOOK_PATH.name} for the full local runbook."
 )
 

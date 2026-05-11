@@ -351,7 +351,7 @@ def main():
         out_df = canonicalize_pairs_df(out_df, split=split_name)
         out_df = validate_canonical_pairs_df(
             out_df,
-            context=f"{dataset}/{split_name} canonical pairs",
+            context=f"{args.dataset}/{split_name} canonical pairs",
             expected_split=split_name,
             require_exact_columns=True,
             require_non_empty=True,
@@ -381,7 +381,7 @@ def main():
             f"{split_json_path} already exists. Use --overwrite to replace existing files."
         )
 
-    validate_split_subjects_metadata(meta, context=f"{dataset} split_subjects metadata")
+    validate_split_subjects_metadata(meta, context=f"{args.dataset} split_subjects metadata")
     write_json(split_json_path, meta)
 
 

@@ -589,7 +589,7 @@ def test_catalog_verify_case_detail_canonicalizes_benchmark_context_and_demo_met
     assert detail.benchmark_context["method"] == "dl"
     assert detail.benchmark_context["canonical_method"] == "dl"
     assert detail.benchmark_context["benchmark_method"] == "dl_quick"
-    assert detail.benchmark_context["method_label"] == "Deep Learning (ResNet50)"
+    assert detail.benchmark_context["method_label"] == "Deep Learning (ResNet18)"
     assert detail.benchmark_context["benchmark_run"] == "full_verify_demo_h1"
     assert detail.benchmark_context["artifact_source"] == "scores_dl_quick_val.csv"
     assert demo_response.cases[0].recommended_method.value == "dl"

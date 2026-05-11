@@ -5,18 +5,21 @@ const METHOD_LABELS: Record<string, string> = {
     classic_v2: "Classic (ORB)",
     harris: "Classic (Harris + ORB)",
     sift: "Classic (SIFT)",
-    dl: "Deep Learning (ResNet50)",
-    dl_quick: "Deep Learning (ResNet50)",
-    dedicated: "Dedicated (Patch AI)",
+    dl: "Deep Learning (ResNet18)",
+    dl_quick: "Deep Learning (ResNet18)",
+    dedicated: "Dedicated Patch AI",
     vit: "Deep Learning (ViT)",
 };
 
 export function formatMethodLabel(method: string | null | undefined, methodLabel?: string | null): string {
+    const normalized = (method ?? "").trim().toLowerCase();
     if (methodLabel && methodLabel.trim()) {
         return methodLabel.trim();
     }
+    if (normalized === "dedicated") {
+        return "Dedicated Patch AI";
+    }
 
-    const normalized = (method ?? "").trim().toLowerCase();
     return METHOD_LABELS[normalized] ?? method ?? "";
 }
 
@@ -130,6 +133,59 @@ export function highlightClassName(sortMode: BenchmarkSortMode): string {
         default:
             return "border-[var(--app-success-border)] bg-[var(--app-success-surface)]";
     }
+}
+
+export function isResearchRow(row: Pick<ComparisonRow, "presentation_tier" | "research_track" | "showcase_eligible" | "not_champion_candidate" | "method" | "benchmark_method">): boolean {
+    return row.presentation_tier === "research"
+        || row.research_track
+        || row.showcase_eligible === false
+        || row.not_champion_candidate
+        || row.method === "dedicated"
+        || row.benchmark_method === "dedicated";
+}
+
+export function isChampionCandidateRow(row: Pick<ComparisonRow, "showcase_eligible" | "not_champion_candidate">): boolean {
+    return row.showcase_eligible !== false && !row.not_champion_candidate;
+}
+
+export function methodStatusBadges(row: Pick<ComparisonRow, "method_status" | "presentation_tier" | "showcase_eligible" | "research_track" | "not_champion_candidate" | "method" | "benchmark_method">): string[] {
+    const badges: string[] = [];
+    if ((row.method_status ?? "").toLowerCase() === "experimental" || row.method === "dedicated" || row.benchmark_method === "dedicated") {
+        badges.push("Experimental");
+    }
+    if (isResearchRow(row)) {
+        badges.push("Research");
+    }
+    if (row.showcase_eligible === false || row.not_champion_candidate) {
+        badges.push("Not showcase eligible");
+    }
+    return [...new Set(badges)];
+}
+
+export function researchRunSourceLabel(row: Pick<ComparisonRow, "run_kind" | "status" | "validation_state" | "run_label" | "provenance">): string {
+    if (row.status === "partial" || row.validation_state === "partial") {
+        return "partial";
+    }
+    const sourceRoot = row.provenance?.benchmark_source_root;
+    if (sourceRoot === "live") {
+        if (row.run_kind === "smoke") {
+            return "current smoke benchmark";
+        }
+        if (row.run_kind === "full") {
+            return "current full benchmark";
+        }
+        return "current";
+    }
+    if (row.run_kind === "smoke") {
+        return "archived smoke benchmark";
+    }
+    if (row.run_kind === "full") {
+        return "archived full benchmark";
+    }
+    if (row.status === "archived" || row.validation_state === "archived") {
+        return "archive";
+    }
+    return row.run_label ?? "research run";
 }
 
 export function championValue(row: ComparisonRow, metric: BenchmarkBestMetric): number | null {

@@ -296,6 +296,61 @@ def canonical_method_label_from_benchmark(raw_benchmark_method: Any) -> str:
     return benchmark_method_to_canonical(normalized)
 
 
+def method_definition_for_benchmark(method: Any):
+    normalized = _normalize_method_name(method)
+    if not normalized:
+        return None
+
+    registry = load_api_method_registry()
+    canonical_name = benchmark_method_to_canonical(normalized)
+    if not canonical_name:
+        return None
+    try:
+        return registry.definition_for(canonical_name)
+    except MethodRegistryError:
+        return None
+
+
+def method_presentation_metadata(method: Any) -> Dict[str, Any]:
+    definition = method_definition_for_benchmark(method)
+    if definition is None:
+        return {
+            "method_status": None,
+            "presentation_tier": "canonical",
+            "showcase_eligible": True,
+            "benchmark_default": False,
+            "canonical_default": False,
+            "research_track": False,
+            "not_champion_candidate": False,
+            "showcase_exclusion_note": None,
+        }
+
+    showcase_eligible = bool(definition.showcase_eligible)
+    return {
+        "method_status": definition.status,
+        "presentation_tier": definition.presentation_tier,
+        "showcase_eligible": showcase_eligible,
+        "benchmark_default": bool(definition.benchmark_default),
+        "canonical_default": bool(definition.canonical_default),
+        "research_track": bool(definition.research_track),
+        "not_champion_candidate": not showcase_eligible,
+        "showcase_exclusion_note": definition.showcase_exclusion_note,
+    }
+
+
+def method_showcase_eligible(method: Any) -> bool:
+    return bool(method_presentation_metadata(method)["showcase_eligible"])
+
+
+def method_research_track(method: Any) -> bool:
+    return bool(method_presentation_metadata(method)["research_track"])
+
+
+def method_showcase_exclusion_note(method: Any) -> Optional[str]:
+    note = method_presentation_metadata(method).get("showcase_exclusion_note")
+    return str(note).strip() or None
+
+
 def normalize_benchmark_context(
     context: Optional[Mapping[str, Any]],
     *,

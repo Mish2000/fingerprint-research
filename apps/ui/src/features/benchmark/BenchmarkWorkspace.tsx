@@ -1,10 +1,10 @@
-import { useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BarChart3, RefreshCcw, Trophy, Zap } from "lucide-react";
 import { BenchmarkComparisonTable } from "../../components/BenchmarkComparisonTable.tsx";
 import RequestState from "../../components/RequestState.tsx";
 import { INPUT_CLASS_NAME } from "../../shared/ui/inputClasses.ts";
 import { MetricTile, StatusPill, WorkspaceHero } from "../../shared/ui/presentation.tsx";
-import type { BenchmarkBestMetric, BenchmarkViewMode, BestMethodEntry, ComparisonRow, NamedInfo } from "../../types";
+import type { BenchmarkBestMetric, BenchmarkViewMode, BestMethodEntry, ComparisonRow, NamedInfo, ResearchRunGroupInfo } from "../../types";
 import BenchmarkEvidencePanel from "./BenchmarkEvidencePanel.tsx";
 import {
     bestMetricLabel,
@@ -15,6 +15,8 @@ import {
     formatMetric,
     formatPairs,
     highlightClassName,
+    isChampionCandidateRow,
+    isResearchRow,
     sortModeForMetric,
     sortModeLabel,
     viewModeLabel,
@@ -26,6 +28,125 @@ const SORT_OPTIONS = [
     { key: "lowest_eer", label: "Lowest EER" },
     { key: "lowest_latency", label: "Lowest latency" },
 ] as const;
+
+type ComparisonRowsView = {
+    rows: ComparisonRow[];
+    researchGroupInfoByRowKey: Record<string, ResearchRunGroupInfo>;
+    hiddenResearchRowCount: number;
+    hasResearchRows: boolean;
+};
+
+function researchGroupKey(row: ComparisonRow): string {
+    return `${row.dataset}::${row.split}::${row.method || row.benchmark_method}`;
+}
+
+function timestampScore(row: ComparisonRow): number {
+    const raw = row.provenance?.timestamp_utc;
+    if (!raw) {
+        return 0;
+    }
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareResearchRepresentative(a: ComparisonRow, b: ComparisonRow): number {
+    const aIsCurrent = a.provenance?.benchmark_source_root === "live" ? 0 : 1;
+    const bIsCurrent = b.provenance?.benchmark_source_root === "live" ? 0 : 1;
+    if (aIsCurrent !== bIsCurrent) {
+        return aIsCurrent - bIsCurrent;
+    }
+
+    const aIsFull = a.run_kind === "full" ? 0 : 1;
+    const bIsFull = b.run_kind === "full" ? 0 : 1;
+    if (aIsFull !== bIsFull) {
+        return aIsFull - bIsFull;
+    }
+
+    const aIsSmoke = a.run_kind === "smoke" ? 1 : 0;
+    const bIsSmoke = b.run_kind === "smoke" ? 1 : 0;
+    if (aIsSmoke !== bIsSmoke) {
+        return aIsSmoke - bIsSmoke;
+    }
+
+    const timestampDelta = timestampScore(b) - timestampScore(a);
+    if (timestampDelta !== 0) {
+        return timestampDelta;
+    }
+
+    const artifactDelta = b.artifact_count - a.artifact_count;
+    if (artifactDelta !== 0) {
+        return artifactDelta;
+    }
+
+    return a.run.localeCompare(b.run);
+}
+
+function buildComparisonRowsView(
+    rows: ComparisonRow[],
+    options: {
+        showResearchHistory: boolean;
+        rowKey: (row: ComparisonRow) => string;
+    },
+): ComparisonRowsView {
+    const { showResearchHistory, rowKey } = options;
+    const researchGroups = new Map<string, ComparisonRow[]>();
+    for (const row of rows) {
+        if (!isResearchRow(row)) {
+            continue;
+        }
+        const key = researchGroupKey(row);
+        researchGroups.set(key, [...(researchGroups.get(key) ?? []), row]);
+    }
+
+    const representativeByGroup = new Map<string, ComparisonRow>();
+    const groupInfoByRepresentativeKey: Record<string, ResearchRunGroupInfo> = {};
+    let hiddenResearchRowCount = 0;
+
+    for (const [groupKey, groupRows] of researchGroups) {
+        const sorted = [...groupRows].sort(compareResearchRepresentative);
+        const representative = sorted[0];
+        if (!representative) {
+            continue;
+        }
+        const hiddenRows = sorted.slice(1);
+        hiddenResearchRowCount += hiddenRows.length;
+        representativeByGroup.set(groupKey, representative);
+        const info: ResearchRunGroupInfo = {
+            totalCount: groupRows.length,
+            hiddenCount: showResearchHistory ? 0 : hiddenRows.length,
+            hiddenRows: showResearchHistory ? [] : hiddenRows,
+        };
+
+        if (showResearchHistory) {
+            for (const row of groupRows) {
+                groupInfoByRepresentativeKey[rowKey(row)] = info;
+            }
+        } else {
+            groupInfoByRepresentativeKey[rowKey(representative)] = info;
+        }
+    }
+
+    if (showResearchHistory) {
+        return {
+            rows,
+            researchGroupInfoByRowKey: groupInfoByRepresentativeKey,
+            hiddenResearchRowCount: 0,
+            hasResearchRows: researchGroups.size > 0,
+        };
+    }
+
+    return {
+        rows: rows.filter((row) => {
+            if (!isResearchRow(row)) {
+                return true;
+            }
+            return representativeByGroup.get(researchGroupKey(row)) === row;
+        }),
+        researchGroupInfoByRowKey: groupInfoByRepresentativeKey,
+        hiddenResearchRowCount,
+        hasResearchRows: researchGroups.size > 0,
+    };
+}
 
 type ChampionCardProps = {
     entry: BestMethodEntry;
@@ -62,9 +183,10 @@ function validationStateTone(validationState: string): "success" | "warning" | "
 }
 
 function deriveChampionFallback(rows: ComparisonRow[]): BestMethodEntry[] {
-    const bestAuc = rows.find((row) => row.auc_rank === 1);
-    const bestEer = rows.find((row) => row.eer_rank === 1);
-    const bestLatency = rows.find((row) => row.latency_rank === 1 && row.latency_ms != null);
+    const championRows = rows.filter(isChampionCandidateRow);
+    const bestAuc = championRows.find((row) => row.auc_rank === 1);
+    const bestEer = championRows.find((row) => row.eer_rank === 1);
+    const bestLatency = championRows.find((row) => row.latency_rank === 1 && row.latency_ms != null);
 
     const candidates = [
         { metric: "best_auc" as const, row: bestAuc },
@@ -84,6 +206,9 @@ function deriveChampionFallback(rows: ComparisonRow[]): BestMethodEntry[] {
             method: row.method,
             benchmark_method: row.benchmark_method,
             method_label: row.method_label ?? null,
+            method_status: row.method_status ?? null,
+            presentation_tier: row.presentation_tier ?? null,
+            showcase_eligible: row.showcase_eligible,
             run: row.run,
             value: championValue(row, metric) ?? 0,
             run_family: row.run_family ?? row.run,
@@ -218,7 +343,8 @@ function sourceLabelForRow(row: ComparisonRow | null | undefined): string {
 }
 
 function firstRankedRow(rows: ComparisonRow[], rankKey: "auc_rank" | "latency_rank"): ComparisonRow | null {
-    return rows.find((row) => row[rankKey] === 1) ?? rows[0] ?? null;
+    const championRows = rows.filter(isChampionCandidateRow);
+    return championRows.find((row) => row[rankKey] === 1) ?? championRows[0] ?? null;
 }
 
 function viewModeOptions(available: NamedInfo[], selectedViewMode: BenchmarkViewMode): NamedInfo[] {
@@ -235,21 +361,50 @@ function viewModeOptions(available: NamedInfo[], selectedViewMode: BenchmarkView
 export default function BenchmarkWorkspace() {
     const benchmark = useBenchmark();
     const evidencePanelRef = useRef<HTMLDivElement>(null);
+    const [showResearchHistory, setShowResearchHistory] = useState(false);
     const summary = benchmark.summary;
     const datasetInfo = benchmark.comparison?.dataset_info ?? {};
     const splitInfo = benchmark.comparison?.split_info ?? {};
-    const fallbackChampionEntries = deriveChampionFallback(benchmark.comparisonRows);
+    const comparisonRowsView = useMemo(
+        () => buildComparisonRowsView(
+            benchmark.comparisonRows,
+            {
+                showResearchHistory,
+                rowKey: benchmark.rowKey,
+            },
+        ),
+        [benchmark.comparisonRows, benchmark.rowKey, showResearchHistory],
+    );
+    const displayRows = comparisonRowsView.rows;
+    const displayRowKeys = useMemo(
+        () => displayRows.map((row) => benchmark.rowKey(row)),
+        [benchmark.rowKey, displayRows],
+    );
+    const selectedDisplayRow = displayRows.find((row) => benchmark.rowKey(row) === benchmark.selectedRowKey)
+        ?? displayRows[0]
+        ?? null;
+    const selectedResearchGroupInfo = selectedDisplayRow
+        ? comparisonRowsView.researchGroupInfoByRowKey[benchmark.rowKey(selectedDisplayRow)] ?? null
+        : null;
+    const fallbackChampionEntries = deriveChampionFallback(displayRows);
     const championEntries = mergeChampionEntries(benchmark.bestEntries, fallbackChampionEntries);
-    const currentRunFamily = benchmark.selectedRow?.run_family
+    const currentRunFamily = selectedDisplayRow?.run_family
         ?? summary?.current_run_families?.[0]
         ?? "Resolving run family";
     const availableViewModes = viewModeOptions(benchmark.availableViewModes, benchmark.selectedViewMode);
-    const bestAccuracyRow = firstRankedRow(benchmark.comparisonRows, "auc_rank");
-    const fastestRow = firstRankedRow(benchmark.comparisonRows, "latency_rank");
-    const storyPairCount = bestAccuracyRow?.n_pairs ?? fastestRow?.n_pairs ?? benchmark.selectedRow?.n_pairs ?? null;
-    const storyArtifactCount = benchmark.selectedRow?.artifact_count
-        ?? Math.max(0, ...benchmark.comparisonRows.map((row) => row.artifact_count));
-    const storySourceLabel = sourceLabelForRow(benchmark.selectedRow ?? bestAccuracyRow);
+    const bestAccuracyRow = firstRankedRow(displayRows, "auc_rank");
+    const fastestRow = firstRankedRow(displayRows, "latency_rank");
+    const storyPairCount = bestAccuracyRow?.n_pairs ?? fastestRow?.n_pairs ?? selectedDisplayRow?.n_pairs ?? null;
+    const storyArtifactCount = selectedDisplayRow?.artifact_count
+        ?? Math.max(0, ...displayRows.map((row) => row.artifact_count));
+    const storySourceLabel = sourceLabelForRow(selectedDisplayRow ?? bestAccuracyRow);
+    const hasResearchRows = comparisonRowsView.hasResearchRows;
+    const methodCountLabel = hasResearchRows
+        ? `${summary?.method_count ?? 0} methods in comparison`
+        : `${summary?.method_count ?? 0} validated benchmark methods`;
+    const comparisonDescription = hasResearchRows
+        ? `Compare ${viewModeLabel(benchmark.selectedViewMode).toLowerCase()} comparison rows on the active dataset and split. Research methods are grouped and marked separately.`
+        : `Compare ${viewModeLabel(benchmark.selectedViewMode).toLowerCase()} validated benchmark methods on the active dataset and split.`;
     const fastestIsMostAccurate = Boolean(
         bestAccuracyRow
         && fastestRow
@@ -266,9 +421,25 @@ export default function BenchmarkWorkspace() {
     const hasArchiveAlternative = benchmark.selectedViewMode === "canonical"
         && benchmark.availableViewModes.some((item) => item.key === "archive");
 
+    useEffect(() => {
+        setShowResearchHistory(false);
+    }, [benchmark.selectedDataset, benchmark.selectedSplit, benchmark.selectedViewMode]);
+
+    useEffect(() => {
+        if (displayRowKeys.length === 0) {
+            if (benchmark.selectedRowKey) {
+                benchmark.setSelectedRowKey("");
+            }
+            return;
+        }
+        if (!displayRowKeys.includes(benchmark.selectedRowKey)) {
+            benchmark.setSelectedRowKey(displayRowKeys[0]);
+        }
+    }, [benchmark.selectedRowKey, benchmark.setSelectedRowKey, displayRowKeys]);
+
     const handleChampionClick = (entry: BestMethodEntry): void => {
         benchmark.setSelectedSortMode(sortModeForMetric(entry.metric));
-        const matchingRow = benchmark.comparisonRows.find((row) =>
+        const matchingRow = displayRows.find((row) =>
             row.run === entry.run
             && row.method === entry.method
             && row.benchmark_method === (entry.benchmark_method ?? row.benchmark_method)
@@ -397,8 +568,8 @@ export default function BenchmarkWorkspace() {
                                 <StatusPill>
                                     {summary.result_count} comparison rows
                                 </StatusPill>
-                                <StatusPill>
-                                    {summary.method_count} validated benchmark methods
+                            <StatusPill>
+                                    {methodCountLabel}
                                 </StatusPill>
                                 <StatusPill tone="brand">
                                     Sorted by {sortModeLabel(benchmark.selectedSortMode)}
@@ -493,16 +664,35 @@ export default function BenchmarkWorkspace() {
                                         <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Full comparison</p>
                                         <h3 className="text-2xl font-semibold text-[var(--app-text)]">Method comparison table</h3>
                                         <p className="max-w-2xl text-sm leading-6 text-[var(--app-text-muted)]">
-                                            Compare {viewModeLabel(benchmark.selectedViewMode).toLowerCase()} validated benchmark methods on the active dataset and split.
+                                            {comparisonDescription}
                                         </p>
                                     </div>
+                                    {comparisonRowsView.hiddenResearchRowCount > 0 || showResearchHistory ? (
+                                        <div className="flex flex-col items-start gap-2">
+                                            {comparisonRowsView.hiddenResearchRowCount > 0 ? (
+                                                <StatusPill tone="warning">
+                                                    {comparisonRowsView.hiddenResearchRowCount} archived research rows hidden
+                                                </StatusPill>
+                                            ) : null}
+                                            {showResearchHistory ? (
+                                                <StatusPill tone="info">Archived research runs visible</StatusPill>
+                                            ) : null}
+                                            <button
+                                                type="button"
+                                                className="app-button app-button--secondary"
+                                                onClick={() => setShowResearchHistory((current) => !current)}
+                                            >
+                                                {showResearchHistory ? "Hide archived research runs" : "Show archived research runs"}
+                                            </button>
+                                        </div>
+                                    ) : null}
                                     <StatusPill title={`${summary.dataset_info?.label ?? summary.dataset} - ${summary.split_info?.label ?? summary.split}`}>
                                         {summary.dataset_info?.label ?? summary.dataset} - {summary.split_info?.label ?? summary.split}
                                     </StatusPill>
                                 </div>
 
                                 <div className="mt-6">
-                                    {benchmark.comparisonState.status === "loading" && benchmark.comparisonRows.length === 0 ? (
+                                    {benchmark.comparisonState.status === "loading" && displayRows.length === 0 ? (
                                         <RequestState
                                             variant="loading"
                                             title="Loading comparison rows"
@@ -522,7 +712,7 @@ export default function BenchmarkWorkspace() {
                                         />
                                     ) : null}
 
-                                    {benchmark.comparisonState.status === "success" && benchmark.comparisonRows.length === 0 ? (
+                                    {benchmark.comparisonState.status === "success" && displayRows.length === 0 ? (
                                         <RequestState
                                             variant="empty"
                                             title={`No ${viewModeLabel(benchmark.selectedViewMode).toLowerCase()} rows for this selection`}
@@ -530,13 +720,14 @@ export default function BenchmarkWorkspace() {
                                         />
                                     ) : null}
 
-                                    {benchmark.comparisonRows.length > 0 ? (
+                                    {displayRows.length > 0 ? (
                                         <BenchmarkComparisonTable
-                                            rows={benchmark.comparisonRows}
+                                            rows={displayRows}
                                             selectedRowKey={benchmark.selectedRowKey}
                                             onSelectRow={benchmark.setSelectedRowKey}
                                             rowKey={benchmark.rowKey}
                                             sortMode={benchmark.selectedSortMode}
+                                            researchGroupInfoByRowKey={comparisonRowsView.researchGroupInfoByRowKey}
                                         />
                                     ) : null}
                                 </div>
@@ -545,9 +736,12 @@ export default function BenchmarkWorkspace() {
 
                         <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none">
                             <BenchmarkEvidencePanel
-                                row={benchmark.selectedRow}
+                                row={selectedDisplayRow}
                                 datasetInfo={datasetInfo}
                                 splitInfo={splitInfo}
+                                researchGroupInfo={selectedResearchGroupInfo}
+                                showResearchHistory={showResearchHistory}
+                                onShowResearchHistory={() => setShowResearchHistory(true)}
                             />
                         </div>
                     </section>

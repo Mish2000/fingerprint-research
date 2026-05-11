@@ -29,6 +29,10 @@ from apps.api.benchmark_meta import (
     infer_run_kind,
     infer_view_mode,
     is_showcase_dataset,
+    method_presentation_metadata,
+    method_research_track,
+    method_showcase_eligible,
+    method_showcase_exclusion_note,
     path_is_under,
     run_sort_key,
     split_meta,
@@ -63,8 +67,8 @@ BENCHMARK_SOURCE_LABELS = {
 }
 
 DEDICATED_SHOWCASE_EXCLUSION_NOTE = (
-    "Dedicated Patch AI is tracked as experimental and excluded from this showcase because its current v2 checkpoint "
-    "did not pass verification-level performance criteria."
+    "Dedicated Patch AI remains available as an experimental research method, but the current checkpoint/results do "
+    "not satisfy canonical benchmark showcase criteria and must not be promoted as a winner or champion."
 )
 
 SELECTION_POLICY_NOTE = (
@@ -281,9 +285,15 @@ def _status_for_run(view_mode: str, validated: bool, partial: bool) -> str:
 
 
 def _showcase_exclusion_note(canonical_method: str, benchmark_method: str) -> Optional[str]:
-    if canonical_method == "dedicated" or benchmark_method == "dedicated":
-        return DEDICATED_SHOWCASE_EXCLUSION_NOTE
-    return None
+    return (
+        method_showcase_exclusion_note(benchmark_method)
+        or method_showcase_exclusion_note(canonical_method)
+        or (
+            DEDICATED_SHOWCASE_EXCLUSION_NOTE
+            if canonical_method == "dedicated" or benchmark_method == "dedicated"
+            else None
+        )
+    )
 
 
 def _showcase_selection_tier(row: ComparisonRow) -> Tuple[int, str]:
@@ -319,9 +329,26 @@ def _tie_break_key(row: ComparisonRow) -> Tuple[Any, ...]:
     )
 
 
+def _row_is_champion_candidate(row: ComparisonRow) -> bool:
+    return bool(row.showcase_eligible) and not bool(row.not_champion_candidate)
+
+
+def _champion_candidate_rows(rows: Iterable[ComparisonRow]) -> List[ComparisonRow]:
+    return [row for row in rows if _row_is_champion_candidate(row)]
+
+
 def _rank_rows(rows: List[ComparisonRow]) -> None:
+    for row in rows:
+        row.auc_rank = None
+        row.eer_rank = None
+        row.latency_rank = None
+
+    candidate_rows = _champion_candidate_rows(rows)
+    if not candidate_rows:
+        return
+
     auc_rows = sorted(
-        rows,
+        candidate_rows,
         key=lambda row: (
             -row.auc,
             row.eer,
@@ -330,7 +357,7 @@ def _rank_rows(rows: List[ComparisonRow]) -> None:
         ),
     )
     eer_rows = sorted(
-        rows,
+        candidate_rows,
         key=lambda row: (
             row.eer,
             -row.auc,
@@ -339,7 +366,7 @@ def _rank_rows(rows: List[ComparisonRow]) -> None:
         ),
     )
     latency_rows = sorted(
-        rows,
+        candidate_rows,
         key=lambda row: (
             float("inf") if row.latency_ms is None else row.latency_ms,
             -row.auc,
@@ -504,6 +531,38 @@ def _scan_runs(
                 },
                 key=canonical_method_sort_key,
             )
+            showcase_benchmark_methods_in_run = sorted(
+                {
+                    method
+                    for method in methods_in_run
+                    if method_showcase_eligible(method) and not method_research_track(method)
+                },
+                key=benchmark_method_sort_key,
+            )
+            showcase_methods_in_run = sorted(
+                {
+                    benchmark_method_to_canonical(method)
+                    for method in showcase_benchmark_methods_in_run
+                    if benchmark_method_to_canonical(method)
+                },
+                key=canonical_method_sort_key,
+            )
+            research_benchmark_methods_in_run = sorted(
+                {
+                    method
+                    for method in methods_in_run
+                    if method_research_track(method) or not method_showcase_eligible(method)
+                },
+                key=benchmark_method_sort_key,
+            )
+            research_methods_in_run = sorted(
+                {
+                    benchmark_method_to_canonical(method)
+                    for method in research_benchmark_methods_in_run
+                    if benchmark_method_to_canonical(method)
+                },
+                key=canonical_method_sort_key,
+            )
 
             comparison_rows: List[ComparisonRow] = []
             methods: set[str] = set()
@@ -520,6 +579,8 @@ def _scan_runs(
 
                 method = benchmark_method_to_canonical(benchmark_method)
                 method_label = canonical_method_label_from_benchmark(benchmark_method)
+                presentation_meta = method_presentation_metadata(benchmark_method)
+                showcase_exclusion_note = _showcase_exclusion_note(method, benchmark_method)
 
                 methods.add(method)
                 benchmark_methods.add(benchmark_method)
@@ -565,9 +626,20 @@ def _scan_runs(
                     artifact_source="results_summary.csv",
                     methods_in_run=canonical_methods_in_run,
                     benchmark_methods_in_run=methods_in_run,
+                    showcase_methods_in_run=showcase_methods_in_run,
+                    showcase_benchmark_methods_in_run=showcase_benchmark_methods_in_run,
+                    research_methods_in_run=research_methods_in_run,
+                    research_benchmark_methods_in_run=research_benchmark_methods_in_run,
                     canonical_method=method,
                     benchmark_method=benchmark_method,
                     method_label=method_label,
+                    method_status=presentation_meta["method_status"],
+                    presentation_tier=presentation_meta["presentation_tier"],
+                    showcase_eligible=bool(presentation_meta["showcase_eligible"]),
+                    benchmark_default=bool(presentation_meta["benchmark_default"]),
+                    canonical_default=bool(presentation_meta["canonical_default"]),
+                    research_track=bool(presentation_meta["research_track"]),
+                    not_champion_candidate=bool(presentation_meta["not_champion_candidate"]),
                     timestamp_utc=str(raw_row.get("timestamp_utc", "")).strip() or manifest_payload.get("timestamp_utc"),
                     limit=limit,
                     pairs_path=str(method_meta.get("pairs_path") or config_json.get("pairs_path") or "").strip() or None,
@@ -577,7 +649,7 @@ def _scan_runs(
                     available_artifacts=available_artifacts,
                     benchmark_source_root=source_key,
                     benchmark_source_label=source_label,
-                    showcase_exclusion_note=_showcase_exclusion_note(method, benchmark_method),
+                    showcase_exclusion_note=showcase_exclusion_note,
                 )
 
                 comparison_rows.append(
@@ -588,6 +660,14 @@ def _scan_runs(
                         method=method,
                         benchmark_method=benchmark_method,
                         method_label=method_label,
+                        method_status=presentation_meta["method_status"],
+                        presentation_tier=presentation_meta["presentation_tier"],
+                        showcase_eligible=bool(presentation_meta["showcase_eligible"]),
+                        benchmark_default=bool(presentation_meta["benchmark_default"]),
+                        canonical_default=bool(presentation_meta["canonical_default"]),
+                        research_track=bool(presentation_meta["research_track"]),
+                        not_champion_candidate=bool(presentation_meta["not_champion_candidate"]),
+                        showcase_exclusion_note=showcase_exclusion_note,
                         auc=auc,
                         eer=eer,
                         n_pairs=_maybe_int(raw_row.get("n_pairs")),
@@ -641,6 +721,18 @@ def _scan_runs(
 
             methods_sorted = sorted(methods, key=canonical_method_sort_key)
             benchmark_methods_sorted = sorted(benchmark_methods, key=benchmark_method_sort_key)
+            showcase_methods_sorted = [
+                method for method in methods_sorted if method_showcase_eligible(method) and not method_research_track(method)
+            ]
+            showcase_benchmark_methods_sorted = [
+                method for method in benchmark_methods_sorted if method_showcase_eligible(method) and not method_research_track(method)
+            ]
+            research_methods_sorted = [
+                method for method in methods_sorted if method_research_track(method) or not method_showcase_eligible(method)
+            ]
+            research_benchmark_methods_sorted = [
+                method for method in benchmark_methods_sorted if method_research_track(method) or not method_showcase_eligible(method)
+            ]
             splits_sorted = sorted(splits, key=lambda item: SPLIT_ORDER.get(item, 99))
             partial_run = any(row.status == "partial" for row in comparison_rows)
             run_info = BenchmarkRunInfo(
@@ -657,6 +749,10 @@ def _scan_runs(
                 summary_note=_run_summary_note(view_mode, validated=effective_validated, limit=limit),
                 methods=methods_sorted,
                 benchmark_methods=benchmark_methods_sorted,
+                showcase_methods=showcase_methods_sorted,
+                showcase_benchmark_methods=showcase_benchmark_methods_sorted,
+                research_methods=research_methods_sorted,
+                research_benchmark_methods=research_benchmark_methods_sorted,
                 splits=splits_sorted,
                 dataset_info=_dataset_info(dataset),
                 benchmark_source_root=source_key,
@@ -697,6 +793,10 @@ def _row_has_showcase_evidence(row: ComparisonRow) -> bool:
 
 def _best_entries_from_rows(rows: List[ComparisonRow]) -> List[BestMethodEntry]:
     best_entries: List[BestMethodEntry] = []
+    candidate_rows = _champion_candidate_rows(rows)
+    if not candidate_rows:
+        return best_entries
+
     metrics = (
         ("best_auc", lambda row: row.auc_rank if row.auc_rank is not None else 999),
         ("best_eer", lambda row: row.eer_rank if row.eer_rank is not None else 999),
@@ -705,7 +805,7 @@ def _best_entries_from_rows(rows: List[ComparisonRow]) -> List[BestMethodEntry]:
 
     for metric, rank_accessor in metrics:
         sorted_rows = sorted(
-            rows,
+            candidate_rows,
             key=lambda row: (
                 rank_accessor(row),
                 _tie_break_key(row),
@@ -731,6 +831,9 @@ def _best_entries_from_rows(rows: List[ComparisonRow]) -> List[BestMethodEntry]:
                 method=winner.method,
                 benchmark_method=winner.benchmark_method,
                 method_label=winner.method_label or canonical_method_label(winner.method),
+                method_status=winner.method_status,
+                presentation_tier=winner.presentation_tier,
+                showcase_eligible=winner.showcase_eligible,
                 run=winner.run,
                 value=value,
                 run_family=winner.run_family,

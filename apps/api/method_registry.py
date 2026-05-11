@@ -19,9 +19,32 @@ class MethodRegistryError(ValueError):
 
 @dataclass(frozen=True)
 class MethodIdentificationRole:
-    retrieval_capable: bool
-    rerank_capable: bool
+    supports_direct_vector_retrieval: bool
+    supports_pairwise_rerank: bool
+    experimental: bool = False
+    retrieval_vector_dim: int | None = None
+    retrieval_vector_kind: str | None = None
+    retrieval_distance_metric: str | None = None
+    retrieval_unavailable_reason: str | None = None
+    future_adapter_hint: str | None = None
     notes: tuple[str, ...] = ()
+
+    @property
+    def retrieval_capable(self) -> bool:
+        return bool(self.supports_direct_vector_retrieval)
+
+    @property
+    def rerank_capable(self) -> bool:
+        return bool(self.supports_pairwise_rerank)
+
+
+@dataclass(frozen=True)
+class RetrievalVectorSpec:
+    method: str
+    display_label: str
+    dim: int
+    vector_kind: str
+    distance_metric: str
 
 
 @dataclass(frozen=True)
@@ -32,12 +55,50 @@ class ApiMethodDefinition:
     ui_label: str
     family: str
     status: str
+    presentation_tier: str
+    showcase_eligible: bool
+    benchmark_default: bool
+    canonical_default: bool
+    research_track: bool
+    promotion_required: bool
+    promotion_criteria: tuple[str, ...]
+    showcase_exclusion_note: str | None
     embedding_dim: int | None
     decision_threshold: float
     runtime_defaults: Dict[str, Any]
     benchmark_defaults: Dict[str, Any]
     notes: tuple[str, ...]
     identification_role: MethodIdentificationRole
+
+    @property
+    def is_experimental(self) -> bool:
+        return self.status.lower() == "experimental" or self.presentation_tier.lower() == "research"
+
+    @property
+    def is_showcase_eligible(self) -> bool:
+        return bool(self.showcase_eligible)
+
+    def retrieval_capability_metadata(self) -> Dict[str, Any]:
+        role = self.identification_role
+        return {
+            "method": self.canonical_api_name,
+            "display_label": self.ui_label,
+            "status": self.status,
+            "presentation_tier": self.presentation_tier,
+            "experimental": self.is_experimental or role.experimental,
+            "research_track": self.research_track,
+            "retrieval_capability_status": _retrieval_capability_status(self, role),
+            "direct_retrieval_exclusion": (
+                "intentional_rerank_only" if role.rerank_capable and not role.retrieval_capable else None
+            ),
+            "supports_pairwise_rerank": role.supports_pairwise_rerank,
+            "supports_direct_vector_retrieval": role.supports_direct_vector_retrieval,
+            "retrieval_vector_dim": role.retrieval_vector_dim,
+            "retrieval_vector_kind": role.retrieval_vector_kind,
+            "retrieval_distance_metric": role.retrieval_distance_metric,
+            "retrieval_unavailable_reason": role.retrieval_unavailable_reason,
+            "future_adapter_hint": role.future_adapter_hint,
+        }
 
 
 @dataclass(frozen=True)
@@ -67,6 +128,18 @@ class ResolvedApiMethod:
         return self.definition.status
 
     @property
+    def presentation_tier(self) -> str:
+        return self.definition.presentation_tier
+
+    @property
+    def is_experimental(self) -> bool:
+        return self.definition.is_experimental
+
+    @property
+    def is_showcase_eligible(self) -> bool:
+        return self.definition.is_showcase_eligible
+
+    @property
     def decision_threshold(self) -> float:
         return self.definition.decision_threshold
 
@@ -82,7 +155,34 @@ class ResolvedApiMethod:
             "method_label": self.ui_label,
             "family": self.family,
             "status": self.status,
+            "presentation_tier": self.presentation_tier,
+            "showcase_eligible": self.definition.showcase_eligible,
+            "benchmark_default": self.definition.benchmark_default,
+            "canonical_default": self.definition.canonical_default,
+            "research_track": self.definition.research_track,
+            "promotion_required": self.definition.promotion_required,
+            "promotion_criteria": list(self.definition.promotion_criteria),
+            "showcase_exclusion_note": self.definition.showcase_exclusion_note,
+            "is_experimental": self.is_experimental,
+            "is_showcase_eligible": self.is_showcase_eligible,
             "embedding_dim": self.definition.embedding_dim,
+            "retrieval_capability_status": _retrieval_capability_status(
+                self.definition,
+                self.definition.identification_role,
+            ),
+            "direct_retrieval_exclusion": (
+                "intentional_rerank_only"
+                if self.definition.identification_role.rerank_capable
+                and not self.definition.identification_role.retrieval_capable
+                else None
+            ),
+            "supports_pairwise_rerank": self.definition.identification_role.supports_pairwise_rerank,
+            "supports_direct_vector_retrieval": self.definition.identification_role.supports_direct_vector_retrieval,
+            "retrieval_vector_dim": self.definition.identification_role.retrieval_vector_dim,
+            "retrieval_vector_kind": self.definition.identification_role.retrieval_vector_kind,
+            "retrieval_distance_metric": self.definition.identification_role.retrieval_distance_metric,
+            "retrieval_unavailable_reason": self.definition.identification_role.retrieval_unavailable_reason,
+            "future_adapter_hint": self.definition.identification_role.future_adapter_hint,
             "aliases": list(self.accepted_aliases),
             "resolved_from_alias": bool(self.resolved_from_alias),
         }
@@ -169,18 +269,89 @@ class ApiMethodRegistry:
                 for note in payload.get("notes", []) or []
                 if str(note).strip()
             )
+            status = str(payload.get("status") or "unknown").strip().lower()
+            presentation_tier = str(
+                payload.get("presentation_tier")
+                or ("research" if status == "experimental" else "canonical")
+            ).strip().lower()
+            research_track = _as_bool(
+                payload.get("research_track"),
+                default=presentation_tier == "research",
+            )
+            showcase_eligible = _as_bool(
+                payload.get("showcase_eligible"),
+                default=not research_track and presentation_tier == "canonical",
+            )
+            benchmark_default = _as_bool(payload.get("benchmark_default"), default=False)
+            canonical_default = _as_bool(payload.get("canonical_default"), default=benchmark_default)
+            promotion_required = _as_bool(
+                payload.get("promotion_required"),
+                default=research_track and not showcase_eligible,
+            )
+            promotion_criteria = tuple(
+                str(item).strip()
+                for item in payload.get("promotion_criteria", []) or []
+                if str(item).strip()
+            )
+            raw_exclusion_note = str(payload.get("showcase_exclusion_note") or "").strip()
+            showcase_exclusion_note = raw_exclusion_note or None
             raw_embedding_dim = payload.get("embedding_dim")
             embedding_dim = int(raw_embedding_dim) if raw_embedding_dim not in (None, "") else None
 
-            retrieval_capable = canonical_name in self._retrieval_capable
-            rerank_capable = canonical_name in self._rerank_capable
+            identification_payload = payload.get("identification", {}) or {}
+            if not isinstance(identification_payload, Mapping):
+                raise MethodRegistryError(
+                    f"Method {canonical_name!r} identification metadata must be a mapping."
+                )
+
+            retrieval_capable = _as_bool(
+                identification_payload.get("supports_direct_vector_retrieval"),
+                default=canonical_name in self._retrieval_capable,
+            )
+            rerank_capable = _as_bool(
+                identification_payload.get("supports_pairwise_rerank"),
+                default=canonical_name in self._rerank_capable,
+            )
+            retrieval_vector_dim = _optional_int(
+                identification_payload.get("retrieval_vector_dim"),
+                default=embedding_dim if retrieval_capable else None,
+            )
+            retrieval_vector_kind = _optional_str(identification_payload.get("retrieval_vector_kind"))
+            retrieval_distance_metric = _optional_str(identification_payload.get("retrieval_distance_metric"))
+            retrieval_unavailable_reason = _optional_str(
+                identification_payload.get("retrieval_unavailable_reason")
+            )
+            identification_experimental = _as_bool(
+                identification_payload.get("experimental"),
+                default=status == "experimental" or presentation_tier == "research",
+            )
+            future_adapter_hint = _optional_str(identification_payload.get("future_adapter_hint"))
+            if retrieval_capable:
+                if retrieval_vector_dim is None:
+                    raise MethodRegistryError(
+                        f"Method {canonical_name!r} supports direct vector retrieval but has no retrieval_vector_dim."
+                    )
+                if retrieval_vector_kind is None:
+                    raise MethodRegistryError(
+                        f"Method {canonical_name!r} supports direct vector retrieval but has no retrieval_vector_kind."
+                    )
+                if retrieval_distance_metric is None:
+                    raise MethodRegistryError(
+                        f"Method {canonical_name!r} supports direct vector retrieval but has no retrieval_distance_metric."
+                    )
+                retrieval_unavailable_reason = None
+            elif rerank_capable and retrieval_unavailable_reason is None:
+                retrieval_unavailable_reason = "no_fixed_size_retrieval_vector_adapter_yet"
+
             role_notes: list[str] = []
             if retrieval_capable:
-                role_notes.append("Supported for 1:N shortlist retrieval.")
+                role_notes.append("Supported for direct 1:N vector shortlist retrieval.")
             if rerank_capable:
-                role_notes.append("Supported for 1:N reranking.")
+                role_notes.append("Supported for pairwise 1:N reranking.")
             if rerank_capable and not retrieval_capable:
-                role_notes.append("Rerank-only for 1:N; this method is not used for shortlist retrieval.")
+                role_notes.append(
+                    f"Rerank-only for 1:N; direct retrieval is unavailable: {retrieval_unavailable_reason}."
+                )
 
             definition = ApiMethodDefinition(
                 canonical_api_name=canonical_name,
@@ -188,15 +359,29 @@ class ApiMethodRegistry:
                 benchmark_name=benchmark_name,
                 ui_label=str(payload.get("ui_label") or canonical_name),
                 family=str(payload.get("family") or "unknown"),
-                status=str(payload.get("status") or "unknown"),
+                status=status,
+                presentation_tier=presentation_tier,
+                showcase_eligible=showcase_eligible,
+                benchmark_default=benchmark_default,
+                canonical_default=canonical_default,
+                research_track=research_track,
+                promotion_required=promotion_required,
+                promotion_criteria=promotion_criteria,
+                showcase_exclusion_note=showcase_exclusion_note,
                 embedding_dim=embedding_dim,
                 decision_threshold=decision_threshold,
                 runtime_defaults=runtime_defaults,
                 benchmark_defaults=benchmark_defaults,
                 notes=notes,
                 identification_role=MethodIdentificationRole(
-                    retrieval_capable=retrieval_capable,
-                    rerank_capable=rerank_capable,
+                    supports_direct_vector_retrieval=retrieval_capable,
+                    supports_pairwise_rerank=rerank_capable,
+                    experimental=identification_experimental,
+                    retrieval_vector_dim=retrieval_vector_dim,
+                    retrieval_vector_kind=retrieval_vector_kind,
+                    retrieval_distance_metric=retrieval_distance_metric,
+                    retrieval_unavailable_reason=retrieval_unavailable_reason,
+                    future_adapter_hint=future_adapter_hint,
                     notes=tuple(role_notes),
                 ),
             )
@@ -261,6 +446,27 @@ class ApiMethodRegistry:
     def supported_method_names(self) -> tuple[str, ...]:
         return self.api_runtime_namespace
 
+    def canonical_benchmark_methods(self) -> tuple[str, ...]:
+        return tuple(
+            definition.benchmark_name
+            for definition in self.list_methods()
+            if definition.canonical_default and definition.benchmark_name
+        )
+
+    def showcase_eligible_methods(self) -> tuple[str, ...]:
+        return tuple(
+            definition.canonical_api_name
+            for definition in self.list_methods()
+            if definition.showcase_eligible
+        )
+
+    def research_methods(self) -> tuple[str, ...]:
+        return tuple(
+            definition.canonical_api_name
+            for definition in self.list_methods()
+            if definition.research_track
+        )
+
     def supported_retrieval_methods(self) -> tuple[str, ...]:
         return tuple(
             definition.canonical_api_name
@@ -268,12 +474,51 @@ class ApiMethodRegistry:
             if definition.identification_role.retrieval_capable
         )
 
+    def direct_vector_retrieval_methods(self) -> tuple[str, ...]:
+        return self.supported_retrieval_methods()
+
     def supported_rerank_methods(self) -> tuple[str, ...]:
         return tuple(
             definition.canonical_api_name
             for definition in self.list_methods()
             if definition.identification_role.rerank_capable
         )
+
+    def rerank_only_methods(self) -> tuple[str, ...]:
+        return tuple(
+            definition.canonical_api_name
+            for definition in self.list_methods()
+            if definition.identification_role.rerank_capable
+            and not definition.identification_role.retrieval_capable
+        )
+
+    def retrieval_vector_specs(self) -> Dict[str, RetrievalVectorSpec]:
+        specs: Dict[str, RetrievalVectorSpec] = {}
+        for definition in self.list_methods():
+            role = definition.identification_role
+            if not role.supports_direct_vector_retrieval:
+                continue
+            if role.retrieval_vector_dim is None or role.retrieval_vector_kind is None or role.retrieval_distance_metric is None:
+                raise MethodRegistryError(
+                    f"Method {definition.canonical_api_name!r} has incomplete retrieval vector metadata."
+                )
+            specs[definition.canonical_api_name] = RetrievalVectorSpec(
+                method=definition.canonical_api_name,
+                display_label=definition.ui_label,
+                dim=int(role.retrieval_vector_dim),
+                vector_kind=role.retrieval_vector_kind,
+                distance_metric=role.retrieval_distance_metric,
+            )
+        return specs
+
+    def method_capabilities(self) -> Dict[str, Dict[str, Any]]:
+        return {
+            definition.canonical_api_name: definition.retrieval_capability_metadata()
+            for definition in self.list_methods()
+        }
+
+    def retrieval_capabilities(self) -> Dict[str, Dict[str, Any]]:
+        return self.method_capabilities()
 
     def _supported_message(self, *, field_name: str) -> str:
         aliases = self.alias_pairs()
@@ -307,9 +552,27 @@ class ApiMethodRegistry:
     def resolve_retrieval_method(self, requested_name: Any) -> ResolvedApiMethod:
         resolved = self.resolve(requested_name, field_name="retrieval_method")
         if not resolved.definition.identification_role.retrieval_capable:
+            role = resolved.definition.identification_role
+            reason = role.retrieval_unavailable_reason or "direct vector retrieval is not configured"
+            if role.rerank_capable and (resolved.definition.is_experimental or role.experimental):
+                detail = (
+                    f"Method {resolved.canonical_api_name!r} is currently an experimental rerank-only method "
+                    "and does not have a validated fixed-size direct retrieval vector adapter yet."
+                )
+                if role.future_adapter_hint:
+                    detail = f"{detail} {role.future_adapter_hint}"
+                raise MethodRegistryError(
+                    f"{detail} Supported retrieval methods: {list(self.supported_retrieval_methods())}."
+                )
+            rerank_note = (
+                " It is available for pairwise reranking."
+                if role.rerank_capable
+                else ""
+            )
             raise MethodRegistryError(
                 f"retrieval_method={resolved.requested_name!r} resolves to {resolved.canonical_api_name!r}, "
-                f"which is not configured for 1:N shortlist retrieval. Supported retrieval methods: "
+                f"which is not configured for direct 1:N vector shortlist retrieval: {reason}."
+                f"{rerank_note} Supported retrieval methods: "
                 f"{list(self.supported_retrieval_methods())}."
             )
         return resolved
@@ -325,6 +588,19 @@ class ApiMethodRegistry:
         return resolved
 
 
+def _retrieval_capability_status(
+    definition: ApiMethodDefinition,
+    role: MethodIdentificationRole,
+) -> str:
+    if role.retrieval_capable:
+        return "direct_vector"
+    if role.rerank_capable and (definition.is_experimental or role.experimental):
+        return "experimental_rerank_only"
+    if role.rerank_capable:
+        return "rerank_only"
+    return "unavailable"
+
+
 def _load_yaml(path: Path) -> Mapping[str, Any]:
     try:
         with path.open("r", encoding="utf-8") as handle:
@@ -335,6 +611,34 @@ def _load_yaml(path: Path) -> Mapping[str, Any]:
     if not isinstance(payload, Mapping):
         raise MethodRegistryError(f"Expected a mapping at the root of {path}.")
     return payload
+
+
+def _as_bool(value: Any, *, default: bool) -> bool:
+    if value is None:
+        return bool(default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    return bool(default)
+
+
+def _optional_str(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _optional_int(value: Any, *, default: int | None = None) -> int | None:
+    if value in (None, ""):
+        return default
+    return int(value)
 
 
 @lru_cache(maxsize=1)

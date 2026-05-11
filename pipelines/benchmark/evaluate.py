@@ -440,7 +440,7 @@ def main() -> None:
     ap.add_argument("--ransac_thresh", type=float, default=4.0)
 
     # DL options
-    ap.add_argument("--backbone", type=str, default="resnet50", choices=["resnet18", "resnet50", "vit_base"])
+    ap.add_argument("--backbone", type=str, default="resnet18", choices=["resnet18", "resnet50", "vit_base"])
     ap.add_argument("--no_mask", action="store_true", help="Disable mask pipeline for DL quick eval.")
     ap.add_argument("--emb_cache_dir", type=str, default="",
                     help="Persistent embedding cache dir (passed to eval_quick.py).")
@@ -732,6 +732,7 @@ def main() -> None:
         "dl": {
             "script": str(args.script_dl),
             "backbone": args.backbone,
+            "effective_backbone": "vit_base" if args.method == "vit" else args.backbone,
             "no_mask": bool(args.no_mask),
         },
         "dedicated": {

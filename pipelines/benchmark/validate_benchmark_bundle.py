@@ -3,17 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Set, Tuple
 
 import pandas as pd
-
-from pipelines.benchmark.benchmark_validation_utils import (
-    validate_run_meta,
-    validate_scores_csv,
-    validate_summary_columns,
-)
 
 
 def project_root() -> Path:
@@ -24,6 +19,26 @@ def project_root() -> Path:
 
 
 ROOT = project_root()
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from apps.api.benchmark_meta import benchmark_method_to_canonical
+from apps.api.method_registry import load_api_method_registry
+from pipelines.benchmark.benchmark_validation_utils import (
+    validate_run_meta,
+    validate_scores_csv,
+    validate_summary_columns,
+)
+from pipelines.benchmark.method_profiles import (
+    benchmark_method_profile_map,
+    canonical_benchmark_methods,
+    research_benchmark_methods,
+)
+
+
+CANONICAL_EXPECTED_METHODS = canonical_benchmark_methods()
+RESEARCH_EXPECTED_METHODS = research_benchmark_methods()
+EXPECTED_METHOD_PROFILES = benchmark_method_profile_map()
 
 
 def resolve_path(s: str) -> Path:
@@ -57,10 +72,64 @@ def fail(msg: str) -> None:
     raise SystemExit(f"[FAIL] {msg}")
 
 
+def parse_csv_list(raw: str) -> list[str]:
+    return [item.strip() for item in str(raw or "").split(",") if item.strip()]
+
+
+def method_definition_for_row_method(method: str):
+    registry = load_api_method_registry()
+    canonical = benchmark_method_to_canonical(method)
+    try:
+        return registry.definition_for(canonical)
+    except Exception:
+        return None
+
+
+def _claim_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _claims_showcase_from_mapping(payload: dict) -> bool:
+    return (
+        _claim_bool(payload.get("showcase_eligible"))
+        or str(payload.get("presentation_tier") or "").strip().lower() == "canonical"
+        or _claim_bool(payload.get("canonical_default"))
+        or _claim_bool(payload.get("benchmark_default"))
+    )
+
+
+def row_claims_showcase_eligible(row: pd.Series) -> bool:
+    top_level_claims = {
+        key: row.get(key)
+        for key in ("showcase_eligible", "presentation_tier", "canonical_default", "benchmark_default")
+        if key in row and str(row.get(key, "")).strip().lower() not in {"", "nan", "none"}
+    }
+    if _claims_showcase_from_mapping(top_level_claims):
+        return True
+
+    if "config_json" not in row:
+        return False
+    cfg_raw = row.get("config_json", "")
+    if str(cfg_raw).lower() in {"", "nan", "none"}:
+        return False
+    try:
+        cfg = json.loads(str(cfg_raw))
+    except Exception:
+        return False
+    if not isinstance(cfg, dict):
+        return False
+    return _claims_showcase_from_mapping(cfg)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Validate a benchmark artifact bundle.")
     ap.add_argument("--outdir", required=True, type=str)
-    ap.add_argument("--expected_methods", default="classic_v2,harris,sift,dl_quick,dedicated,vit", type=str)
+    ap.add_argument("--profile", default="canonical", choices=sorted(EXPECTED_METHOD_PROFILES), type=str)
+    ap.add_argument("--expected_methods", default=None, type=str)
     ap.add_argument("--expected_splits", default="val,test", type=str)
     args = ap.parse_args()
 
@@ -68,8 +137,12 @@ def main() -> int:
     summary_csv = outdir / "results_summary.csv"
     ok_file = outdir / "validation.ok"
 
-    expected_methods = [m.strip() for m in args.expected_methods.split(",") if m.strip()]
-    expected_splits = [s.strip() for s in args.expected_splits.split(",") if s.strip()]
+    expected_methods = (
+        parse_csv_list(args.expected_methods)
+        if args.expected_methods is not None
+        else list(EXPECTED_METHOD_PROFILES[args.profile])
+    )
+    expected_splits = parse_csv_list(args.expected_splits)
     expected_combos: Set[Tuple[str, str]] = {(m, s) for m in expected_methods for s in expected_splits}
 
     if not summary_csv.exists():
@@ -103,11 +176,26 @@ def main() -> int:
     for i, row in df.iterrows():
         method = str(row["method"])
         split = str(row["split"])
+        method_definition = method_definition_for_row_method(method)
 
         if method not in expected_methods:
             problems.append(f"row {i}: unexpected method -> {method}")
         if split not in expected_splits:
             problems.append(f"row {i}: unexpected split -> {split}")
+        if method_definition is not None:
+            if (
+                args.profile == "canonical"
+                and method in expected_methods
+                and not method_definition.showcase_eligible
+            ):
+                problems.append(
+                    f"row {i} ({method}/{split}): method metadata marks this method as not showcase eligible"
+                )
+            if not method_definition.showcase_eligible and row_claims_showcase_eligible(row):
+                problems.append(
+                    f"row {i} ({method}/{split}): row claims showcase/canonical eligibility, "
+                    "but method metadata marks showcase_eligible=false"
+                )
 
         try:
             n_pairs = int(row["n_pairs"])

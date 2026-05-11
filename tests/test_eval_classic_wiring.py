@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -115,7 +116,7 @@ def test_evaluate_classic_branch_uses_runtime_truthful_forwarding(
 @pytest.mark.parametrize(
     ("method", "expected_backbone"),
     [
-        ("dl_quick", "resnet50"),
+        ("dl_quick", "resnet18"),
         ("vit", "vit_base"),
     ],
 )
@@ -195,9 +196,14 @@ def test_eval_quick_no_mask_flag_disables_masking_in_model_config(
         def __init__(self, dl_cfg, prep_cfg, device=None):
             captured["use_mask"] = dl_cfg.use_mask
             captured["backbone"] = dl_cfg.backbone
+            self.embed_dim = {"resnet18": 512, "resnet50": 2048, "vit_base": 768}[dl_cfg.backbone]
             self._cfg = {
-                "backbone": dl_cfg.backbone,
-                "use_mask": dl_cfg.use_mask,
+                "dl_cfg": asdict(dl_cfg),
+                "prep_cfg": asdict(prep_cfg),
+                "embed_dim": self.embed_dim,
+                "expected_embed_dim": self.embed_dim,
+                "pretrained_required": True,
+                "pretrained_loaded": True,
             }
             self.device = "cpu"
 
@@ -206,9 +212,12 @@ def test_eval_quick_no_mask_flag_disables_masking_in_model_config(
 
         def embed_path(self, path: str, capture=None):
             name = Path(path).name
+            vec = np.zeros(self.embed_dim, dtype=np.float32)
             if name in {"img_a.png", "img_b.png", "img_c.png"}:
-                return np.array([1.0, 0.0], dtype=np.float32), 1.0
-            return np.array([-1.0, 0.0], dtype=np.float32), 1.0
+                vec[0] = 1.0
+                return vec, 1.0
+            vec[0] = -1.0
+            return vec, 1.0
 
         def cosine(self, a: np.ndarray, b: np.ndarray) -> float:
             denom = float(np.linalg.norm(a) * np.linalg.norm(b))

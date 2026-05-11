@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from pipelines.benchmark import run_benchmark_matrix as matrix
+from pipelines.benchmark.method_profiles import load_benchmark_method_profiles
 
 
 def test_build_eval_cmd_supports_fusion_balanced_v1(tmp_path: Path) -> None:
@@ -33,7 +34,7 @@ def test_build_eval_cmd_supports_fusion_balanced_v1(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("method", "expected_backbone"),
     [
-        ("dl_quick", "resnet50"),
+        ("dl_quick", "resnet18"),
         ("vit", "vit_base"),
     ],
 )
@@ -111,6 +112,62 @@ def test_validate_fusion_request_rejects_wrong_method_order() -> None:
             splits=["val"],
             fusion_fit_split="val",
         )
+
+
+def test_default_methods_are_canonical_only() -> None:
+    methods = matrix.resolve_methods_request(
+        methods_raw="",
+        profile="canonical",
+        include_research_methods=False,
+    )
+
+    assert methods == ["classic_v2", "harris", "sift", "dl_quick", "vit"]
+    assert "dedicated" not in methods
+
+
+def test_benchmark_method_profiles_are_loaded_from_registry() -> None:
+    profiles = load_benchmark_method_profiles()
+
+    assert profiles.loaded_from_registry is True
+    assert list(profiles.canonical) == ["classic_v2", "harris", "sift", "dl_quick", "vit"]
+    assert "dedicated" not in profiles.canonical
+    assert list(profiles.research_methods) == ["dedicated"]
+    assert list(profiles.dedicated) == ["dedicated"]
+    assert matrix.BENCHMARK_METHOD_PROFILES == {
+        "canonical": ["classic_v2", "harris", "sift", "dl_quick", "vit"],
+        "research": ["classic_v2", "harris", "sift", "dl_quick", "vit", "dedicated"],
+        "dedicated": ["dedicated"],
+    }
+
+
+def test_research_profile_includes_dedicated_explicitly() -> None:
+    methods = matrix.resolve_methods_request(
+        methods_raw="",
+        profile="research",
+        include_research_methods=False,
+    )
+
+    assert methods == ["classic_v2", "harris", "sift", "dl_quick", "vit", "dedicated"]
+
+
+def test_explicit_methods_can_run_dedicated_only() -> None:
+    methods = matrix.resolve_methods_request(
+        methods_raw="dedicated",
+        profile="canonical",
+        include_research_methods=False,
+    )
+
+    assert methods == ["dedicated"]
+
+
+def test_include_research_methods_appends_dedicated() -> None:
+    methods = matrix.resolve_methods_request(
+        methods_raw="sift,vit",
+        profile="canonical",
+        include_research_methods=True,
+    )
+
+    assert methods == ["sift", "vit", "dedicated"]
 
 
 def test_render_results_md_orders_fusion_after_source_methods(tmp_path: Path) -> None:
@@ -195,7 +252,9 @@ def test_main_uses_canonical_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert matrix.main([]) == 17
     args = captured["args"]
     assert args.outdir == "artifacts/reports/benchmark/full_nist_sd300b"
-    assert args.methods == "classic_v2,harris,sift,dl_quick,dedicated,vit"
+    assert args.methods == ""
+    assert args.profile == "canonical"
+    assert args.include_research_methods is False
     assert matrix.FUSION_METHOD not in args.methods.split(",")
     assert args.emb_cache_dir == "artifacts/cache/embeddings"
 

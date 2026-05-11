@@ -14,6 +14,21 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 try:
+    from pipelines.benchmark.method_profiles import (
+        benchmark_method_profile_map,
+        canonical_benchmark_methods,
+        default_benchmark_methods_csv,
+        research_benchmark_methods,
+    )
+except ModuleNotFoundError:
+    from method_profiles import (  # type: ignore
+        benchmark_method_profile_map,
+        canonical_benchmark_methods,
+        default_benchmark_methods_csv,
+        research_benchmark_methods,
+    )
+
+try:
     from importlib.metadata import version as pkg_version  # type: ignore
 except Exception:
     pkg_version = None  # type: ignore
@@ -21,6 +36,10 @@ except Exception:
 
 FUSION_METHOD = "fusion_balanced_v1"
 FUSION_SOURCE_METHODS = ["sift", "dl_quick", "vit"]
+CANONICAL_BENCHMARK_METHODS = canonical_benchmark_methods()
+RESEARCH_BENCHMARK_METHODS = research_benchmark_methods()
+BENCHMARK_METHOD_PROFILES = benchmark_method_profile_map()
+DEFAULT_BENCHMARK_METHODS = default_benchmark_methods_csv()
 
 
 def project_root() -> Path:
@@ -202,6 +221,25 @@ def parse_csv_list(raw: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def resolve_methods_request(
+    *,
+    methods_raw: str,
+    profile: str,
+    include_research_methods: bool,
+) -> list[str]:
+    if methods_raw.strip():
+        methods = parse_csv_list(methods_raw)
+    else:
+        methods = list(BENCHMARK_METHOD_PROFILES.get(profile, CANONICAL_BENCHMARK_METHODS))
+
+    if include_research_methods:
+        for method in RESEARCH_BENCHMARK_METHODS:
+            if method not in methods:
+                methods.append(method)
+
+    return methods
+
+
 def validate_fusion_request(methods: list[str], splits: list[str], fusion_fit_split: str) -> None:
     if FUSION_METHOD not in methods:
         return
@@ -296,7 +334,7 @@ def build_eval_cmd(
             "--ransac_thresh", "3.0",
         ]
     elif method in {"dl_quick", "vit"}:
-        backbone = "vit_base" if method == "vit" else "resnet50"
+        backbone = "vit_base" if method == "vit" else "resnet18"
         # Canonical benchmark defaults now match the shipped runtime behavior:
         # masking stays enabled unless --no_mask is passed explicitly elsewhere.
         cmd += ["--backbone", backbone]
@@ -404,6 +442,8 @@ def build_manifest_payload(
     fusion_vit_weight: float,
     input_hashes: Dict[str, str],
     mode: str,
+    profile: str = "canonical",
+    include_research_methods: bool = False,
     argv: Optional[list[str]] = None,
 ) -> Dict[str, object]:
     packages = {
@@ -426,6 +466,8 @@ def build_manifest_payload(
             "resolved_data_dir": str(data_dir),
         },
         "methods": methods,
+        "method_profile": profile,
+        "include_research_methods": bool(include_research_methods),
         "splits": splits,
         "limit": int(limit),
         "ensure_pairs": bool(ensure_pairs),
@@ -484,7 +526,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset", type=str, default="nist_sd300b")
     parser.add_argument("--data_dir", type=str, default="")
     parser.add_argument("--outdir", type=str, default="artifacts/reports/benchmark/full_nist_sd300b")
-    parser.add_argument("--methods", type=str, default="classic_v2,harris,sift,dl_quick,dedicated,vit")
+    parser.add_argument(
+        "--profile",
+        type=str,
+        default="canonical",
+        choices=sorted(BENCHMARK_METHOD_PROFILES),
+        help="Method profile to use when --methods is not provided.",
+    )
+    parser.add_argument(
+        "--include_research_methods",
+        action="store_true",
+        help="Append explicitly research/experimental methods such as dedicated to the selected method set.",
+    )
+    parser.add_argument(
+        "--methods",
+        type=str,
+        default="",
+        help=f"Comma-separated benchmark methods. Defaults to the canonical profile: {DEFAULT_BENCHMARK_METHODS}.",
+    )
     parser.add_argument("--splits", type=str, default="val,test")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--ensure_pairs", action="store_true")
@@ -525,7 +584,11 @@ def run_matrix(args: argparse.Namespace) -> int:
             log(f"  - {path}")
         return 2
 
-    methods = parse_csv_list(args.methods)
+    methods = resolve_methods_request(
+        methods_raw=args.methods,
+        profile=args.profile,
+        include_research_methods=args.include_research_methods,
+    )
     splits = parse_csv_list(args.splits)
     if not methods:
         log("ERROR: --methods resolved to an empty method list.")
@@ -568,6 +631,8 @@ def run_matrix(args: argparse.Namespace) -> int:
         fusion_vit_weight=args.fusion_vit_weight,
         input_hashes=input_hashes,
         mode="batch",
+        profile=args.profile,
+        include_research_methods=args.include_research_methods,
         argv=list(sys.argv),
     )
     (outdir / "run_manifest.json").write_text(
@@ -582,12 +647,13 @@ def run_matrix(args: argparse.Namespace) -> int:
     if summary_md.exists():
         summary_md.unlink()
 
-    log("=== Canonical batch benchmark run ===")
+    log("=== Benchmark batch run ===")
     log(f"Repo root : {ROOT}")
     log(f"Dataset   : {args.dataset}")
     log(f"Data dir  : {data_dir}")
     log(f"Outdir    : {outdir}")
     log(f"Methods   : {methods}")
+    log(f"Profile   : {args.profile}")
     log(f"Splits    : {splits}")
     if emb_cache_dir:
         log(f"Emb cache : {emb_cache_dir}")

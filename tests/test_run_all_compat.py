@@ -3,6 +3,10 @@ import pytest
 from scripts import run_all
 
 
+def test_run_all_help_default_methods_are_registry_derived() -> None:
+    assert run_all.DEFAULT_BENCHMARK_METHODS == "classic_v2,harris,sift,dl_quick,vit"
+
+
 def test_run_all_shim_routes_eval_all_to_run_benchmark_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = {}
 
@@ -15,8 +19,25 @@ def test_run_all_shim_routes_eval_all_to_run_benchmark_matrix(monkeypatch: pytes
 
     assert run_all.main(["--eval_all"]) == 11
     assert captured["target"] == run_all.BATCH_TARGET
+    assert "--profile" in captured["argv"]
+    assert captured["argv"][captured["argv"].index("--profile") + 1] == "canonical"
     assert "--methods" in captured["argv"]
-    assert captured["argv"][captured["argv"].index("--methods") + 1] == "classic_v2,harris,sift,dl_quick,dedicated,vit"
+    assert captured["argv"][captured["argv"].index("--methods") + 1] == ""
+
+
+def test_run_all_shim_can_request_research_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = {}
+
+    def fake_dispatch(target: str, argv: list[str]) -> int:
+        captured["target"] = target
+        captured["argv"] = argv
+        return 14
+
+    monkeypatch.setattr(run_all, "dispatch_legacy_args", fake_dispatch)
+
+    assert run_all.main(["--eval_all", "--profile", "research"]) == 14
+    assert captured["target"] == run_all.BATCH_TARGET
+    assert captured["argv"][captured["argv"].index("--profile") + 1] == "research"
 
 
 def test_run_all_shim_routes_eval_one_to_run_benchmark_once(monkeypatch: pytest.MonkeyPatch) -> None:

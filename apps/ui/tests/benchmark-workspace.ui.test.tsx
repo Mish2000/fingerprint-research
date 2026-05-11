@@ -675,6 +675,306 @@ function installBenchmarkFetchMock() {
     return { fetchMock, requests };
 }
 
+function installDedicatedBenchmarkFetchMock() {
+    const baseDedicatedRow = createRow({
+        dataset: "nist_sd300b",
+        split: "val",
+        method: "dedicated",
+        run: "full_nist_sd300b_dedicated_audit",
+        runLabel: "Archived benchmark",
+        auc: 0.4676,
+        eer: 0.5075,
+        latency: 243,
+        nPairs: 1200,
+        aucRank: 1,
+        eerRank: 1,
+        latencyRank: 1,
+        viewMode: "archive",
+        status: "archived",
+        validationState: "archived",
+    });
+    const dedicatedNote = "Dedicated Patch AI remains available as an experimental research method, but it is not showcase eligible.";
+    const dedicatedRow = {
+        ...baseDedicatedRow,
+        method_status: "experimental",
+        presentation_tier: "research",
+        showcase_eligible: false,
+        benchmark_default: false,
+        canonical_default: false,
+        research_track: true,
+        not_champion_candidate: true,
+        showcase_exclusion_note: dedicatedNote,
+        auc_rank: null,
+        eer_rank: null,
+        latency_rank: null,
+        provenance: {
+            ...baseDedicatedRow.provenance,
+            method_status: "experimental",
+            presentation_tier: "research",
+            showcase_eligible: false,
+            benchmark_default: false,
+            canonical_default: false,
+            research_track: true,
+            not_champion_candidate: true,
+            showcase_exclusion_note: dedicatedNote,
+            methods_in_run: ["dedicated"],
+            benchmark_methods_in_run: ["dedicated"],
+            showcase_methods_in_run: [],
+            showcase_benchmark_methods_in_run: [],
+            research_methods_in_run: ["dedicated"],
+            research_benchmark_methods_in_run: ["dedicated"],
+        },
+    };
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const parsed = new URL(String(input), "http://localhost");
+        if (parsed.pathname === "/api/benchmark/summary") {
+            return createJsonResponse({
+                dataset: "nist_sd300b",
+                split: "val",
+                view_mode: "archive",
+                dataset_info: datasetInfos.nist_sd300b,
+                split_info: splitInfos.val,
+                view_info: viewInfos.archive,
+                validation_state: "archived",
+                selection_note: "Showing archived benchmark rows for provenance review.",
+                selection_policy: "Archive view preserves research rows without champion promotion.",
+                result_count: 1,
+                method_count: 1,
+                run_count: 1,
+                available_datasets: [datasetInfos.nist_sd300b],
+                available_splits: [splitInfos.val],
+                available_view_modes: Object.values(viewInfos),
+                current_run_families: ["full_nist_sd300b_dedicated_audit"],
+                artifact_note: "Artifact links surface stored benchmark evidence when files are available.",
+            });
+        }
+        if (parsed.pathname === "/api/benchmark/comparison") {
+            return createJsonResponse({
+                rows: [dedicatedRow],
+                datasets: ["nist_sd300b"],
+                splits: ["val"],
+                default_dataset: "nist_sd300b",
+                default_split: "val",
+                view_mode: "archive",
+                view_info: viewInfos.archive,
+                dataset_info: datasetInfos,
+                split_info: splitInfos,
+            });
+        }
+        if (parsed.pathname === "/api/benchmark/best") {
+            return createJsonResponse({
+                dataset: "nist_sd300b",
+                split: "val",
+                view_mode: "archive",
+                entries: [],
+            });
+        }
+        throw new Error(`Unexpected fetch call: ${String(input)}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    return { fetchMock };
+}
+
+function dedicatedResearchRow(
+    row: ReturnType<typeof createRow>,
+    {
+        note,
+        timestamp,
+        sourceRoot,
+        sourceLabel,
+        runKind,
+    }: {
+        note: string;
+        timestamp: string;
+        sourceRoot: "live" | "reference";
+        sourceLabel: string;
+        runKind?: "full" | "smoke" | "legacy";
+    },
+) {
+    const normalizedRunKind = runKind ?? row.run_kind;
+    return {
+        ...row,
+        method_label: "Dedicated Patch AI (Experimental)",
+        method_status: "experimental",
+        presentation_tier: "research",
+        showcase_eligible: false,
+        benchmark_default: false,
+        canonical_default: false,
+        research_track: true,
+        not_champion_candidate: true,
+        showcase_exclusion_note: note,
+        auc_rank: null,
+        eer_rank: null,
+        latency_rank: null,
+        run_kind: normalizedRunKind,
+        provenance: {
+            ...row.provenance,
+            method_label: "Dedicated Patch AI (Experimental)",
+            method_status: "experimental",
+            presentation_tier: "research",
+            showcase_eligible: false,
+            benchmark_default: false,
+            canonical_default: false,
+            research_track: true,
+            not_champion_candidate: true,
+            showcase_exclusion_note: note,
+            methods_in_run: ["dedicated"],
+            benchmark_methods_in_run: ["dedicated"],
+            showcase_methods_in_run: [],
+            showcase_benchmark_methods_in_run: [],
+            research_methods_in_run: ["dedicated"],
+            research_benchmark_methods_in_run: ["dedicated"],
+            run_kind: normalizedRunKind,
+            timestamp_utc: timestamp,
+            benchmark_source_root: sourceRoot,
+            benchmark_source_label: sourceLabel,
+        },
+    };
+}
+
+function installMultipleDedicatedBenchmarkFetchMock() {
+    const dedicatedNote = "Dedicated Patch AI remains available as an experimental research method, but it is not showcase eligible.";
+    const canonicalRow = createRow({
+        dataset: "nist_sd300b",
+        split: "val",
+        method: "sift",
+        run: "full_nist_sd300b_h6",
+        runLabel: "Canonical full benchmark",
+        auc: 0.6544,
+        eer: 0.3479,
+        latency: 31.84,
+        nPairs: 2800,
+        aucRank: 1,
+        eerRank: 1,
+        latencyRank: 1,
+        viewMode: "archive",
+        status: "archived",
+        validationState: "archived",
+    });
+    const currentDedicated = dedicatedResearchRow(createRow({
+        dataset: "nist_sd300b",
+        split: "val",
+        method: "dedicated",
+        run: "current_dedicated_audit",
+        runLabel: "Current dedicated audit",
+        auc: 0.4676,
+        eer: 0.5075,
+        latency: 243,
+        nPairs: 1200,
+        aucRank: 4,
+        eerRank: 4,
+        latencyRank: 4,
+        viewMode: "archive",
+        status: "archived",
+        validationState: "archived",
+    }), {
+        note: dedicatedNote,
+        timestamp: "2026-05-01T00:00:00Z",
+        sourceRoot: "live",
+        sourceLabel: "Live artifacts",
+        runKind: "legacy",
+    });
+    const archivedFullDedicated = dedicatedResearchRow(createRow({
+        dataset: "nist_sd300b",
+        split: "val",
+        method: "dedicated",
+        run: "full_nist_sd300b_dedicated_audit",
+        runLabel: "Archived full dedicated audit",
+        auc: 0.56,
+        eer: 0.49,
+        latency: 220,
+        nPairs: 1200,
+        aucRank: 2,
+        eerRank: 2,
+        latencyRank: 2,
+        viewMode: "archive",
+        status: "archived",
+        validationState: "archived",
+    }), {
+        note: dedicatedNote,
+        timestamp: "2026-04-15T00:00:00Z",
+        sourceRoot: "reference",
+        sourceLabel: "Reference artifacts",
+        runKind: "full",
+    });
+    const archivedSmokeDedicated = dedicatedResearchRow(createRow({
+        dataset: "nist_sd300b",
+        split: "val",
+        method: "dedicated",
+        run: "smoke_nist_sd300b_dedicated_audit",
+        runLabel: "Archived smoke dedicated audit",
+        auc: 0.58,
+        eer: 0.48,
+        latency: 210,
+        nPairs: 200,
+        aucRank: 3,
+        eerRank: 3,
+        latencyRank: 3,
+        viewMode: "archive",
+        status: "archived",
+        validationState: "archived",
+    }), {
+        note: dedicatedNote,
+        timestamp: "2026-04-20T00:00:00Z",
+        sourceRoot: "reference",
+        sourceLabel: "Reference artifacts",
+        runKind: "smoke",
+    });
+    const rows = [canonicalRow, archivedSmokeDedicated, archivedFullDedicated, currentDedicated];
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const parsed = new URL(String(input), "http://localhost");
+        if (parsed.pathname === "/api/benchmark/summary") {
+            return createJsonResponse({
+                dataset: "nist_sd300b",
+                split: "val",
+                view_mode: "archive",
+                dataset_info: datasetInfos.nist_sd300b,
+                split_info: splitInfos.val,
+                view_info: viewInfos.archive,
+                validation_state: "archived",
+                selection_note: "Showing archived benchmark rows for provenance review.",
+                selection_policy: "Archive view preserves research rows without champion promotion.",
+                result_count: rows.length,
+                method_count: new Set(rows.map((row) => row.method)).size,
+                run_count: new Set(rows.map((row) => row.run)).size,
+                available_datasets: [datasetInfos.nist_sd300b],
+                available_splits: [splitInfos.val],
+                available_view_modes: Object.values(viewInfos),
+                current_run_families: rows.map((row) => row.run),
+                artifact_note: "Artifact links surface stored benchmark evidence when files are available.",
+            });
+        }
+        if (parsed.pathname === "/api/benchmark/comparison") {
+            return createJsonResponse({
+                rows,
+                datasets: ["nist_sd300b"],
+                splits: ["val"],
+                default_dataset: "nist_sd300b",
+                default_split: "val",
+                view_mode: "archive",
+                view_info: viewInfos.archive,
+                dataset_info: datasetInfos,
+                split_info: splitInfos,
+            });
+        }
+        if (parsed.pathname === "/api/benchmark/best") {
+            return createJsonResponse({
+                dataset: "nist_sd300b",
+                split: "val",
+                view_mode: "archive",
+                entries: [],
+            });
+        }
+        throw new Error(`Unexpected fetch call: ${String(input)}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    return { fetchMock };
+}
+
 afterEach(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -723,7 +1023,7 @@ describe("Benchmark workspace showcase", () => {
         await changeSelect(getLabelField<HTMLSelectElement>(container, "Dataset"), "polyu_cross");
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("full_polyu_cross_h5");
-            expect(normalizeText(container.textContent)).toContain("Deep Learning (ResNet50)");
+            expect(normalizeText(container.textContent)).toContain("Deep Learning (ResNet18)");
             expect(normalizeText(container.textContent)).toContain("Classic (ROI GFTT+ORB)");
         });
 
@@ -819,6 +1119,70 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("ROC preview could not be rendered. Open artifact instead.");
             expect(normalizeText(container.textContent)).toContain("Open ROC artifact");
         });
+
+        await unmountWorkspace(root);
+    });
+
+    it("marks dedicated rows as research and keeps them out of champion treatment", async () => {
+        installDedicatedBenchmarkFetchMock();
+        const { container, root } = await renderWorkspace("/?benchmarkView=archive&benchmarkDataset=nist_sd300b&benchmarkSplit=val");
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Dedicated Patch AI");
+            expect(text).toContain("Research / Experimental");
+            expect(text).toContain("Experimental");
+            expect(text).toContain("Research");
+            expect(text).toContain("Not showcase eligible");
+            expect(text).toContain("Research-only method");
+            expect(text).not.toContain("#1 Accuracy");
+            expect(text).not.toContain("Fastest method, slightly lower AUC.");
+        });
+
+        await unmountWorkspace(root);
+    });
+
+    it("groups duplicate dedicated research rows by default and can reveal history", async () => {
+        installMultipleDedicatedBenchmarkFetchMock();
+        const { container, root } = await renderWorkspace("/?benchmarkView=archive&benchmarkDataset=nist_sd300b&benchmarkSplit=val");
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Classic (SIFT)");
+            expect(text).toContain("Dedicated Patch AI (Experimental)");
+            expect(text).toContain("Experimental");
+            expect(text).toContain("Research");
+            expect(text).toContain("Not showcase eligible");
+            expect(text).toContain("3 research runs available");
+            expect(text).toContain("Showing representative research run; 2 archived runs hidden");
+            expect(text).toContain("Current dedicated audit");
+            expect(text).toContain("methods in comparison");
+            expect(text).not.toContain("validated benchmark methods");
+            expect(text).not.toContain("Archived full dedicated audit");
+            expect(text).not.toContain("Archived smoke dedicated audit");
+        });
+
+        expect(container.querySelectorAll("tbody tr.cursor-pointer")).toHaveLength(2);
+
+        await clickRowByText(container, "Dedicated Patch AI");
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Representative research run");
+            expect(text).toContain("Showing current");
+            expect(text).toContain("2 archived research runs hidden");
+        });
+
+        await click(getButtonByText(container, "Show archived research runs"));
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Hide archived research runs");
+            expect(text).toContain("Archived full dedicated audit");
+            expect(text).toContain("Archived smoke dedicated audit");
+            expect(text).toContain("archived full benchmark");
+            expect(text).toContain("archived smoke benchmark");
+        });
+
+        expect(container.querySelectorAll("tbody tr.cursor-pointer")).toHaveLength(4);
 
         await unmountWorkspace(root);
     });

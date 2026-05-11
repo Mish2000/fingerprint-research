@@ -11,9 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from pipelines.benchmark.method_profiles import default_benchmark_methods_csv
+
 
 BATCH_TARGET = "pipelines.benchmark.run_benchmark_matrix"
 ONCE_TARGET = "scripts.run_benchmark_once"
+DEFAULT_BENCHMARK_METHODS = default_benchmark_methods_csv()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -27,7 +30,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--outdir", type=str, default="artifacts/reports/benchmark/current")
     parser.add_argument("--method", type=str, default="classic_v2")
     parser.add_argument("--split", type=str, default="val")
-    parser.add_argument("--methods", type=str, default="classic_v2,harris,sift,dl_quick,dedicated,vit")
+    parser.add_argument("--profile", type=str, default="canonical", choices=["canonical", "research", "dedicated"])
+    parser.add_argument("--include_research_methods", action="store_true")
+    parser.add_argument(
+        "--methods",
+        type=str,
+        default="",
+        help=f"Comma-separated benchmark methods. Empty uses the selected profile; canonical default is {DEFAULT_BENCHMARK_METHODS}.",
+    )
     parser.add_argument("--splits", type=str, default="val,test")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--ensure_pairs", action="store_true")
@@ -58,9 +68,12 @@ def translate_legacy_args(args: argparse.Namespace) -> Tuple[str, list[str]]:
         translated.append("--ensure_pairs")
     if args.cache_write:
         translated.append("--cache_write")
+    if args.include_research_methods:
+        translated.append("--include_research_methods")
 
     if target == BATCH_TARGET:
         translated += [
+            "--profile", args.profile,
             "--methods", args.methods,
             "--splits", args.splits,
             "--fusion_fit_split", args.fusion_fit_split,

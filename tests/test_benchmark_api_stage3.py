@@ -856,9 +856,74 @@ def test_dedicated_archive_rows_carry_showcase_exclusion_note(tmp_path: Path) ->
     assert response.rows
     row = response.rows[0]
     assert row.benchmark_method == "dedicated"
+    assert row.method_status == "experimental"
+    assert row.presentation_tier == "research"
+    assert row.showcase_eligible is False
+    assert row.not_champion_candidate is True
+    assert row.showcase_exclusion_note
     assert row.provenance is not None
-    assert "tracked as experimental" in (row.provenance.showcase_exclusion_note or "")
-    assert "verification-level performance criteria" in (row.provenance.showcase_exclusion_note or "")
+    assert row.provenance.showcase_eligible is False
+    assert row.provenance.research_track is True
+    assert "experimental research method" in (row.provenance.showcase_exclusion_note or "")
+    assert "must not be promoted" in (row.provenance.showcase_exclusion_note or "")
+
+
+def test_dedicated_cannot_be_selected_as_canonical_champion(tmp_path: Path) -> None:
+    bench_root = tmp_path / "artifacts" / "reports" / "benchmark"
+    run_dir = bench_root / H5_FULL_NIST_B
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "validation.ok").write_text("ok", encoding="utf-8")
+    (run_dir / "results_summary.md").write_text("benchmark summary", encoding="utf-8")
+    write_run_manifest(run_dir, {"name": "nist_sd300b"})
+    for method in ("sift", "dedicated"):
+        (run_dir / f"scores_{method}_test.csv").write_text("score\n0.9\n", encoding="utf-8")
+
+    write_summary_csv(
+        run_dir,
+        [
+            make_summary_row(
+                method="dedicated",
+                split="test",
+                auc=0.99,
+                eer=0.01,
+                wall_ms=1.0,
+                pairs_path="C:\\pairs_test.csv",
+            ),
+            make_summary_row(
+                method="sift",
+                split="test",
+                auc=0.80,
+                eer=0.20,
+                wall_ms=4.0,
+                pairs_path="C:\\pairs_test.csv",
+                method_semantics_epoch="sift_runtime_aligned_v1",
+            ),
+        ],
+    )
+
+    comparison = load_comparison(
+        dataset="nist_sd300b",
+        split="test",
+        view_mode="canonical",
+        sort_mode="best_accuracy",
+        root=bench_root,
+    )
+    rows_by_method = {row.benchmark_method: row for row in comparison.rows}
+
+    assert set(rows_by_method) == {"dedicated", "sift"}
+    assert rows_by_method["dedicated"].showcase_eligible is False
+    assert rows_by_method["dedicated"].auc_rank is None
+    assert rows_by_method["sift"].auc_rank == 1
+
+    best = load_best_methods(
+        dataset="nist_sd300b",
+        split="test",
+        view_mode="canonical",
+        root=bench_root,
+    )
+
+    assert best.entries
+    assert all(entry.benchmark_method != "dedicated" for entry in best.entries)
 
 
 def test_missing_roc_artifact_is_not_marked_available(tmp_path: Path) -> None:

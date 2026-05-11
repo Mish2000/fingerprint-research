@@ -55,7 +55,7 @@ def test_dedicated_unavailable_is_reported_without_killing_service(tmp_path: Pat
     assert availability["dedicated"]["available"] is False
     assert "Descriptor checkpoint not found" in str(availability["dedicated"]["error"])
 
-    with pytest.raises(MethodUnavailableError, match="Dedicated \\(Patch AI\\)"):
+    with pytest.raises(MethodUnavailableError, match="Dedicated Patch AI \\(Experimental\\)"):
         service.match(
             method="dedicated",
             path_a=str(first),

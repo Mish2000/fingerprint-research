@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExternalLink } from "lucide-react";
-import type { BenchmarkArtifactLink, ComparisonRow, NamedInfo } from "../../types";
+import type { BenchmarkArtifactLink, ComparisonRow, NamedInfo, ResearchRunGroupInfo } from "../../types";
 import { CompactEmptyState, MetricTile } from "../../shared/ui/presentation.tsx";
 import {
     formatLatency,
     formatMethodLabel,
     formatMetric,
     formatPairs,
+    methodStatusBadges,
+    researchRunSourceLabel,
     statusLabel,
     statusToneClassName,
 } from "./benchmarkPresentation.ts";
@@ -15,6 +17,9 @@ type Props = {
     row: ComparisonRow | null;
     datasetInfo: Record<string, NamedInfo>;
     splitInfo: Record<string, NamedInfo>;
+    researchGroupInfo?: ResearchRunGroupInfo | null;
+    showResearchHistory?: boolean;
+    onShowResearchHistory?: () => void;
 };
 
 const ARTIFACT_GROUPS = [
@@ -57,6 +62,27 @@ function TrustField({ label, value, title }: { label: string; value: string; tit
             <p className="mt-1 safe-truncate text-sm font-medium text-[var(--app-text)]" title={title ?? value}>
                 {value}
             </p>
+        </div>
+    );
+}
+
+function MethodStatusBadges({ row }: { row: ComparisonRow }) {
+    const badges = methodStatusBadges(row);
+    if (badges.length === 0) {
+        return null;
+    }
+    return (
+        <div className="flex flex-wrap gap-2">
+            {badges.map((badge) => (
+                <span
+                    key={badge}
+                    className={`status-pill ${
+                        badge === "Not showcase eligible" ? "status-pill--warning" : "status-pill--info"
+                    }`}
+                >
+                    {badge}
+                </span>
+            ))}
         </div>
     );
 }
@@ -110,12 +136,10 @@ function ArtifactGroup({ title, row, keys }: { title: string; row: ComparisonRow
 }
 
 function RocPreview({ artifact, row }: { artifact: BenchmarkArtifactLink | null; row: ComparisonRow }) {
-    const [failed, setFailed] = useState(false);
+    const [failedArtifactKey, setFailedArtifactKey] = useState<string | null>(null);
+    const artifactKey = JSON.stringify([artifact?.url ?? null, row.run, row.benchmark_method, row.split]);
+    const failed = failedArtifactKey === artifactKey;
     const hasUrl = Boolean(artifact?.available && artifact.url);
-
-    useEffect(() => {
-        setFailed(false);
-    }, [artifact?.url, row.run, row.benchmark_method, row.split]);
 
     const openButton = artifact?.url ? (
         <a
@@ -160,7 +184,7 @@ function RocPreview({ artifact, row }: { artifact: BenchmarkArtifactLink | null;
                     aria-label={`${formatMethodLabel(row.method, row.method_label)} ROC preview`}
                     loading="lazy"
                     decoding="async"
-                    onError={() => setFailed(true)}
+                    onError={() => setFailedArtifactKey(artifactKey)}
                     className="h-56 w-full object-contain"
                 />
             </div>
@@ -169,7 +193,14 @@ function RocPreview({ artifact, row }: { artifact: BenchmarkArtifactLink | null;
     );
 }
 
-export default function BenchmarkEvidencePanel({ row, datasetInfo, splitInfo }: Props) {
+export default function BenchmarkEvidencePanel({
+    row,
+    datasetInfo,
+    splitInfo,
+    researchGroupInfo = null,
+    showResearchHistory = false,
+    onShowResearchHistory,
+}: Props) {
     const [provenanceOpen, setProvenanceOpen] = useState(false);
 
     if (!row) {
@@ -189,6 +220,7 @@ export default function BenchmarkEvidencePanel({ row, datasetInfo, splitInfo }: 
     const provenance = row.provenance;
     const sourceLabel = artifactSourceLabel(row);
     const manifestDisplayPath = provenance?.manifest_path ?? runManifestArtifact?.url;
+    const showcaseExclusionNote = row.showcase_exclusion_note ?? provenance?.showcase_exclusion_note ?? null;
 
     return (
         <section className="surface-card p-6">
@@ -196,6 +228,7 @@ export default function BenchmarkEvidencePanel({ row, datasetInfo, splitInfo }: 
                 <div className="min-w-0 space-y-2">
                     <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Evidence</p>
                     <h3 className="safe-text text-xl font-semibold text-[var(--app-text)]">{formatMethodLabel(row.method, row.method_label)}</h3>
+                    <MethodStatusBadges row={row} />
                     <p className="safe-text text-sm text-[var(--app-text-muted)]">
                         {datasetLabel} - {splitLabel}
                     </p>
@@ -211,6 +244,37 @@ export default function BenchmarkEvidencePanel({ row, datasetInfo, splitInfo }: 
                 <MetricTile label="Latency" value={formatLatency(row.latency_ms)} tone="warning" />
                 <MetricTile label="Pairs" value={formatPairs(row.n_pairs)} />
             </div>
+
+            {showcaseExclusionNote ? (
+                <div className="mt-5 inline-banner inline-banner--warning">
+                    <div className="inline-banner__body">
+                        <p className="font-semibold">Research-only method</p>
+                        <p>{showcaseExclusionNote}</p>
+                    </div>
+                </div>
+            ) : null}
+
+            {researchGroupInfo && researchGroupInfo.totalCount > 1 ? (
+                <div className="mt-5 inline-banner inline-banner--info">
+                    <div className="inline-banner__body">
+                        <p className="font-semibold">Representative research run</p>
+                        <p>
+                            {showResearchHistory
+                                ? `${researchGroupInfo.totalCount} research runs are visible. Selected source: ${researchRunSourceLabel(row)}.`
+                                : `Showing ${researchRunSourceLabel(row)}; ${researchGroupInfo.hiddenCount} archived research runs hidden.`}
+                        </p>
+                        {!showResearchHistory && researchGroupInfo.hiddenCount > 0 && onShowResearchHistory ? (
+                            <button
+                                type="button"
+                                className="app-button app-button--secondary mt-3"
+                                onClick={onShowResearchHistory}
+                            >
+                                Show archived research runs
+                            </button>
+                        ) : null}
+                    </div>
+                </div>
+            ) : null}
 
             <div className="mt-6 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-5">
                 <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Trust & provenance</p>
@@ -269,7 +333,7 @@ export default function BenchmarkEvidencePanel({ row, datasetInfo, splitInfo }: 
                         <TrustField label="Pairs path" value={provenance?.pairs_path ?? "N/A"} />
                         <TrustField label="Manifest path" value={provenance?.manifest_path ?? "N/A"} />
                         <TrustField label="Data directory" value={provenance?.data_dir ?? "N/A"} />
-                        {provenance?.showcase_exclusion_note ? <TrustField label="Showcase note" value={provenance.showcase_exclusion_note} /> : null}
+                        {showcaseExclusionNote ? <TrustField label="Showcase note" value={showcaseExclusionNote} /> : null}
                         {provenance?.git_commit ? <TrustField label="Git commit" value={provenance.git_commit} /> : null}
                     </div>
                 ) : null}

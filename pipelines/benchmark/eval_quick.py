@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 import time
 import json
-import hashlib
 
 import numpy as np
 import pandas as pd
@@ -23,8 +22,17 @@ def project_root() -> Path:
 ROOT = project_root()
 sys.path.insert(0, str(ROOT))
 
-from src.fpbench.matchers.baseline_dl import BaselineDL, DLBaselineConfig
+from src.fpbench.matchers.baseline_dl import (
+    BaselineDL,
+    DLBaselineConfig,
+    expected_embed_dim_for_backbone,
+)
 from src.fpbench.preprocess.preprocess import PreprocessConfig
+from pipelines.benchmark.embedding_cache import (
+    assert_cache_key_config_matches_model,
+    cache_entry_error,
+    cache_file_for,
+)
 
 
 def parse_file_uri(p: str) -> Path:
@@ -78,6 +86,15 @@ def resolve_pair_capture(row: pd.Series, side: str) -> str | None:
     if path_key in row.index:
         return infer_capture_from_path(str(row[path_key]))
     return None
+
+
+def validate_embedding_dim(emb: np.ndarray, *, backbone: str, expected_dim: int, source: str) -> np.ndarray:
+    arr = np.asarray(emb, dtype=np.float32).reshape(-1)
+    if arr.size != int(expected_dim):
+        raise ValueError(
+            f"Embedding from {source} for backbone={backbone!r} has dim={arr.size}, expected exactly {expected_dim}"
+        )
+    return arr
 
 def compute_auc_eer(y_true: np.ndarray, scores: np.ndarray) -> tuple[float, float]:
     y_true = np.asarray(y_true)
@@ -153,7 +170,7 @@ def main():
                     help="Optional explicit pairs CSV. If empty resolves the dataset bundle and uses canonical pairs_<split>.csv (flat preferred, nested copy supported).")
     ap.add_argument("--limit", type=int, default=200, help="Quick ROC uses first N pairs. 0 = all.")
     ap.add_argument("--device", type=str, default="", help="cuda|cpu. Empty = auto")
-    ap.add_argument("--backbone", type=str, default="resnet50", choices=["resnet18", "resnet50", "vit_base"])
+    ap.add_argument("--backbone", type=str, default="resnet18", choices=["resnet18", "resnet50", "vit_base"])
     ap.add_argument("--no_mask", action="store_true", help="Disable ROI/gate masking (ablation)")
     ap.add_argument("--emb_cache_dir", type=str, default="",
                     help="Optional persistent embedding cache directory. Empty disables.")
@@ -165,6 +182,8 @@ def main():
     args = ap.parse_args()
 
     out_path = parse_file_uri(args.out_csv)
+    meta_path = out_path.with_suffix(".meta.json")
+    expected_dim = expected_embed_dim_for_backbone(args.backbone)
 
     data_dir = ROOT / "data" / "processed" / args.dataset
     pairs_path = parse_file_uri(args.pairs) if args.pairs else (data_dir / f"pairs_{args.split}.csv")
@@ -185,67 +204,78 @@ def main():
     prep_cfg = PreprocessConfig(target_size=512)
 
     device = args.device.strip() or None
-    model = BaselineDL(dl_cfg=dl_cfg, prep_cfg=prep_cfg, device=device)
+    try:
+        model = BaselineDL(dl_cfg=dl_cfg, prep_cfg=prep_cfg, device=device)
+    except Exception as exc:
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        failure_meta = {
+            "success": False,
+            "split": args.split,
+            "pairs_csv": str(pairs_path),
+            "backbone": args.backbone,
+            "embed_dim": int(expected_dim),
+            "pretrained_required": True,
+            "pretrained_loaded": False,
+            "unavailable": True,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+        meta_path.write_text(json.dumps(failure_meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        raise
 
     cache_root = parse_file_uri(args.emb_cache_dir) if args.emb_cache_dir else None
     disk_hits = 0
     disk_misses = 0
+    disk_invalid = 0
 
-    # config for cache key (exclude device so cpu/cuda use the same cache)
-    cfg_for_key = model.config_dict()
-    cfg_for_key.pop("device", None)
+    cfg_for_key = assert_cache_key_config_matches_model(model=model, dl_cfg=dl_cfg, prep_cfg=prep_cfg)
     cfg_json = json.dumps(cfg_for_key, sort_keys=True, ensure_ascii=False)
-
-    def canonical_path(p: str) -> str:
-        p = str(p).replace("/", "\\")
-        if args.cache_strip_prefix:
-            pref = args.cache_strip_prefix.replace("/", "\\")
-            if p.lower().startswith(pref.lower()):
-                p = p[len(pref):]
-        else:
-            # nice default for your repo layout
-            marker = "fingerprint collected data\\"
-            i = p.lower().find(marker)
-            if i != -1:
-                p = p[i + len(marker):]
-        return p.lower()
-
-    def cache_file_for(path: str) -> Path:
-        assert cache_root is not None
-        key_src = canonical_path(path) + "|" + cfg_json
-        h = hashlib.sha1(key_src.encode("utf-8")).hexdigest()
-        # shard to avoid huge single folder
-        return cache_root / h[:2] / f"{h}.npz"
 
     # Cache embeddings per image path (critical for speed)
     cache: dict[str, tuple[np.ndarray, float]] = {}
 
     def get_emb(path: str, capture: str | None = None) -> tuple[np.ndarray, float]:
-        nonlocal disk_hits, disk_misses
+        nonlocal disk_hits, disk_misses, disk_invalid
 
         if path in cache:
             return cache[path]
 
         # disk cache
         if cache_root is not None:
-            cf = cache_file_for(path)
+            cf = cache_file_for(cache_root, path, cfg_json, args.cache_strip_prefix)
             if cf.exists():
-                d = np.load(str(cf))
-                emb = d["emb"].astype(np.float32)
-                cache[path] = (emb, 0.0)
-                disk_hits += 1
-                return cache[path]
+                error = cache_entry_error(cf, backbone=args.backbone, expected_dim=expected_dim)
+                if error is None:
+                    with np.load(str(cf)) as d:
+                        emb = validate_embedding_dim(
+                            d["emb"].astype(np.float32),
+                            backbone=args.backbone,
+                            expected_dim=expected_dim,
+                            source=f"cache file {cf}",
+                        )
+                    cache[path] = (emb, 0.0)
+                    disk_hits += 1
+                    return cache[path]
+                disk_invalid += 1
 
         # compute
         emb, ms = model.embed_path(path, capture=capture)
+        emb = validate_embedding_dim(emb, backbone=args.backbone, expected_dim=expected_dim, source=path)
         cache[path] = (emb, ms)
 
         # write
         if cache_root is not None and args.cache_write:
-            cf = cache_file_for(path)
+            cf = cache_file_for(cache_root, path, cfg_json, args.cache_strip_prefix)
             cf.parent.mkdir(parents=True, exist_ok=True)
             tmp = cf.with_suffix(".tmp.npz")
-            np.savez_compressed(str(tmp), emb=emb)
+            np.savez_compressed(
+                str(tmp),
+                emb=emb,
+                backbone=np.array(args.backbone),
+                embed_dim=np.array(int(expected_dim)),
+                expected_embed_dim=np.array(int(expected_dim)),
+                pretrained_required=np.array(True),
+                pretrained_loaded=np.array(True),
+            )
             os.replace(str(tmp), str(cf))
             disk_misses += 1
 
@@ -296,12 +326,13 @@ def main():
     total_ms = (time.perf_counter() - t_all0) * 1000.0
 
     # Save a small run metadata JSON next to CSV (helps reproducibility)
-    meta = {"split": args.split, "pairs_csv": str(pairs_path), "N": int(len(df)), "AUC": float(auc), "EER": float(eer),
+    meta = {"success": True, "split": args.split, "pairs_csv": str(pairs_path), "N": int(len(df)), "AUC": float(auc), "EER": float(eer),
             "total_ms": float(total_ms), "avg_ms_pair": float(np.mean(ms_pair_list)) if ms_pair_list else None,
+            "backbone": args.backbone, "embed_dim": int(expected_dim),
+            "pretrained_required": True, "pretrained_loaded": True,
             "model_cfg": model.config_dict(), "root": str(ROOT),
             "disk_cache_dir": str(cache_root) if cache_root is not None else "", "disk_cache_hits": int(disk_hits),
-            "disk_cache_misses": int(disk_misses)}
-    meta_path = out_path.with_suffix(".meta.json")
+            "disk_cache_misses": int(disk_misses), "disk_cache_invalid": int(disk_invalid)}
     meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     print(f"Split={args.split} | N={len(df)} | AUC={auc:.4f} | EER~{eer:.4f}")

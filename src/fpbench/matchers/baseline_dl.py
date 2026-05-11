@@ -21,11 +21,16 @@ from src.fpbench.preprocess.preprocess import (
 )
 
 BackboneName = Literal["resnet18", "resnet50", "vit_base"]
+BACKBONE_EMBED_DIMS: dict[str, int] = {
+    "resnet18": 512,
+    "resnet50": 2048,
+    "vit_base": 768,
+}
 
 
 @dataclass
 class DLBaselineConfig:
-    backbone: BackboneName = "resnet50"
+    backbone: BackboneName = "resnet18"
     input_size: int = 224               # ResNet default
     use_mask: bool = True               # apply ROI/gate masking
     roi_min_frac: float = 0.02          # ROI sanity
@@ -33,6 +38,18 @@ class DLBaselineConfig:
     gate_top_plain: float = 0.18        # tuned in Week 2 philosophy
     gate_top_roll: float = 0.05
     gate_border: int = 12
+
+
+class PretrainedModelUnavailableError(RuntimeError):
+    """Raised when a requested pretrained torchvision backbone cannot be loaded."""
+
+
+def expected_embed_dim_for_backbone(backbone: str) -> int:
+    try:
+        return BACKBONE_EMBED_DIMS[str(backbone)]
+    except KeyError as exc:
+        supported = ", ".join(sorted(BACKBONE_EMBED_DIMS))
+        raise ValueError(f"Unsupported backbone: {backbone!r}. Supported backbones: {supported}") from exc
 
 
 def _infer_capture_from_path(path: str) -> Optional[str]:
@@ -113,38 +130,33 @@ def _build_final_mask(img_u8: np.ndarray, cfg: DLBaselineConfig, capture: Option
 
 
 class PretrainedEmbedder(nn.Module):
-    def __init__(self, backbone: BackboneName = "resnet50"):
+    def __init__(self, backbone: BackboneName = "resnet18"):
         super().__init__()
+        dim = expected_embed_dim_for_backbone(backbone)
         try:
             import torchvision.models as tvm
             if backbone == "resnet18":
                 m = tvm.resnet18(weights=tvm.ResNet18_Weights.DEFAULT)
-                dim = 512
                 self.backbone = nn.Sequential(*list(m.children())[:-1])
                 self.is_vit = False
             elif backbone == "resnet50":
                 m = tvm.resnet50(weights=tvm.ResNet50_Weights.DEFAULT)
-                dim = 2048
                 self.backbone = nn.Sequential(*list(m.children())[:-1])
                 self.is_vit = False
             elif backbone == "vit_base":
                 m = tvm.vit_b_16(weights=tvm.ViT_B_16_Weights.DEFAULT)
                 m.heads = nn.Identity()
-                dim = 768
                 self.backbone = m
                 self.is_vit = True
             else:
                 raise ValueError(f"Unsupported backbone: {backbone}")
-        except Exception:
-            dim = 128
-            self.backbone = nn.Sequential(
-                nn.Conv2d(3, 16, 3, padding=1), nn.ReLU(inplace=True), nn.MaxPool2d(2),
-                nn.Conv2d(16, 32, 3, padding=1), nn.ReLU(inplace=True), nn.MaxPool2d(2),
-                nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(inplace=True), nn.AdaptiveAvgPool2d(1),
-                nn.Flatten(), nn.Linear(64, dim),
-            )
-            self.is_vit = False
+        except Exception as exc:
+            raise PretrainedModelUnavailableError(
+                f"Pretrained torchvision model for backbone={backbone!r} is unavailable: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
 
+        self.backbone_name = backbone
         self.embed_dim = dim
 
     @torch.no_grad()
@@ -173,6 +185,13 @@ class BaselineDL:
         self.device = device
 
         self.model = PretrainedEmbedder(self.dl_cfg.backbone).to(self.device).eval()
+        self.expected_embed_dim = expected_embed_dim_for_backbone(self.dl_cfg.backbone)
+        actual_embed_dim = int(getattr(self.model, "embed_dim", -1))
+        if actual_embed_dim != self.expected_embed_dim:
+            raise RuntimeError(
+                f"Pretrained model for backbone={self.dl_cfg.backbone!r} has embed_dim={actual_embed_dim}, "
+                f"expected {self.expected_embed_dim}"
+            )
 
         # ImageNet normalization (torchvision convention)
         self.mean = torch.tensor([0.485, 0.456, 0.406], device=self.device).view(1, 3, 1, 1)
@@ -184,6 +203,9 @@ class BaselineDL:
             "prep_cfg": asdict(self.prep_cfg),
             "device": self.device,
             "embed_dim": int(self.model.embed_dim),
+            "expected_embed_dim": int(self.expected_embed_dim),
+            "pretrained_required": True,
+            "pretrained_loaded": True,
         }
 
     def _image_to_tensor(self, img_u8: np.ndarray) -> torch.Tensor:
@@ -212,6 +234,15 @@ class BaselineDL:
 
         x = self._image_to_tensor(img)
         z = self.model(x)[0].detach().to("cpu").numpy().astype(np.float32)
+        if z.ndim != 1:
+            raise RuntimeError(
+                f"Embedding for backbone={self.dl_cfg.backbone!r} must be a flat vector, got shape={z.shape}"
+            )
+        if z.size != int(self.model.embed_dim):
+            raise RuntimeError(
+                f"Embedding for backbone={self.dl_cfg.backbone!r} has dim={z.size}, "
+                f"expected model.embed_dim={int(self.model.embed_dim)}"
+            )
 
         ms = (time.perf_counter() - t0) * 1000.0
         return z, ms

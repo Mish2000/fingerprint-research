@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import hashlib
 from pathlib import Path
 from typing import Optional
 
@@ -23,8 +22,13 @@ ROOT = project_root()
 import sys
 sys.path.insert(0, str(ROOT))
 
-from src.fpbench.matchers.baseline_dl import BaselineDL, DLBaselineConfig
+from src.fpbench.matchers.baseline_dl import BaselineDL, DLBaselineConfig, expected_embed_dim_for_backbone
 from src.fpbench.preprocess.preprocess import PreprocessConfig
+from pipelines.benchmark.embedding_cache import (
+    assert_cache_key_config_matches_model,
+    cache_entry_is_valid,
+    cache_file_for,
+)
 
 
 def normalize_capture(raw: str | None) -> str | None:
@@ -55,26 +59,6 @@ def parse_file_uri(p: str) -> Path:
         if p.startswith("/"):
             p = p[1:]
     return Path(p.replace("/", "\\")).expanduser().resolve()
-
-
-def canonical_path(path: str, strip_prefix: str = "") -> str:
-    p = str(path).replace("/", "\\")
-    if strip_prefix:
-        pref = strip_prefix.replace("/", "\\")
-        if p.lower().startswith(pref.lower()):
-            p = p[len(pref):]
-    else:
-        marker = "fingerprint collected data\\"
-        i = p.lower().find(marker)
-        if i != -1:
-            p = p[i + len(marker):]
-    return p.lower()
-
-
-def cache_file_for(cache_root: Path, path: str, cfg_json: str, strip_prefix: str) -> Path:
-    key_src = canonical_path(path, strip_prefix) + "|" + cfg_json
-    h = hashlib.sha1(key_src.encode("utf-8")).hexdigest()
-    return cache_root / h[:2] / f"{h}.npz"
 
 
 def resolve_dataset_dir(input_dir: Optional[Path], dataset: str) -> Path:
@@ -142,7 +126,7 @@ def main():
         help="Optional dataset dir. Supports either data/processed/<dataset> or data/manifests/<dataset>.",
     )
     ap.add_argument("--emb_cache_dir", required=True)
-    ap.add_argument("--backbone", default="resnet50", choices=["resnet18", "resnet50", "vit_base"])
+    ap.add_argument("--backbone", default="resnet18", choices=["resnet18", "resnet50", "vit_base"])
     ap.add_argument("--no_mask", action="store_true")
     ap.add_argument("--device", default="", help="cuda|cpu or empty=auto")
     ap.add_argument("--cache_strip_prefix", default="")
@@ -167,24 +151,28 @@ def main():
         cap = normalize_capture(row[capture_col]) if capture_col else None
         path_and_capture.append((p, cap))
     path_and_capture = list(dict.fromkeys(path_and_capture))  # stable unique
-    paths = [p for p, _ in path_and_capture]
     if args.limit and args.limit > 0:
-        paths = paths[: args.limit]
+        path_and_capture = path_and_capture[: args.limit]
+    paths = [p for p, _ in path_and_capture]
 
     cache_root = parse_file_uri(args.emb_cache_dir)
     cache_root.mkdir(parents=True, exist_ok=True)
+    expected_dim = expected_embed_dim_for_backbone(args.backbone)
 
     dl_cfg = DLBaselineConfig(backbone=args.backbone, use_mask=(not args.no_mask))
     prep_cfg = PreprocessConfig(target_size=512)
     device = args.device.strip() or None
     model = BaselineDL(dl_cfg=dl_cfg, prep_cfg=prep_cfg, device=device)
+    actual_dim = int(model.config_dict().get("embed_dim", -1))
+    if actual_dim != int(expected_dim):
+        raise RuntimeError(f"Loaded backbone={args.backbone!r} produced embed_dim={actual_dim}, expected {expected_dim}")
 
-    cfg_for_key = model.config_dict()
-    cfg_for_key.pop("device", None)
+    cfg_for_key = assert_cache_key_config_matches_model(model=model, dl_cfg=dl_cfg, prep_cfg=prep_cfg)
     cfg_json = json.dumps(cfg_for_key, sort_keys=True, ensure_ascii=False)
 
     wrote = 0
     skipped = 0
+    invalid = 0
 
     print("resolved_data_dir:", str(data_dir))
     print("manifest:", str(manifest))
@@ -194,28 +182,43 @@ def main():
     for i, (p, capture) in enumerate(path_and_capture, 1):
         cf = cache_file_for(cache_root, p, cfg_json, args.cache_strip_prefix)
 
-        if cf.exists():
+        if cf.exists() and cache_entry_is_valid(cf, backbone=args.backbone, expected_dim=expected_dim):
             skipped += 1
         else:
+            if cf.exists():
+                invalid += 1
             src_path = resolve_input_path(p)
             if not src_path.exists():
                 raise FileNotFoundError(f"Missing source image from manifest: {src_path}")
 
             emb, _ = model.embed_path(str(src_path), capture=capture)
+            emb = np.asarray(emb, dtype=np.float32).reshape(-1)
+            if emb.size != int(expected_dim):
+                raise RuntimeError(
+                    f"Embedding for backbone={args.backbone!r} has dim={emb.size}, expected exactly {expected_dim}"
+                )
             cf.parent.mkdir(parents=True, exist_ok=True)
             tmp = cf.with_suffix(".tmp.npz")
-            np.savez_compressed(str(tmp), emb=emb.astype(np.float32))
+            np.savez_compressed(
+                str(tmp),
+                emb=emb.astype(np.float32),
+                backbone=np.array(args.backbone),
+                embed_dim=np.array(int(expected_dim)),
+                expected_embed_dim=np.array(int(expected_dim)),
+                pretrained_required=np.array(True),
+                pretrained_loaded=np.array(True),
+            )
             os.replace(str(tmp), str(cf))
             wrote += 1
 
         if i % 200 == 0 or i == len(paths):
-            print(f"[{args.dataset}] {i}/{len(paths)} | wrote={wrote} | skipped={skipped}")
+            print(f"[{args.dataset}] {i}/{len(paths)} | wrote={wrote} | skipped={skipped} | invalid={invalid}")
 
     print("DONE.")
     print("resolved_data_dir:", str(data_dir))
     print("manifest:", str(manifest))
     print("cache_dir:", str(cache_root))
-    print("wrote:", wrote, "skipped:", skipped)
+    print("wrote:", wrote, "skipped:", skipped, "invalid:", invalid)
     print("cfg:", cfg_for_key)
 
 

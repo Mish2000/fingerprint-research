@@ -111,7 +111,7 @@ def test_embedding_vectorizer_scores_same_person_above_mismatch(tmp_path: Path) 
     assert same_score > diff_score
 
 
-def test_identification_shortlist_and_rerank_returns_correct_candidate(tmp_path: Path) -> None:
+def test_identification_shortlist_returns_candidate_without_persisted_raw_bytes(tmp_path: Path) -> None:
     alice = _write_png(tmp_path / 'alice.png', _synthetic_person('alice'))
     alice_probe = _write_png(tmp_path / 'alice_probe.png', _synthetic_person('alice', angle=7.0, shift=(8.0, -6.0)))
     bob = _write_png(tmp_path / 'bob.png', _synthetic_person('bob'))
@@ -147,5 +147,10 @@ def test_identification_shortlist_and_rerank_returns_correct_candidate(tmp_path:
 
     assert result.top_candidate is not None
     assert result.top_candidate.full_name == 'Alice Levi'
-    assert result.candidates[0].rerank_score is not None
-    assert result.candidates[0].rerank_score > result.candidates[1].rerank_score
+    assert result.candidates[0].rerank_score is None
+    assert result.candidates[0].rerank_status == 'skipped_no_candidate_source'
+    assert result.candidates[0].candidate_source_status == 'no_candidate_source'
+    assert result.candidates[0].decision is None
+    assert result.candidates[1].rerank_score is None
+    assert result.decision is False
+    assert result.decision_status == 'candidate_found_rerank_skipped'

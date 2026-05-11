@@ -107,3 +107,5 @@ data/
 
 # ---------- Local artifacts / checkpoints ----------
 artifacts/
+archive/
+*.obj

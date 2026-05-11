@@ -1,0 +1,173 @@
+; ----------------------------------------------------------
+; Installation inf for Fx2000/Fx3000/HiScan and Multi-USB
+; 
+; Copyright (C) 2000-2018 BiometriKa
+;
+; Driver installation file for Windows 10 Desktop (x86 and x64).
+; ----------------------------------------------------------
+
+
+
+[Version]
+Signature="$Windows NT$"
+DriverPackageType=PlugAndPlay
+DriverPackageDisplayName=%DESC%
+Class=USB
+ClassGUID={36fc9e60-c465-11cf-8056-444553540000}
+Provider=%FTDI%
+CatalogFile=Biometrika.cat
+DriverVer=02/16/2018,3.3.0.2
+
+[SourceDisksNames]
+1=%DriversDisk%,,,
+
+[SourceDisksFiles]
+Fxftdibus.sys = 1,,
+ftd2xx.dll = 1,,
+;
+fxoemdll.dll = 1,,
+FxOemITA.dll = 1,,
+FxOemENU.dll = 1,,
+FxOemUsb.cpl = 1,,
+CheckPortUSB.dll = 1,,
+twBiometrika.ds = 1,,
+
+[SourceDisksFiles.amd64]
+Fxftdibus_64.sys = 1,,
+ftd2xx64.dll = 1,,
+ftd2xx.dll = 1,,
+;
+fxoemdll.dll = 1,,
+FxOemITA.dll = 1,,
+FxOemENU.dll = 1,,
+FxOemUsb.cpl = 1,,
+CheckPortUSB.dll = 1,,
+CheckPortUSB64.dll = 1,,
+twBiometrika.ds = 1,,
+fxoemdll_64.dll = 1,,
+
+[DestinationDirs]
+FtdiBus.NT.Copy = 10,system32\drivers
+FtdiBus.NT.Copy2 = 10,system32
+FtdiBus.NTamd64.Copy = 10,system32\drivers
+FtdiBus.NTamd64.Copy2 = 10,system32
+FtdiBus.NTamd64.Copy3 = 10,syswow64
+; 
+Twain.Files.Drv = 10,twain_32
+FxCommon.Files.amd64 = 11
+FxCommon.NT.Files.Cpl = 11
+FxCommon.NTamd64.Files.Cpl = 10, SysWOW64  
+
+; --------------------- Common - start -----------------------
+
+[FxCommon.NT.Files.Cpl]
+fxoemdll.dll
+FxOemITA.dll
+FxOemENU.dll
+FxOemUsb.cpl
+CheckPortUSB.dll
+
+[FxCommon.NTamd64.Files.Cpl]
+fxoemdll.dll
+FxOemITA.dll
+FxOemENU.dll
+FxOemUsb.cpl
+CheckPortUSB.dll
+
+[Twain.Files.Drv]
+twBiometrika.ds
+
+[FxCommon.Files.amd64]
+fxoemdll_64.dll
+CheckPortUSB64.dll
+
+; --------------------- Common - end -------------------------
+
+
+[Manufacturer]
+%Ftdi%=FtdiHw,NTamd64
+
+[FtdiHw]
+%USB\VID_0C43&PID_0600.DeviceDesc%=FtdiBus.NTx86,USB\VID_0C43&PID_0600
+
+[FtdiHw.NTamd64]
+%USB\VID_0C43&PID_0600.DeviceDesc%=FtdiBus.NTamd64,USB\VID_0C43&PID_0600
+
+[ControlFlags]
+ExcludeFromSelect=*
+
+[FtdiBus.NTx86]
+CopyFiles=FtdiBus.NT.Copy,FtdiBus.NT.Copy2, FxCommon.NT.Files.Cpl, Twain.Files.Drv
+AddReg=FtdiBus.NTx86.AddReg
+
+[FtdiBus.NTamd64]
+CopyFiles=FtdiBus.NTamd64.Copy,FtdiBus.NTamd64.Copy2,FtdiBus.NTamd64.Copy3, FxCommon.NTamd64.Files.Cpl, Twain.Files.Drv, FxCommon.Files.amd64
+AddReg=FtdiBus.NTamd64.AddReg
+
+[FtdiBus.NTx86.Services]
+AddService = FTDIBUS, 0x00000002, FtdiBus.NTx86.AddService
+
+[FtdiBus.NTamd64.Services]
+AddService = FTDIBUS, 0x00000002, FtdiBus.NTamd64.AddService
+
+[FtdiBus.NTx86.AddService]
+DisplayName = %SvcDesc%
+ServiceType = 1 ; SERVICE_KERNEL_DRIVER
+StartType = 3 ; SERVICE_DEMAND_START
+ErrorControl = 1 ; SERVICE_ERROR_NORMAL
+ServiceBinary = %10%\system32\drivers\Fxftdibus.sys
+LoadOrderGroup = Base
+AddReg = FtdiBus.NT.AddService.AddReg
+
+[FtdiBus.NTamd64.AddService]
+DisplayName = %SvcDesc%
+ServiceType = 1 ; SERVICE_KERNEL_DRIVER
+StartType = 3 ; SERVICE_DEMAND_START
+ErrorControl = 1 ; SERVICE_ERROR_NORMAL
+ServiceBinary = %10%\system32\drivers\Fxftdibus_64.sys
+LoadOrderGroup = Base
+AddReg = FtdiBus.NT.AddService.AddReg
+
+[FtdiBus.NTx86.AddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,Fxftdibus.sys
+;
+HKR,Software\BiometriKa,"DRIVER4",0x00000001,"1"
+;HKLM,Software\BiometriKa,"FXOEM_BLOB",1,78,EE,92,63,16,BD,4C,CF,6A,19,C9,71,06,37,F1,B6,E3,5F,06,51,40,80,6D,6F,8D,91,F4,37,1A,30,C5,82,F7,8C,00,08,37,83,F4,8E,27,51,75,1E,FC,D5,90,FA,3E,F9,36,56,0D,9A,F1,3A,FE,BD,FD,4C,D7,FF,18,EE,C7,7E,4A,62,78,09,8D,89,C0,42,AE,76,A5,73,D8,6A,C7,7E,4A,62,78,09,8D,89,C0,42,AE,76,A5,73,D8,6A,C7,7E,4A,62,78,09,8D,89,C0,42,AE,76,A5,73,D8,6A,38,AF,B8,C2,78,15,FA,DC,62,73,F3,20,AB,43,09,9C
+HKLM,SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\{5bc0edb4-9b6a-4536-a971-bafbfdbb27f6},,,"Driver"
+
+[FtdiBus.NTamd64.AddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,Fxftdibus_64.sys
+;
+HKR,Software\Wow6432Node\BiometriKa,"DRIVER4",0x00000001,"1"
+;HKLM,Software\Wow6432Node\BiometriKa,"FXOEM_BLOB",1,78,EE,92,63,16,BD,4C,CF,6A,19,C9,71,06,37,F1,B6,E3,5F,06,51,40,80,6D,6F,8D,91,F4,37,1A,30,C5,82,F7,8C,00,08,37,83,F4,8E,27,51,75,1E,FC,D5,90,FA,3E,F9,36,56,0D,9A,F1,3A,FE,BD,FD,4C,D7,FF,18,EE,C7,7E,4A,62,78,09,8D,89,C0,42,AE,76,A5,73,D8,6A,C7,7E,4A,62,78,09,8D,89,C0,42,AE,76,A5,73,D8,6A,C7,7E,4A,62,78,09,8D,89,C0,42,AE,76,A5,73,D8,6A,38,AF,B8,C2,78,15,FA,DC,62,73,F3,20,AB,43,09,9C
+HKLM,SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\{5bc0edb4-9b6a-4536-a971-bafbfdbb27f6},,,"Driver"
+
+[FtdiBus.NT.AddService.AddReg]
+;HKR,Parameters,"LocIds",1,31,00,00,00,32,00,00,00,00
+;HKR,Parameters,"RetryResetCount",0x10001,50
+
+
+[FtdiBus.NT.Copy]
+Fxftdibus.sys
+
+[FtdiBus.NT.Copy2]
+ftd2xx.dll
+
+[FtdiBus.NTamd64.Copy]
+Fxftdibus_64.sys
+
+[FtdiBus.NTamd64.Copy2]
+ftd2xx.dll, ftd2xx64.dll
+
+[FtdiBus.NTamd64.Copy3]
+ftd2xx.dll
+
+[Strings]
+Ftdi="Biometrika"
+DESC="Biometrika Driver"
+DriversDisk="Biometrika USB Drivers Disk"
+USB\VID_0C43&PID_0600.DeviceDesc="Biometrika Device"
+SvcDesc="Fingerprint scanner Driver"
+ClassName="USB"

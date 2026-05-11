@@ -64,7 +64,7 @@ export const METHOD_PROFILES: Record<Method, MethodProfile> = {
     },
     dl: {
         value: "dl",
-        label: "Deep Learning (ResNet50)",
+        label: "Deep Learning (ResNet18)",
         hint: "Embedding-based matcher. Best paired with optional warm-up to soften cold starts.",
         defaultThreshold: 0.45,
         supportsOverlay: false,
@@ -88,8 +88,8 @@ export const METHOD_PROFILES: Record<Method, MethodProfile> = {
     },
     dedicated: {
         value: "dedicated",
-        label: "Dedicated (Patch AI)",
-        hint: "Patch-based matcher with overlay support and capture-aware preprocessing on the server.",
+        label: "Dedicated Patch AI (Experimental)",
+        hint: "Experimental patch-based research matcher with overlay support and capture-aware preprocessing on the server.",
         defaultThreshold: 0.85,
         supportsOverlay: true,
         captureMode: "metadata",

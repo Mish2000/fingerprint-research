@@ -52,11 +52,11 @@ export function formatMethodLabel(value: string | null | undefined): string {
             return "Classic (SIFT)";
         case "dl":
         case "dl_quick":
-            return "Deep Learning (ResNet50)";
+            return "Deep Learning (ResNet18)";
         case "vit":
             return "Deep Learning (ViT)";
         case "dedicated":
-            return "Dedicated (Patch AI)";
+            return "Dedicated Patch AI (Experimental)";
         default:
             return formatWords(value);
     }

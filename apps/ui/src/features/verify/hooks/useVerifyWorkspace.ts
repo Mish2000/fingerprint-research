@@ -126,7 +126,7 @@ function createOverlayFallbackDescription(
 }
 
 function createDefaultVerifyFormState(preferences?: PersistedVerifyPreferences | null): VerifyFormState {
-    const method = preferences?.method ?? "vit";
+    const method = preferences?.method ?? "sift";
 
     return {
         probeFile: null,
@@ -188,6 +188,7 @@ export function useVerifyWorkspace() {
     const [manualPairReminder, setManualPairReminder] = useState<PersistedVerifyManualPair | null>(() => persistedWorkspace?.manualPair ?? null);
     const demoCasesLoadedRef = useRef(false);
     const browser = useCatalogBrowser({ initialState: persistedWorkspace?.browser as PersistedVerifyBrowserState | null });
+    const { resetBrowserContinuity } = browser;
 
     const demoCases = useMemo(
         () => demoCasesState.data ?? [],
@@ -337,6 +338,7 @@ export function useVerifyWorkspace() {
         browser.selectedAssetA,
         browser.selectedAssetB,
         browser.selectedDataset?.dataset,
+        demoCases,
         demoFilter,
         form.captureA,
         form.captureB,
@@ -532,7 +534,7 @@ export function useVerifyWorkspace() {
 
     const clearPersistedWorkspaceState = useCallback((): void => {
         clearAllPersistedVerifyState();
-        browser.resetBrowserContinuity();
+        resetBrowserContinuity();
         setForm(createDefaultVerifyFormState(null));
         setActiveModeState("demo");
         setDemoFilter("all");
@@ -546,7 +548,7 @@ export function useVerifyWorkspace() {
         setStage("idle");
         setResultState(createIdleState());
         setNotice("Cleared saved Verify workspace continuity.");
-    }, [browser.resetBrowserContinuity]);
+    }, [resetBrowserContinuity]);
 
     const applyBrowserPairToVerify = useCallback(async (): Promise<boolean> => {
         if (!browser.selectedAssetA || !browser.selectedAssetB || !browser.browserPairKey) {

@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: biometric_db
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: biometric_secret
+      POSTGRES_PASSWORD: ${BIOMETRIC_POSTGRES_PASSWORD:-change_me_biometric_dev_password}
     ports:
       - "5432:5432"
     volumes:
@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_DB: identity_db
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: identity_secret
+      POSTGRES_PASSWORD: ${IDENTITY_POSTGRES_PASSWORD:-change_me_identity_dev_password}
     ports:
       - "5433:5432"
     volumes:

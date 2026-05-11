@@ -15,8 +15,9 @@ import numpy as np
 
 from apps.api.method_registry import MethodRegistryError, load_api_method_registry
 
-DEFAULT_DATABASE_URL = "postgresql://admin:biometric_secret@127.0.0.1:5432/biometric_db"
-DEFAULT_IDENTITY_DATABASE_URL = "postgresql://admin:identity_secret@127.0.0.1:5433/identity_db"
+# Local fallback intentionally omits embedded credentials. Production/demo deployments should set
+# DATABASE_URL and, when using the split-DB layout, IDENTITY_DATABASE_URL.
+DEFAULT_DATABASE_URL = "postgresql://127.0.0.1:5432/biometric_db"
 _PREFIX_RE = re.compile(r"[^a-zA-Z0-9_]+")
 
 

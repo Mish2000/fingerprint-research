@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,7 +23,26 @@ class ResolvedMethodMetadata(BaseModel):
     method_label: str
     family: str
     status: Optional[str] = None
+    presentation_tier: Optional[str] = None
+    showcase_eligible: bool = True
+    benchmark_default: bool = False
+    canonical_default: bool = False
+    research_track: bool = False
+    promotion_required: bool = False
+    promotion_criteria: List[str] = Field(default_factory=list)
+    showcase_exclusion_note: Optional[str] = None
+    is_experimental: bool = False
+    is_showcase_eligible: bool = True
     embedding_dim: Optional[int] = None
+    retrieval_capability_status: Optional[str] = None
+    direct_retrieval_exclusion: Optional[str] = None
+    supports_pairwise_rerank: bool = False
+    supports_direct_vector_retrieval: bool = False
+    retrieval_vector_dim: Optional[int] = None
+    retrieval_vector_kind: Optional[str] = None
+    retrieval_distance_metric: Optional[str] = None
+    retrieval_unavailable_reason: Optional[str] = None
+    future_adapter_hint: Optional[str] = None
     aliases: List[str] = Field(default_factory=list)
     resolved_from_alias: bool = False
 
@@ -35,7 +54,35 @@ class MethodThresholds(BaseModel):
 class MethodIdentificationRoles(BaseModel):
     retrieval_capable: bool = False
     rerank_capable: bool = False
+    experimental: bool = False
+    retrieval_capability_status: Optional[str] = None
+    direct_retrieval_exclusion: Optional[str] = None
+    supports_direct_vector_retrieval: bool = False
+    supports_pairwise_rerank: bool = False
+    retrieval_vector_dim: Optional[int] = None
+    retrieval_vector_kind: Optional[str] = None
+    retrieval_distance_metric: Optional[str] = None
+    retrieval_unavailable_reason: Optional[str] = None
+    future_adapter_hint: Optional[str] = None
     notes: List[str] = Field(default_factory=list)
+
+
+class MethodRetrievalCapability(BaseModel):
+    method: str
+    display_label: str
+    status: Optional[str] = None
+    presentation_tier: Optional[str] = None
+    experimental: bool = False
+    research_track: bool = False
+    retrieval_capability_status: Optional[str] = None
+    direct_retrieval_exclusion: Optional[str] = None
+    supports_pairwise_rerank: bool = False
+    supports_direct_vector_retrieval: bool = False
+    retrieval_vector_dim: Optional[int] = None
+    retrieval_vector_kind: Optional[str] = None
+    retrieval_distance_metric: Optional[str] = None
+    retrieval_unavailable_reason: Optional[str] = None
+    future_adapter_hint: Optional[str] = None
 
 
 class MethodAvailability(BaseModel):
@@ -51,16 +98,31 @@ class MethodCatalogEntry(BaseModel):
     aliases: List[str] = Field(default_factory=list)
     family: str
     status: str
+    presentation_tier: str = "canonical"
+    showcase_eligible: bool = True
+    benchmark_default: bool = False
+    canonical_default: bool = False
+    research_track: bool = False
+    promotion_required: bool = False
+    promotion_criteria: List[str] = Field(default_factory=list)
+    showcase_exclusion_note: Optional[str] = None
+    is_experimental: bool = False
+    is_showcase_eligible: bool = True
     thresholds: MethodThresholds
     runtime_defaults: Dict[str, Any] = Field(default_factory=dict)
     benchmark_defaults: Dict[str, Any] = Field(default_factory=dict)
     runtime_notes: List[str] = Field(default_factory=list)
     identification_roles: MethodIdentificationRoles
+    retrieval_capability: Optional[MethodRetrievalCapability] = None
     availability: MethodAvailability
 
 
 class MethodsCatalogResponse(BaseModel):
     methods: List[MethodCatalogEntry] = Field(default_factory=list)
+    method_capabilities: Dict[str, MethodRetrievalCapability] = Field(default_factory=dict)
+    retrieval_capabilities: Dict[str, MethodRetrievalCapability] = Field(default_factory=dict)
+    direct_vector_retrieval_methods: List[str] = Field(default_factory=list)
+    rerank_only_methods: List[str] = Field(default_factory=list)
 
 
 class OverlayMatch(BaseModel):
@@ -109,9 +171,20 @@ class BenchmarkProvenance(BaseModel):
     artifact_source: str
     methods_in_run: List[str] = Field(default_factory=list)
     benchmark_methods_in_run: List[str] = Field(default_factory=list)
+    showcase_methods_in_run: List[str] = Field(default_factory=list)
+    showcase_benchmark_methods_in_run: List[str] = Field(default_factory=list)
+    research_methods_in_run: List[str] = Field(default_factory=list)
+    research_benchmark_methods_in_run: List[str] = Field(default_factory=list)
     canonical_method: Optional[str] = None
     benchmark_method: Optional[str] = None
     method_label: Optional[str] = None
+    method_status: Optional[str] = None
+    presentation_tier: Optional[str] = None
+    showcase_eligible: bool = True
+    benchmark_default: bool = False
+    canonical_default: bool = False
+    research_track: bool = False
+    not_champion_candidate: bool = False
     timestamp_utc: Optional[str] = None
     limit: Optional[int] = None
     pairs_path: Optional[str] = None
@@ -150,6 +223,10 @@ class BenchmarkRunInfo(BaseModel):
     summary_note: str = ""
     methods: List[str] = Field(default_factory=list)
     benchmark_methods: List[str] = Field(default_factory=list)
+    showcase_methods: List[str] = Field(default_factory=list)
+    showcase_benchmark_methods: List[str] = Field(default_factory=list)
+    research_methods: List[str] = Field(default_factory=list)
+    research_benchmark_methods: List[str] = Field(default_factory=list)
     splits: List[str] = Field(default_factory=list)
     dataset_info: Optional[NamedInfo] = None
     benchmark_source_root: Optional[str] = None
@@ -191,6 +268,14 @@ class ComparisonRow(BaseModel):
     method: str
     benchmark_method: str
     method_label: Optional[str] = None
+    method_status: Optional[str] = None
+    presentation_tier: Optional[str] = None
+    showcase_eligible: bool = True
+    benchmark_default: bool = False
+    canonical_default: bool = False
+    research_track: bool = False
+    not_champion_candidate: bool = False
+    showcase_exclusion_note: Optional[str] = None
     auc: float
     eer: float
     n_pairs: Optional[int] = None
@@ -233,6 +318,9 @@ class BestMethodEntry(BaseModel):
     method: str
     benchmark_method: Optional[str] = None
     method_label: Optional[str] = None
+    method_status: Optional[str] = None
+    presentation_tier: Optional[str] = None
+    showcase_eligible: bool = True
     run: str
     value: float
     run_family: Optional[str] = None
@@ -507,7 +595,10 @@ class IdentifyCandidate(BaseModel):
     created_at: str
     capture: str
     retrieval_score: float
+    vector_score: Optional[float] = None
     rerank_score: Optional[float] = None
+    rerank_status: Optional[str] = None
+    candidate_source_status: Optional[str] = None
     decision: Optional[bool] = None
 
 
@@ -516,6 +607,10 @@ class IdentifyResponse(BaseModel):
     rerank_method: MatchMethod
     threshold: float
     decision: bool
+    decision_status: Optional[str] = None
+    decision_basis: Optional[str] = None
+    rerank_status: Optional[str] = None
+    rerank_summary: Dict[str, Any] = Field(default_factory=dict)
     total_enrolled: int
     candidate_pool_size: int
     shortlist_size: int
@@ -545,6 +640,7 @@ class IdentificationAdminResolvedTableNames(BaseModel):
     identity: str
     raw: str
     vectors: str
+    generic_vectors: Optional[str] = None
 
 
 class IdentificationAdminRoleTablePresence(BaseModel):
@@ -552,6 +648,7 @@ class IdentificationAdminRoleTablePresence(BaseModel):
     identity: bool = False
     raw: bool = False
     vectors: bool = False
+    generic_vectors: bool = False
 
 
 class IdentificationAdminTablePresence(BaseModel):
@@ -564,6 +661,8 @@ class IdentificationAdminRowCounts(BaseModel):
     identity: Optional[int] = None
     raw: Optional[int] = None
     vectors_by_method: Dict[str, Optional[int]] = Field(default_factory=dict)
+    legacy_vectors_by_method: Dict[str, Optional[int]] = Field(default_factory=dict)
+    generic_vectors_by_method_kind: Dict[str, int] = Field(default_factory=dict)
 
 
 class IdentificationAdminIssue(BaseModel):
@@ -593,7 +692,17 @@ class IdentificationAdminInspectionResponse(BaseModel):
     row_counts: IdentificationAdminRowCounts
     vector_extension_present_in_biometric_db: Optional[bool] = None
     unexpected_vector_methods: Dict[str, int] = Field(default_factory=dict)
+    method_capabilities: Dict[str, MethodRetrievalCapability] = Field(default_factory=dict)
+    retrieval_capabilities: Dict[str, MethodRetrievalCapability] = Field(default_factory=dict)
+    direct_vector_retrieval_methods: List[str] = Field(default_factory=list)
+    rerank_only_methods: List[str] = Field(default_factory=list)
+    retrieval_vector_coverage_by_method: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    retrieval_methods_missing_vectors: List[str] = Field(default_factory=list)
+    retrieval_methods_with_zero_coverage: List[str] = Field(default_factory=list)
+    coverage_recommendation: str = ""
+    vector_storage_schema: Dict[str, Any] = Field(default_factory=dict)
     schema_hardening: Dict[str, Any] = Field(default_factory=dict)
+    template_protection: Dict[str, Any] = Field(default_factory=dict)
     reconciliation: Dict[str, Any] = Field(default_factory=dict)
     integrity_warnings: List[str] = Field(default_factory=list)
     overall_ok: bool = False
@@ -677,3 +786,12 @@ class IdentifyBrowserResetResponse(BaseModel):
     browser_seeded_count: int = 0
     storage_layout: Dict[str, str] = Field(default_factory=dict)
     notice: Optional[str] = None
+
+
+class ScannerCaptureRequest(BaseModel):
+    mode: Literal["auto", "twain", "saved_file_bridge"] = "auto"
+    timeout_ms: int = Field(default=15000, ge=1000, le=600000)
+    fallback_allowed: bool = False
+    normalize: bool = True
+    show_ui: bool = False
+    settle_after_enable_ms: Optional[int] = None

@@ -72,6 +72,16 @@ function readBooleanFlag(record: Record<string, unknown>, key: string): boolean 
     return typeof value === "boolean" ? value : null;
 }
 
+function readNumberFlag(record: Record<string, unknown>, key: string): number | null {
+    const value = record[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readStringFlag(record: Record<string, unknown>, key: string): string | null {
+    const value = record[key];
+    return typeof value === "string" ? value : null;
+}
+
 function extractIssueMetadata(issue: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(
         Object.entries(issue).filter(([key]) => !["code", "severity", "database_role", "message"].includes(key)),
@@ -112,6 +122,9 @@ export default function IdentificationOperationalWorkspace({ identification }: I
     const integrityWarnings = adminLayout?.integrity_warnings ?? [];
     const vectorRowEntries = Object.entries(adminLayout?.row_counts.vectors_by_method ?? {});
     const unexpectedVectorEntries = Object.entries(adminLayout?.unexpected_vector_methods ?? {});
+    const retrievalCoverageEntries = Object.entries(adminLayout?.retrieval_vector_coverage_by_method ?? {});
+    const retrievalMethodsWithZeroCoverage = adminLayout?.retrieval_methods_with_zero_coverage ?? [];
+    const retrievalMethodsMissingVectors = adminLayout?.retrieval_methods_missing_vectors ?? [];
     const reconciliationSeverityEntries = Object.entries(reconciliationReport?.summary.severity ?? {});
     const reconciliationRepairabilityEntries = Object.entries(reconciliationReport?.summary.repairability ?? {});
     const reconciliationCommandEntries = Object.entries(reconciliationReport?.commands ?? {});
@@ -185,6 +198,19 @@ export default function IdentificationOperationalWorkspace({ identification }: I
         identification.searchState.status === "success"
         && identification.searchState.data !== null
         && identification.searchState.data.shortlist_size === 0;
+    const setEnrollVectorMethod = (method: typeof identification.enrollForm.vectorMethods[number], enabled: boolean): void => {
+        const selected = new Set(identification.enrollForm.vectorMethods);
+        if (enabled) {
+            selected.add(method);
+        } else {
+            selected.delete(method);
+        }
+        identification.updateEnrollForm({
+            vectorMethods: IDENTIFICATION_RETRIEVAL_OPTIONS
+                .map((option) => option.value)
+                .filter((value) => selected.has(value)),
+        });
+    };
 
     return (
         <div className="space-y-6">
@@ -210,8 +236,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
 
             {showInvalidRetrievalHint ? (
                 <InlineBanner variant="warning" title="Invalid retrieval method rejected">
-                    The backend rejected the current retrieval method. The production-safe UI path should stay within the supported
-                    <code> dl </code> / <code> vit </code> selector values.
+                    The backend rejected the current retrieval method. Keep the selector within the supported direct retrieval methods.
                 </InlineBanner>
             ) : null}
 
@@ -523,6 +548,41 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                             )}
                                         </div>
 
+                                        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+                                            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Retrieval vector coverage</p>
+                                            {retrievalCoverageEntries.length > 0 ? (
+                                                <dl className="mt-3 space-y-2 text-sm">
+                                                    {retrievalCoverageEntries.map(([method, details]) => {
+                                                        const expected = readNumberFlag(details, "expected_identity_count");
+                                                        const available = readNumberFlag(details, "available_row_count");
+                                                        const missing = readNumberFlag(details, "missing_vector_count");
+                                                        const status = readStringFlag(details, "coverage_status") ?? "unknown";
+                                                        return (
+                                                            <div key={method} className="grid gap-1 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                                                                <dt className="font-medium text-[var(--app-text)]">{formatDisplayLabel(method)}</dt>
+                                                                <dd className="text-[var(--app-text-soft)]">
+                                                                    {formatDisplayLabel(status)} - {formatCount(available)} / {formatCount(expected)}
+                                                                    {missing && missing > 0 ? ` - missing ${formatCount(missing)}` : ""}
+                                                                </dd>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </dl>
+                                            ) : (
+                                                <p className="mt-3 text-sm text-[var(--app-text-muted)]">No retrieval coverage summary was reported.</p>
+                                            )}
+                                        </div>
+
+                                        {retrievalMethodsMissingVectors.length > 0 ? (
+                                            <InlineBanner
+                                                variant={retrievalMethodsWithZeroCoverage.length > 0 ? "warning" : "info"}
+                                                title="Retrieval vector coverage is incomplete"
+                                            >
+                                                Missing methods: {retrievalMethodsMissingVectors.map((method) => formatDisplayLabel(method)).join(", ")}.
+                                                {adminLayout.coverage_recommendation ? ` ${adminLayout.coverage_recommendation}` : ""}
+                                            </InlineBanner>
+                                        ) : null}
+
                                         {unexpectedVectorEntries.length > 0 ? (
                                             <div className="rounded-xl border border-[var(--app-warning-border)] bg-[var(--app-warning-surface)] p-3">
                                                 <p className="text-xs font-semibold uppercase text-[var(--app-warning-text)]">Unexpected vector methods</p>
@@ -826,32 +886,23 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                             <p className="text-sm font-medium text-[var(--app-text-soft)]">Vector methods</p>
 
                             <div className="mt-3 flex flex-wrap gap-4">
-                                <label className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
-                                    <input
-                                        type="checkbox"
-                                        className={CHECKBOX_CLASS_NAME}
-                                        checked={identification.enrollForm.includeDl}
-                                        disabled={isEnrollLoading}
-                                        onChange={(event) => {
-                                            identification.updateEnrollForm({ includeDl: event.target.checked });
-                                        }}
-                                    />
-                                    DL
-                                </label>
+                                {IDENTIFICATION_RETRIEVAL_OPTIONS.map((option) => (
+                                    <label key={option.value} className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
+                                        <input
+                                            type="checkbox"
+                                            className={CHECKBOX_CLASS_NAME}
+                                            checked={identification.enrollForm.vectorMethods.includes(option.value)}
+                                            disabled={isEnrollLoading}
+                                            onChange={(event) => {
+                                                setEnrollVectorMethod(option.value, event.target.checked);
+                                            }}
+                                        />
+                                        {option.label}
+                                    </label>
+                                ))}
+                            </div>
 
-                                <label className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
-                                    <input
-                                        type="checkbox"
-                                        className={CHECKBOX_CLASS_NAME}
-                                        checked={identification.enrollForm.includeVit}
-                                        disabled={isEnrollLoading}
-                                        onChange={(event) => {
-                                            identification.updateEnrollForm({ includeVit: event.target.checked });
-                                        }}
-                                    />
-                                    ViT
-                                </label>
-
+                            <div className="mt-3">
                                 <label className="inline-flex items-center gap-2 text-sm text-[var(--app-text-soft)]">
                                     <input
                                         type="checkbox"

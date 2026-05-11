@@ -61,6 +61,7 @@ import {
     type MatchMeta,
     type MatchResponse,
     type Method,
+    type MethodRetrievalCapability,
     METHOD_VALUES,
     normalizeMethodValue,
     type NamedInfo,
@@ -188,8 +189,59 @@ function normalizeBenchmarkBestMetric(value: unknown, label = "metric"): Benchma
     return normalizeEnumValue(value, BENCHMARK_BEST_METRIC_VALUES, label);
 }
 
+function isDedicatedMethod(method: unknown, benchmarkMethod?: unknown): boolean {
+    const normalizedMethod = typeof method === "string" ? method.trim().toLowerCase() : "";
+    const normalizedBenchmarkMethod = typeof benchmarkMethod === "string" ? benchmarkMethod.trim().toLowerCase() : "";
+    return normalizedMethod === "dedicated" || normalizedBenchmarkMethod === "dedicated";
+}
+
 function normalizeRetrievalMethod(value: unknown, label = "retrieval_method"): IdentificationRetrievalMethod {
     return normalizeEnumValue(value, IDENTIFICATION_RETRIEVAL_METHOD_VALUES, label);
+}
+
+function normalizeRetrievalMethodArray(payload: unknown, label: string): IdentificationRetrievalMethod[] {
+    return expectArray(payload ?? [], label).map((item, index) => normalizeRetrievalMethod(item, `${label}[${index}]`));
+}
+
+function normalizeMethodArray(payload: unknown, label: string): Method[] {
+    return expectArray(payload ?? [], label).map((item, index) => normalizeMethod(item, `${label}[${index}]`));
+}
+
+function normalizeMethodRetrievalCapability(
+    payload: unknown,
+    label = "MethodRetrievalCapability",
+): MethodRetrievalCapability {
+    const record = expectObject(payload, label);
+    return {
+        method: normalizeMethod(record.method, `${label}.method`),
+        display_label: expectString(record, "display_label", label),
+        status: maybeString(record, "status"),
+        presentation_tier: maybeString(record, "presentation_tier"),
+        experimental: maybeBoolean(record, "experimental") ?? false,
+        research_track: maybeBoolean(record, "research_track") ?? false,
+        retrieval_capability_status: maybeString(record, "retrieval_capability_status"),
+        direct_retrieval_exclusion: maybeString(record, "direct_retrieval_exclusion"),
+        supports_pairwise_rerank: maybeBoolean(record, "supports_pairwise_rerank") ?? false,
+        supports_direct_vector_retrieval: maybeBoolean(record, "supports_direct_vector_retrieval") ?? false,
+        retrieval_vector_dim: maybeNumber(record, "retrieval_vector_dim"),
+        retrieval_vector_kind: maybeString(record, "retrieval_vector_kind"),
+        retrieval_distance_metric: maybeString(record, "retrieval_distance_metric"),
+        retrieval_unavailable_reason: maybeString(record, "retrieval_unavailable_reason"),
+        future_adapter_hint: maybeString(record, "future_adapter_hint"),
+    };
+}
+
+function normalizeMethodCapabilityRecord(
+    payload: unknown,
+    label: string,
+): Record<string, MethodRetrievalCapability> {
+    const record = expectObject(payload ?? {}, label);
+    return Object.fromEntries(
+        Object.entries(record).map(([key, value]) => [
+            key,
+            normalizeMethodRetrievalCapability(value, `${label}.${key}`),
+        ]),
+    );
 }
 
 function normalizeEvidenceSelectionDriver(value: unknown, label = "selection_driver"): EvidenceQuality["selection_driver"] {
@@ -232,6 +284,8 @@ function normalizeBenchmarkArtifactLink(payload: unknown): BenchmarkArtifactLink
 
 function normalizeBenchmarkProvenance(payload: unknown): BenchmarkProvenance {
     const record = expectObject(payload, "BenchmarkProvenance");
+    const dedicated = isDedicatedMethod(record.canonical_method, record.benchmark_method);
+    const showcaseEligible = maybeBoolean(record, "showcase_eligible") ?? !dedicated;
     return {
         run: expectString(record, "run", "BenchmarkProvenance"),
         run_label: expectString(record, "run_label", "BenchmarkProvenance"),
@@ -243,9 +297,20 @@ function normalizeBenchmarkProvenance(payload: unknown): BenchmarkProvenance {
         artifact_source: expectString(record, "artifact_source", "BenchmarkProvenance"),
         methods_in_run: expectStringArray(record.methods_in_run ?? [], "BenchmarkProvenance.methods_in_run"),
         benchmark_methods_in_run: expectStringArray(record.benchmark_methods_in_run ?? [], "BenchmarkProvenance.benchmark_methods_in_run"),
+        showcase_methods_in_run: expectStringArray(record.showcase_methods_in_run ?? [], "BenchmarkProvenance.showcase_methods_in_run"),
+        showcase_benchmark_methods_in_run: expectStringArray(record.showcase_benchmark_methods_in_run ?? [], "BenchmarkProvenance.showcase_benchmark_methods_in_run"),
+        research_methods_in_run: expectStringArray(record.research_methods_in_run ?? [], "BenchmarkProvenance.research_methods_in_run"),
+        research_benchmark_methods_in_run: expectStringArray(record.research_benchmark_methods_in_run ?? [], "BenchmarkProvenance.research_benchmark_methods_in_run"),
         canonical_method: maybeString(record, "canonical_method"),
         benchmark_method: maybeString(record, "benchmark_method"),
         method_label: maybeString(record, "method_label"),
+        method_status: maybeString(record, "method_status") ?? (dedicated ? "experimental" : null),
+        presentation_tier: maybeString(record, "presentation_tier") ?? (dedicated ? "research" : "canonical"),
+        showcase_eligible: showcaseEligible,
+        benchmark_default: maybeBoolean(record, "benchmark_default") ?? false,
+        canonical_default: maybeBoolean(record, "canonical_default") ?? false,
+        research_track: maybeBoolean(record, "research_track") ?? dedicated,
+        not_champion_candidate: maybeBoolean(record, "not_champion_candidate") ?? !showcaseEligible,
         timestamp_utc: maybeString(record, "timestamp_utc"),
         limit: maybeNumber(record, "limit"),
         pairs_path: maybeString(record, "pairs_path"),
@@ -290,6 +355,16 @@ function normalizeJsonRecord(payload: unknown): JsonRecord {
     return { ...payload };
 }
 
+function normalizeJsonRecordMap(payload: unknown, label: string): Record<string, JsonRecord> {
+    const record = expectObject(payload ?? {}, label);
+    return Object.fromEntries(
+        Object.entries(record).map(([key, value]) => [
+            key,
+            normalizeJsonRecord(expectObject(value, `${label}.${key}`)),
+        ]),
+    );
+}
+
 function normalizeNullableNumberRecord(payload: unknown, label: string): Record<string, number | null> {
     const record = expectObject(payload, label);
     return Object.fromEntries(
@@ -329,6 +404,7 @@ function normalizeIdentificationAdminResolvedTableNames(payload: unknown): Ident
         identity: expectString(record, "identity", "IdentificationAdminResolvedTableNames"),
         raw: expectString(record, "raw", "IdentificationAdminResolvedTableNames"),
         vectors: expectString(record, "vectors", "IdentificationAdminResolvedTableNames"),
+        generic_vectors: maybeString(record, "generic_vectors"),
     };
 }
 
@@ -342,6 +418,7 @@ function normalizeIdentificationAdminRoleTablePresence(
         identity: expectBoolean(record, "identity", label),
         raw: expectBoolean(record, "raw", label),
         vectors: expectBoolean(record, "vectors", label),
+        generic_vectors: maybeBoolean(record, "generic_vectors") ?? false,
     };
 }
 
@@ -368,6 +445,14 @@ function normalizeIdentificationAdminRowCounts(payload: unknown): Identification
         vectors_by_method: normalizeNullableNumberRecord(
             record.vectors_by_method ?? {},
             "IdentificationAdminRowCounts.vectors_by_method",
+        ),
+        legacy_vectors_by_method: normalizeNullableNumberRecord(
+            record.legacy_vectors_by_method ?? {},
+            "IdentificationAdminRowCounts.legacy_vectors_by_method",
+        ),
+        generic_vectors_by_method_kind: normalizeNumberRecord(
+            record.generic_vectors_by_method_kind ?? {},
+            "IdentificationAdminRowCounts.generic_vectors_by_method_kind",
         ),
     };
 }
@@ -412,6 +497,41 @@ function normalizeIdentificationAdminInspectionResponse(
             record.unexpected_vector_methods ?? {},
             `${label}.unexpected_vector_methods`,
         ),
+        method_capabilities: record.method_capabilities == null
+            ? undefined
+            : normalizeMethodCapabilityRecord(record.method_capabilities, `${label}.method_capabilities`),
+        retrieval_capabilities: record.retrieval_capabilities == null
+            ? undefined
+            : normalizeMethodCapabilityRecord(record.retrieval_capabilities, `${label}.retrieval_capabilities`),
+        direct_vector_retrieval_methods: record.direct_vector_retrieval_methods == null
+            ? undefined
+            : normalizeRetrievalMethodArray(
+                record.direct_vector_retrieval_methods,
+                `${label}.direct_vector_retrieval_methods`,
+            ),
+        rerank_only_methods: record.rerank_only_methods == null
+            ? undefined
+            : normalizeMethodArray(record.rerank_only_methods, `${label}.rerank_only_methods`),
+        retrieval_vector_coverage_by_method: record.retrieval_vector_coverage_by_method == null
+            ? undefined
+            : normalizeJsonRecordMap(
+                record.retrieval_vector_coverage_by_method,
+                `${label}.retrieval_vector_coverage_by_method`,
+            ),
+        retrieval_methods_missing_vectors: record.retrieval_methods_missing_vectors == null
+            ? undefined
+            : normalizeRetrievalMethodArray(
+                record.retrieval_methods_missing_vectors,
+                `${label}.retrieval_methods_missing_vectors`,
+            ),
+        retrieval_methods_with_zero_coverage: record.retrieval_methods_with_zero_coverage == null
+            ? undefined
+            : normalizeRetrievalMethodArray(
+                record.retrieval_methods_with_zero_coverage,
+                `${label}.retrieval_methods_with_zero_coverage`,
+            ),
+        coverage_recommendation: maybeString(record, "coverage_recommendation") ?? undefined,
+        vector_storage_schema: normalizeJsonRecord(record.vector_storage_schema),
         schema_hardening: normalizeJsonRecord(record.schema_hardening),
         reconciliation: normalizeJsonRecord(record.reconciliation),
         integrity_warnings: expectStringArray(record.integrity_warnings ?? [], `${label}.integrity_warnings`),
@@ -514,6 +634,10 @@ function normalizeBenchmarkRunInfo(payload: unknown): BenchmarkRunInfo {
         summary_note: expectString(record, "summary_note", "BenchmarkRunInfo"),
         methods: expectStringArray(record.methods, "BenchmarkRunInfo.methods"),
         benchmark_methods: expectStringArray(record.benchmark_methods ?? [], "BenchmarkRunInfo.benchmark_methods"),
+        showcase_methods: expectStringArray(record.showcase_methods ?? [], "BenchmarkRunInfo.showcase_methods"),
+        showcase_benchmark_methods: expectStringArray(record.showcase_benchmark_methods ?? [], "BenchmarkRunInfo.showcase_benchmark_methods"),
+        research_methods: expectStringArray(record.research_methods ?? [], "BenchmarkRunInfo.research_methods"),
+        research_benchmark_methods: expectStringArray(record.research_benchmark_methods ?? [], "BenchmarkRunInfo.research_benchmark_methods"),
         splits: expectStringArray(record.splits, "BenchmarkRunInfo.splits"),
         dataset_info: record.dataset_info == null ? null : normalizeNamedInfo(record.dataset_info, "BenchmarkRunInfo.dataset_info"),
         benchmark_source_root: normalizeBenchmarkSourceRoot(record.benchmark_source_root, "BenchmarkRunInfo.benchmark_source_root"),
@@ -560,6 +684,9 @@ export function normalizeBenchmarkSummaryResponse(payload: unknown): BenchmarkSu
 
 function normalizeComparisonRow(payload: unknown): ComparisonRow {
     const record = expectObject(payload, "ComparisonRow");
+    const dedicated = isDedicatedMethod(record.method, record.benchmark_method);
+    const provenance = record.provenance == null ? null : normalizeBenchmarkProvenance(record.provenance);
+    const showcaseEligible = maybeBoolean(record, "showcase_eligible") ?? provenance?.showcase_eligible ?? !dedicated;
     return {
         dataset: expectString(record, "dataset", "ComparisonRow"),
         run: expectString(record, "run", "ComparisonRow"),
@@ -567,6 +694,14 @@ function normalizeComparisonRow(payload: unknown): ComparisonRow {
         method: expectString(record, "method", "ComparisonRow"),
         benchmark_method: expectString(record, "benchmark_method", "ComparisonRow"),
         method_label: maybeString(record, "method_label"),
+        method_status: maybeString(record, "method_status") ?? provenance?.method_status ?? (dedicated ? "experimental" : null),
+        presentation_tier: maybeString(record, "presentation_tier") ?? provenance?.presentation_tier ?? (dedicated ? "research" : "canonical"),
+        showcase_eligible: showcaseEligible,
+        benchmark_default: maybeBoolean(record, "benchmark_default") ?? provenance?.benchmark_default ?? false,
+        canonical_default: maybeBoolean(record, "canonical_default") ?? provenance?.canonical_default ?? false,
+        research_track: maybeBoolean(record, "research_track") ?? provenance?.research_track ?? dedicated,
+        not_champion_candidate: maybeBoolean(record, "not_champion_candidate") ?? provenance?.not_champion_candidate ?? !showcaseEligible,
+        showcase_exclusion_note: maybeString(record, "showcase_exclusion_note") ?? provenance?.showcase_exclusion_note ?? null,
         auc: expectNumber(record, "auc", "ComparisonRow"),
         eer: expectNumber(record, "eer", "ComparisonRow"),
         n_pairs: maybeNumber(record, "n_pairs"),
@@ -587,7 +722,7 @@ function normalizeComparisonRow(payload: unknown): ComparisonRow {
         available_artifacts: expectStringArray(record.available_artifacts ?? [], "ComparisonRow.available_artifacts"),
         summary_text: expectString(record, "summary_text", "ComparisonRow"),
         artifacts: expectArray(record.artifacts ?? [], "ComparisonRow.artifacts").map(normalizeBenchmarkArtifactLink),
-        provenance: record.provenance == null ? null : normalizeBenchmarkProvenance(record.provenance),
+        provenance,
     };
 }
 
@@ -663,6 +798,7 @@ export function normalizeComparisonResponse(payload: unknown): ComparisonRespons
 
 function normalizeBestMethodEntry(payload: unknown): BestMethodEntry {
     const record = expectObject(payload, "BestMethodEntry");
+    const dedicated = isDedicatedMethod(record.method, record.benchmark_method);
     return {
         dataset: expectString(record, "dataset", "BestMethodEntry"),
         split: expectString(record, "split", "BestMethodEntry"),
@@ -670,6 +806,9 @@ function normalizeBestMethodEntry(payload: unknown): BestMethodEntry {
         method: expectString(record, "method", "BestMethodEntry"),
         benchmark_method: maybeString(record, "benchmark_method"),
         method_label: maybeString(record, "method_label"),
+        method_status: maybeString(record, "method_status") ?? (dedicated ? "experimental" : null),
+        presentation_tier: maybeString(record, "presentation_tier") ?? (dedicated ? "research" : "canonical"),
+        showcase_eligible: maybeBoolean(record, "showcase_eligible") ?? !dedicated,
         run: expectString(record, "run", "BestMethodEntry"),
         value: expectNumber(record, "value", "BestMethodEntry"),
         run_family: maybeString(record, "run_family"),
@@ -1016,6 +1155,30 @@ export function normalizeIdentificationHealthResponse(payload: unknown): Identif
                 ),
             ]),
         ),
+        method_capabilities: record.method_capabilities == null
+            ? undefined
+            : normalizeMethodCapabilityRecord(
+                record.method_capabilities,
+                "IdentificationHealthResponse.method_capabilities",
+            ),
+        retrieval_capabilities: record.retrieval_capabilities == null
+            ? undefined
+            : normalizeMethodCapabilityRecord(
+                record.retrieval_capabilities,
+                "IdentificationHealthResponse.retrieval_capabilities",
+            ),
+        direct_vector_retrieval_methods: record.direct_vector_retrieval_methods == null
+            ? undefined
+            : normalizeRetrievalMethodArray(
+                record.direct_vector_retrieval_methods,
+                "IdentificationHealthResponse.direct_vector_retrieval_methods",
+            ),
+        rerank_only_methods: record.rerank_only_methods == null
+            ? undefined
+            : normalizeMethodArray(
+                record.rerank_only_methods,
+                "IdentificationHealthResponse.rerank_only_methods",
+            ),
     };
 }
 

@@ -1,13 +1,14 @@
 import { formatMethodLabel } from "../../shared/storytelling.ts";
+import { IDENTIFICATION_RETRIEVAL_METHOD_VALUES } from "../../types/index.ts";
 import type { IdentificationRetrievalMethod, Method } from "../../types/index.ts";
 
 export const IDENTIFICATION_RETRIEVAL_OPTIONS: Array<{
     value: IdentificationRetrievalMethod;
     label: string;
-}> = [
-    { value: "dl", label: formatMethodLabel("dl") },
-    { value: "vit", label: formatMethodLabel("vit") },
-];
+}> = IDENTIFICATION_RETRIEVAL_METHOD_VALUES.map((value) => ({
+    value,
+    label: formatMethodLabel(value),
+}));
 
 export const IDENTIFICATION_RERANK_OPTIONS: Array<{
     value: Method;

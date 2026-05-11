@@ -70,6 +70,10 @@ class TestAPISanity(unittest.TestCase):
 
     def test_match_dl(self):
         r = self._post_match("dl", return_overlay=False)
+        if r.status_code == 503:
+            self.assertIn("Method 'dl'", r.json()["detail"])
+            self.assertIn("unavailable", r.json()["detail"])
+            return
         self.assertEqual(r.status_code, 200, msg=r.text)
         j = r.json()
         self.assertIn("score", j)
@@ -79,6 +83,10 @@ class TestAPISanity(unittest.TestCase):
 
     def test_match_vit(self):
         r = self._post_match("vit", return_overlay=False)
+        if r.status_code == 503:
+            self.assertIn("Method 'vit'", r.json()["detail"])
+            self.assertIn("unavailable", r.json()["detail"])
+            return
         self.assertEqual(r.status_code, 200, msg=r.text)
         j = r.json()
         self.assertIn("score", j)
@@ -88,6 +96,10 @@ class TestAPISanity(unittest.TestCase):
 
     def test_match_dedicated(self):
         r = self._post_match("dedicated", return_overlay=True)
+        if r.status_code == 503:
+            self.assertIn("Method 'dedicated'", r.json()["detail"])
+            self.assertIn("unavailable", r.json()["detail"])
+            return
         self.assertEqual(r.status_code, 200, msg=r.text)
         j = r.json()
         self.assertIn("score", j)

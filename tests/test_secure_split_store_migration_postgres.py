@@ -105,9 +105,14 @@ def test_fresh_schema_reports_hardening_contract_and_supporting_indexes() -> Non
     assert _relation_exists(BIOMETRIC_DB_URL, store.idx_vector_method_created_at)
     assert _relation_exists(BIOMETRIC_DB_URL, store.idx_vector_dl)
     assert _relation_exists(BIOMETRIC_DB_URL, store.idx_vector_vit)
+    assert _relation_exists(BIOMETRIC_DB_URL, store.generic_vector_table)
+    assert _relation_exists(BIOMETRIC_DB_URL, store.idx_generic_vector_method_kind_created_at)
+    assert _relation_exists(BIOMETRIC_DB_URL, store.idx_generic_vector_hnsw[512])
+    assert _relation_exists(BIOMETRIC_DB_URL, store.idx_generic_vector_hnsw[768])
     assert _relation_exists(IDENTITY_DB_URL, store.idx_identity_name)
     assert _relation_exists(IDENTITY_DB_URL, store.idx_identity_national)
 
+    assert _column_is_not_null(BIOMETRIC_DB_URL, store.raw_table, "image_bytes") is False
     assert _column_is_not_null(IDENTITY_DB_URL, store.identity_table, "full_name") is True
     assert _column_is_not_null(IDENTITY_DB_URL, store.identity_table, "name_norm") is True
     assert _constraint_exists(IDENTITY_DB_URL, store.identity_table, store.ck_identity_full_name_not_blank) is True
@@ -132,6 +137,15 @@ def test_fresh_schema_reports_hardening_contract_and_supporting_indexes() -> Non
     assert payload["schema_hardening"]["identity_map_guarantees"]["completeness_guaranteed"] is True
     assert payload["schema_hardening"]["drift"]["missing_indexes"] == []
     assert payload["schema_hardening"]["drift"]["missing_constraints"] == []
+    assert payload["vector_storage_schema"]["generic_retrieval_vectors_table_present"] is True
+    assert payload["vector_storage_schema"]["method_generic_vectors_supported"] is True
+    assert payload["vector_storage_schema"]["indexed_dimensions_available"] == [512, 768]
+    assert payload["template_protection"]["raw_image_storage_policy"] == "metadata_only_new_writes"
+    assert payload["template_protection"]["new_raw_image_persistence_enabled"] is False
+    assert payload["template_protection"]["raw_image_bytes_column_present"] is True
+    assert payload["template_protection"]["raw_image_bytes_column_nullable"] is True
+    assert payload["template_protection"]["legacy_raw_image_bytes_row_count"] == 0
+    assert payload["template_protection"]["legacy_raw_image_storage_status"] == "clear"
 
 
 def test_single_database_hardening_normalizes_existing_identity_rows() -> None:

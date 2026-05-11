@@ -23,7 +23,7 @@ import {
     createSuccessState,
     type AsyncState,
 } from "../../../shared/request-state";
-import { CAPTURE_VALUES } from "../../../types";
+import { CAPTURE_VALUES, IDENTIFICATION_RETRIEVAL_METHOD_VALUES } from "../../../types";
 import type {
     Capture,
     CatalogBrowserItem,
@@ -78,8 +78,7 @@ export interface EnrollFormState {
     fullName: string;
     nationalId: string;
     capture: Capture;
-    includeDl: boolean;
-    includeVit: boolean;
+    vectorMethods: IdentificationRetrievalMethod[];
     replaceExisting: boolean;
 }
 
@@ -205,6 +204,10 @@ function createDefaultSearchFormState(
     };
 }
 
+function defaultEnrollmentVectorMethods(): IdentificationRetrievalMethod[] {
+    return [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES];
+}
+
 function toPersistedProbeEntry(probeCase: CatalogIdentifyProbeCase): PersistedProbeEntry {
     return {
         id: probeCase.id,
@@ -304,8 +307,7 @@ export function useIdentification() {
         fullName: "",
         nationalId: "",
         capture: "plain",
-        includeDl: true,
-        includeVit: true,
+        vectorMethods: defaultEnrollmentVectorMethods(),
         replaceExisting: false,
     });
     const [searchForm, setSearchForm] = useState<SearchFormState>(() => createDefaultSearchFormState(persistedWorkspace?.operationalSearchPreferences ?? null));
@@ -669,33 +671,35 @@ export function useIdentification() {
     }, [browserResultState.status, demoResultState.status, identificationMode, lastDemoRunProbeCaseId, searchState.status]);
 
     useEffect(() => {
+        const demoSearchPreferences = {
+            retrievalMethod: demoSearchForm.retrievalMethod,
+            rerankMethod: demoSearchForm.rerankMethod,
+            shortlistSizeText: demoSearchForm.shortlistSizeText,
+            thresholdText: demoSearchForm.thresholdText,
+            advancedVisible: demoSearchForm.advancedVisible,
+            namePattern: demoSearchForm.namePattern,
+            nationalIdPattern: demoSearchForm.nationalIdPattern,
+            createdFrom: demoSearchForm.createdFrom,
+            createdTo: demoSearchForm.createdTo,
+        };
+        const browserSearchPreferences = {
+            retrievalMethod: browserSearchForm.retrievalMethod,
+            rerankMethod: browserSearchForm.rerankMethod,
+            shortlistSizeText: browserSearchForm.shortlistSizeText,
+            thresholdText: browserSearchForm.thresholdText,
+            advancedVisible: browserSearchForm.advancedVisible,
+            namePattern: browserSearchForm.namePattern,
+            nationalIdPattern: browserSearchForm.nationalIdPattern,
+            createdFrom: browserSearchForm.createdFrom,
+            createdTo: browserSearchForm.createdTo,
+        };
         const nextWorkspaceState = {
             mode: identificationMode,
             selectedProbeCaseId,
             recentProbes,
             pinnedProbeCaseIds,
-            demoSearchPreferences: {
-                retrievalMethod: demoSearchForm.retrievalMethod,
-                rerankMethod: demoSearchForm.rerankMethod,
-                shortlistSizeText: demoSearchForm.shortlistSizeText,
-                thresholdText: demoSearchForm.thresholdText,
-                advancedVisible: demoSearchForm.advancedVisible,
-                namePattern: demoSearchForm.namePattern,
-                nationalIdPattern: demoSearchForm.nationalIdPattern,
-                createdFrom: demoSearchForm.createdFrom,
-                createdTo: demoSearchForm.createdTo,
-            },
-            browserSearchPreferences: {
-                retrievalMethod: browserSearchForm.retrievalMethod,
-                rerankMethod: browserSearchForm.rerankMethod,
-                shortlistSizeText: browserSearchForm.shortlistSizeText,
-                thresholdText: browserSearchForm.thresholdText,
-                advancedVisible: browserSearchForm.advancedVisible,
-                namePattern: browserSearchForm.namePattern,
-                nationalIdPattern: browserSearchForm.nationalIdPattern,
-                createdFrom: browserSearchForm.createdFrom,
-                createdTo: browserSearchForm.createdTo,
-            },
+            demoSearchPreferences,
+            browserSearchPreferences,
             browser: {
                 selectedDatasetKey: browserSelectedDatasetKey,
                 filters: browserFilters,
@@ -722,8 +726,8 @@ export function useIdentification() {
         const defaultBrowserSearchForm = createDefaultBrowserSearchFormState(null);
         const defaultBrowserFilters = createDefaultBrowserFilters();
         const isDefaultProbeSelection = selectedProbeCaseId === null || selectedProbeCaseId === probeCases[0]?.id;
-        const hasNonDefaultDemoSearchPreferences = hasNonDefaultSearchPreferences(demoSearchForm, defaultDemoSearchForm);
-        const hasNonDefaultBrowserSearchPreferences = hasNonDefaultSearchPreferences(browserSearchForm, defaultBrowserSearchForm);
+        const hasNonDefaultDemoSearchPreferences = hasNonDefaultSearchPreferences(demoSearchPreferences, defaultDemoSearchForm);
+        const hasNonDefaultBrowserSearchPreferences = hasNonDefaultSearchPreferences(browserSearchPreferences, defaultBrowserSearchForm);
         const hasNonDefaultOperationalSearchPreferences =
             searchForm.capture !== defaultSearchForm.capture
             || searchForm.retrievalMethod !== defaultSearchForm.retrievalMethod
@@ -900,8 +904,7 @@ export function useIdentification() {
             fullName: "",
             nationalId: "",
             capture: "plain",
-            includeDl: true,
-            includeVit: true,
+            vectorMethods: defaultEnrollmentVectorMethods(),
             replaceExisting: false,
         });
         setDemoSearchForm(createDefaultDemoSearchFormState(null));
@@ -943,8 +946,7 @@ export function useIdentification() {
             return;
         }
 
-        const vectorMethods = [enrollForm.includeDl ? "dl" : null, enrollForm.includeVit ? "vit" : null]
-            .filter((item): item is string => item !== null);
+        const vectorMethods = enrollForm.vectorMethods;
         if (vectorMethods.length === 0) {
             setEnrollState(createErrorState("Choose at least one vector method for enrollment."));
             return;
@@ -957,7 +959,7 @@ export function useIdentification() {
                 fullName: enrollForm.fullName.trim(),
                 nationalId: enrollForm.nationalId.trim(),
                 capture: enrollForm.capture,
-                vectorMethods,
+                vectorMethods: [...vectorMethods],
                 replaceExisting: enrollForm.replaceExisting,
             });
             setEnrollState(createSuccessState(payload));

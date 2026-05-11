@@ -14,9 +14,10 @@ from fastapi import UploadFile
 import apps.api.catalog_store as catalog_store
 import apps.api.demo_store as demo_store
 import apps.api.main as api_main
-from apps.api.identification_service import IdentificationService
+from apps.api.identification_service import IdentificationService, default_enrollment_vector_methods
 from apps.api.main import (
     catalog_identify_gallery,
+    identify_enroll,
     identify_browser_reset,
     identify_browser_seed_selection,
     identify_demo_reset,
@@ -52,10 +53,12 @@ class InMemoryStore:
         *,
         full_name: str,
         national_id: str,
-        image_bytes: bytes,
         capture: str,
         ext: str,
         vectors: dict[str, np.ndarray],
+        image_bytes: bytes | None = None,
+        image_sha256: str | None = None,
+        byte_size: int | None = None,
         random_id: str | None = None,
         created_at: str | None = None,
         replace_existing: bool = False,
@@ -73,6 +76,13 @@ class InMemoryStore:
 
         rid = random_id or uuid.uuid4().hex
         created = created_at or "2026-04-02T00:00:00+00:00"
+        if image_sha256 is None:
+            if image_bytes is None:
+                raise ValueError("image_bytes or image_sha256 must be provided")
+            image_hash = hashlib.sha256(image_bytes).hexdigest()
+        else:
+            image_hash = image_sha256
+        byte_size_value = byte_size if byte_size is not None else (len(image_bytes) if image_bytes is not None else None)
         self.people[rid] = PersonDirectoryRecord(
             random_id=rid,
             full_name=full_name,
@@ -84,9 +94,10 @@ class InMemoryStore:
             random_id=rid,
             capture=_safe_capture(capture),
             ext=ext,
-            sha256=hashlib.sha256(image_bytes).hexdigest(),
+            sha256=image_hash,
+            byte_size=byte_size_value,
             created_at=created,
-            image_bytes=image_bytes,
+            legacy_image_bytes_present=False,
         )
         for method, vector in vectors.items():
             self.vectors[(rid, method)] = np.asarray(vector, dtype=np.float32).reshape(-1)
@@ -94,7 +105,7 @@ class InMemoryStore:
             random_id=rid,
             created_at=created,
             vector_methods=sorted(vectors.keys()),
-            image_sha256=hashlib.sha256(image_bytes).hexdigest(),
+            image_sha256=image_hash,
         )
 
     def purge(self, random_id: str) -> bool:
@@ -161,6 +172,10 @@ def _fake_rerank(method: MatchMethod, probe_path: str, candidate_path: str, prob
     probe = Path(probe_path).read_bytes()[:1]
     candidate = Path(candidate_path).read_bytes()[:1]
     return 0.95 if probe == candidate else 0.05
+
+
+def _all_direct_vectorizers() -> dict[str, object]:
+    return {method: _fake_vectorizer for method in default_enrollment_vector_methods()}
 
 
 def _write_file(path: Path, payload: bytes) -> Path:
@@ -566,17 +581,71 @@ def _clear_caches_and_service():
 def _install_service() -> IdentificationService:
     service = IdentificationService(
         store=InMemoryStore(),
-        vectorizers={"dl": _fake_vectorizer, "vit": _fake_vectorizer},
+        vectorizers=_all_direct_vectorizers(),
         rerank_callable=_fake_rerank,
     )
     browser_service = IdentificationService(
         store=InMemoryStore(),
-        vectorizers={"dl": _fake_vectorizer, "vit": _fake_vectorizer},
+        vectorizers=_all_direct_vectorizers(),
         rerank_callable=_fake_rerank,
     )
     api_main._ident_service = service
     api_main._browser_ident_service = browser_service
     return service
+
+
+def test_identify_enroll_omitted_vector_methods_uses_all_direct_retrieval_methods() -> None:
+    _install_service()
+    upload = UploadFile(filename="enroll_defaults.png", file=BytesIO(b"A_enroll_defaults"))
+
+    response = asyncio.run(
+        identify_enroll(
+            img=upload,
+            full_name="Default Methods",
+            national_id="100000001",
+            capture="plain",
+            replace_existing=False,
+        )
+    )
+
+    assert set(response.vector_methods) == set(default_enrollment_vector_methods())
+
+
+@pytest.mark.parametrize("alias", ["", "all", "direct", "retrieval"])
+def test_identify_enroll_default_aliases_use_all_direct_retrieval_methods(alias: str) -> None:
+    _install_service()
+    upload = UploadFile(filename="enroll_all.png", file=BytesIO(b"A_enroll_all"))
+
+    response = asyncio.run(
+        identify_enroll(
+            img=upload,
+            full_name="All Methods",
+            national_id="100000002",
+            capture="plain",
+            vector_methods=alias,
+            replace_existing=False,
+        )
+    )
+
+    assert set(response.vector_methods) == set(default_enrollment_vector_methods())
+
+
+def test_identify_enroll_legacy_vector_subset_is_preserved() -> None:
+    _install_service()
+    upload = UploadFile(filename="enroll_legacy_subset.png", file=BytesIO(b"A_enroll_subset"))
+
+    response = asyncio.run(
+        identify_enroll(
+            img=upload,
+            full_name="Legacy Methods",
+            national_id="100000003",
+            capture="plain",
+            vector_methods="dl,vit",
+            replace_existing=False,
+        )
+    )
+
+    assert response.vector_methods == ["dl", "vit"]
 
 
 def test_catalog_identify_gallery_exposes_demo_identities_and_probe_cases(
@@ -612,7 +681,7 @@ def test_identify_demo_seed_is_idempotent_and_stats_track_demo_seeded_count(
     repo_root = tmp_path / "repo"
     _build_identify_demo_artifacts(repo_root)
     _configure_roots(monkeypatch, repo_root)
-    _install_service()
+    service = _install_service()
 
     first = identify_demo_seed()
     second = identify_demo_seed()
@@ -631,6 +700,53 @@ def test_identify_demo_seed_is_idempotent_and_stats_track_demo_seeded_count(
     assert stats.total_enrolled == 2
     assert stats.demo_seeded_count == 2
     assert stats.browser_seeded_count == 0
+    for random_id in (
+        "demo_identify_identify_demo_identity_subject_001",
+        "demo_identify_identify_demo_identity_subject_002",
+    ):
+        assert {
+            method
+            for stored_random_id, method in service.store.vectors
+            if stored_random_id == random_id
+        } == set(default_enrollment_vector_methods())
+
+
+def test_identify_search_can_rerank_against_the_demo_seeded_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    _build_identify_demo_artifacts(repo_root)
+    _configure_roots(monkeypatch, repo_root)
+    _install_service()
+
+    identify_demo_seed()
+
+    upload = UploadFile(filename="demo_probe.png", file=BytesIO(b"A_demo_probe"))
+    response = asyncio.run(
+        identify_search(
+            img=upload,
+            capture="plain",
+            retrieval_method="dl",
+            rerank_method=MatchMethod.sift,
+            shortlist_size=5,
+            threshold=None,
+            name_pattern=None,
+            national_id_pattern=None,
+            created_from=None,
+            created_to=None,
+            store_scope="operational",
+        )
+    )
+
+    assert response.top_candidate is not None
+    assert response.top_candidate.full_name == "Subject 001"
+    assert response.top_candidate.rerank_score == 0.95
+    assert response.top_candidate.rerank_status == "rerank_performed"
+    assert response.top_candidate.candidate_source_status == "demo_catalog_source"
+    assert response.decision is True
+    assert response.decision_status == "rerank_match"
+    assert str(repo_root) not in response.model_dump_json()
 
 
 def test_identify_demo_reset_only_removes_demo_seeded_identities(
@@ -723,6 +839,11 @@ def test_identify_browser_seed_selection_seeds_only_the_requested_identities_int
     assert api_main._browser_ident_service is not None
     assert api_main._browser_ident_service.store.get_person("browser_identify_identify_demo_identity_subject_002") is not None
     assert api_main._browser_ident_service.store.get_person("browser_identify_identify_demo_identity_subject_001") is None
+    assert {
+        method
+        for stored_random_id, method in api_main._browser_ident_service.store.vectors
+        if stored_random_id == "browser_identify_identify_demo_identity_subject_002"
+    } == set(default_enrollment_vector_methods())
     assert operational_service.store.total_people() == 0
     assert stats.total_enrolled == 0
     assert stats.browser_seeded_count == 1
@@ -801,8 +922,19 @@ def test_identify_search_can_run_against_the_browser_seeded_store(
 
     assert response.top_candidate is not None
     assert response.top_candidate.full_name == "Subject 001"
+    assert response.top_candidate.rerank_score == 0.95
+    assert response.top_candidate.rerank_status == "rerank_performed"
+    assert response.top_candidate.candidate_source_status == "browser_catalog_source"
+    assert response.decision is True
+    assert response.decision_status == "rerank_match"
+    assert response.decision_basis == "rerank"
     assert response.total_enrolled == 1
     assert response.candidate_pool_size == 1
+    assert str(repo_root) not in response.model_dump_json()
+    assert api_main._browser_ident_service is not None
+    raw = api_main._browser_ident_service.store.load_raw_fingerprint("browser_identify_identify_demo_identity_subject_001")
+    assert raw is not None
+    assert raw.legacy_image_bytes_present is False
 
 
 def test_identify_browser_seed_selection_reports_clear_failures_for_unseedable_identities(

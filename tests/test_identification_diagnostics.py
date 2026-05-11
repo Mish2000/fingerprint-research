@@ -28,6 +28,15 @@ _SELECT_ANY_RE = re.compile(
     r"SELECT random_id FROM ([A-Za-z0-9_]+) WHERE random_id = ANY\(%s\) ORDER BY random_id"
 )
 _DELETE_ANY_RE = re.compile(r"DELETE FROM ([A-Za-z0-9_]+) WHERE random_id = ANY\(%s\)")
+_LEGACY_RAW_COUNT_RE = re.compile(
+    r"SELECT COUNT\(\*\) AS n FROM ([A-Za-z0-9_]+) WHERE image_bytes IS NOT NULL"
+)
+_LEGACY_RAW_SAMPLE_RE = re.compile(
+    r"SELECT random_id FROM ([A-Za-z0-9_]+) WHERE image_bytes IS NOT NULL ORDER BY random_id LIMIT %s"
+)
+_LEGACY_RAW_REDACT_RE = re.compile(
+    r"UPDATE ([A-Za-z0-9_]+) SET image_bytes = NULL WHERE image_bytes IS NOT NULL"
+)
 
 
 def _load_script_module(script_name: str):
@@ -48,11 +57,13 @@ def _inspection_state(
     identity_ids: list[str] | None = None,
     raw_orphan_ids: list[str] | None = None,
     vector_orphan_ids: list[str] | None = None,
+    legacy_raw_image_ids: list[str] | None = None,
 ) -> dict[str, object]:
     person_table = f"{prefix}person_directory"
     identity_table = f"{prefix}identity_map"
     raw_table = f"{prefix}raw_fingerprints"
     vector_table = f"{prefix}feature_vectors"
+    generic_vector_table = f"{prefix}method_retrieval_vectors"
     person_id_values = list(person_ids) if person_ids is not None else (
         ["rid_a", "rid_b"] if include_biometric_tables else []
     )
@@ -61,22 +72,35 @@ def _inspection_state(
     )
     raw_orphan_values = list(raw_orphan_ids or [])
     vector_orphan_values = list(vector_orphan_ids or [])
+    legacy_raw_image_values = list(legacy_raw_image_ids or [])
     return {
         "tables": {
             person_table: include_biometric_tables,
             identity_table: identity_table_present,
             raw_table: include_biometric_tables,
             vector_table: include_biometric_tables,
+            generic_vector_table: include_biometric_tables,
         },
         "columns": {
             (person_table, "national_id"): False,
             (person_table, "full_name"): False,
             (person_table, "name_norm"): False,
+            (raw_table, "image_bytes"): include_biometric_tables,
+            (generic_vector_table, "random_id"): include_biometric_tables,
+            (generic_vector_table, "method"): include_biometric_tables,
+            (generic_vector_table, "vector_kind"): include_biometric_tables,
+            (generic_vector_table, "dim"): include_biometric_tables,
+            (generic_vector_table, "distance_metric"): include_biometric_tables,
+            (generic_vector_table, "created_at"): include_biometric_tables,
+            (generic_vector_table, "metadata_json"): include_biometric_tables,
+            (generic_vector_table, "vector_512"): include_biometric_tables,
+            (generic_vector_table, "vector_768"): include_biometric_tables,
         },
         "column_nullability": {
             (identity_table, "full_name"): identity_table_present,
             (identity_table, "name_norm"): identity_table_present,
             (identity_table, "national_id"): identity_table_present,
+            (raw_table, "image_bytes"): False,
         },
         "indexes": {
             f"{prefix}idx_person_created_at_desc": include_biometric_tables,
@@ -85,12 +109,32 @@ def _inspection_state(
             f"{prefix}idx_feature_vectors_method_created_at_desc": include_biometric_tables,
             f"{prefix}idx_feature_vectors_dl_hnsw": include_biometric_tables,
             f"{prefix}idx_feature_vectors_vit_hnsw": include_biometric_tables,
+            f"{prefix}idx_method_retrieval_vectors_method_kind_created_at_desc": include_biometric_tables,
+            f"{prefix}idx_method_retrieval_vectors_512_hnsw": include_biometric_tables,
+            f"{prefix}idx_method_retrieval_vectors_768_hnsw": include_biometric_tables,
         },
         "constraints": {
             (identity_table, f"{prefix}ck_identity_full_name_not_blank"): identity_table_present,
             (identity_table, f"{prefix}ck_identity_name_norm_not_blank"): identity_table_present,
             (identity_table, f"{prefix}ck_identity_name_norm_matches_full_name"): identity_table_present,
             (identity_table, f"{prefix}ck_identity_national_id_digits_only"): identity_table_present,
+        },
+        "constraint_definitions": {
+            generic_vector_table: [
+                {
+                    "contype": "p",
+                    "definition": "PRIMARY KEY (random_id, method, vector_kind)",
+                },
+                {
+                    "contype": "c",
+                    "definition": (
+                        "CHECK (((dim = 512) AND (vector_512 IS NOT NULL) AND (vector_768 IS NULL)) "
+                        "OR ((dim = 768) AND (vector_768 IS NOT NULL) AND (vector_512 IS NULL)))"
+                    ),
+                },
+            ]
+            if include_biometric_tables
+            else []
         },
         "counts": {
             person_table: len(person_id_values) if include_biometric_tables else None,
@@ -102,8 +146,16 @@ def _inspection_state(
             identity_table: identity_id_values if identity_table_present else [],
         },
         "vector_counts": {"dl": 2, "vit": 1} if include_biometric_tables else {},
+        "generic_vector_counts": (
+            {"dl/deep_embedding_resnet": 2, "vit/vit_embedding": 1}
+            if include_biometric_tables
+            else {}
+        ),
         "vector_extension": True,
         "identity_missing_profile": [],
+        "legacy_raw_image_ids": {
+            raw_table: legacy_raw_image_values if include_biometric_tables else [],
+        },
         "orphans": {
             raw_table: raw_orphan_values if include_biometric_tables else [],
             vector_table: vector_orphan_values if include_biometric_tables else [],
@@ -155,10 +207,26 @@ class FakeInspectionCursor:
             self._rows = [{"column_name": column_name}] if exists else []
             return
 
+        if "pg_get_constraintdef" in query and "FROM pg_catalog.pg_constraint AS c" in query:
+            table_name = str(params[0])
+            self._rows = list(self.state["constraint_definitions"].get(table_name, []))
+            return
+
         if "FROM pg_catalog.pg_constraint AS c" in query:
             table_name, constraint_name = str(params[0]), str(params[1])
             exists = bool(self.state["constraints"].get((table_name, constraint_name), False))
             self._rows = [{"exists": 1}] if exists else []
+            return
+
+        if "GROUP BY method, vector_kind" in query:
+            self._rows = [
+                {
+                    "method": key.split("/", 1)[0],
+                    "vector_kind": key.split("/", 1)[1],
+                    "n": count,
+                }
+                for key, count in sorted(dict(self.state["generic_vector_counts"]).items())
+            ]
             return
 
         if "GROUP BY method" in query:
@@ -173,6 +241,31 @@ class FakeInspectionCursor:
                 self._rows = [{"n": len(list(self.state["identity_missing_profile"]))}]
             else:
                 self._rows = [{"random_id": rid} for rid in list(self.state["identity_missing_profile"])]
+            return
+
+        legacy_raw_count_match = _LEGACY_RAW_COUNT_RE.search(query)
+        if legacy_raw_count_match:
+            table_name = legacy_raw_count_match.group(1)
+            self._rows = [{"n": len(list(self.state["legacy_raw_image_ids"].get(table_name, [])))}]
+            return
+
+        legacy_raw_sample_match = _LEGACY_RAW_SAMPLE_RE.search(query)
+        if legacy_raw_sample_match:
+            table_name = legacy_raw_sample_match.group(1)
+            limit = int(params[0]) if params else 10
+            self._rows = [
+                {"random_id": rid}
+                for rid in list(self.state["legacy_raw_image_ids"].get(table_name, []))[:limit]
+            ]
+            return
+
+        legacy_raw_redact_match = _LEGACY_RAW_REDACT_RE.search(query)
+        if legacy_raw_redact_match:
+            table_name = legacy_raw_redact_match.group(1)
+            current_ids = list(self.state["legacy_raw_image_ids"].get(table_name, []))
+            self.rowcount = len(current_ids)
+            self.state["legacy_raw_image_ids"][table_name] = []
+            self._rows = []
             return
 
         if "LEFT JOIN" in query and " AS c " in query:
@@ -374,9 +467,78 @@ def test_inspection_state_uses_read_only_connection_path(monkeypatch) -> None:
     assert payload["row_counts"]["identity"] == 2
     assert payload["row_counts"]["raw"] == 2
     assert payload["row_counts"]["vectors_by_method"] == {"dl": 2, "vit": 1}
+    assert payload["row_counts"]["legacy_vectors_by_method"] == {"dl": 2, "vit": 1}
+    assert payload["row_counts"]["generic_vectors_by_method_kind"] == {
+        "dl/deep_embedding_resnet": 2,
+        "vit/vit_embedding": 1,
+    }
+    assert payload["retrieval_vector_coverage_by_method"]["classic_orb"]["coverage_status"] == "zero"
+    assert payload["retrieval_vector_coverage_by_method"]["classic_orb"]["missing_vector_count"] == 2
+    assert payload["retrieval_vector_coverage_by_method"]["dl"]["coverage_status"] == "full"
+    assert payload["retrieval_vector_coverage_by_method"]["vit"]["coverage_status"] == "partial"
+    assert payload["retrieval_methods_with_zero_coverage"] == [
+        "classic_orb",
+        "classic_gftt_orb",
+        "harris",
+        "sift",
+    ]
+    assert payload["retrieval_methods_missing_vectors"] == [
+        "classic_orb",
+        "classic_gftt_orb",
+        "harris",
+        "sift",
+        "vit",
+    ]
+    assert "Reseed demo/browser stores" in payload["coverage_recommendation"]
+    assert "source image path is known" in payload["coverage_recommendation"]
+    assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"]
+    assert payload["rerank_only_methods"] == ["dedicated"]
+    assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
+    assert payload["method_capabilities"]["vit"]["retrieval_vector_dim"] == 768
+    assert payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
+    assert payload["method_capabilities"]["sift"]["retrieval_vector_kind"] == "sift_aggregated_descriptor_v1"
+    dedicated_capability = payload["method_capabilities"]["dedicated"]
+    assert dedicated_capability["retrieval_unavailable_reason"] == (
+        "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
+    )
+    assert dedicated_capability["retrieval_capability_status"] == "experimental_rerank_only"
+    assert dedicated_capability["direct_retrieval_exclusion"] == "intentional_rerank_only"
+    assert dedicated_capability["experimental"] is True
+    assert dedicated_capability["supports_direct_vector_retrieval"] is False
+    assert dedicated_capability["supports_pairwise_rerank"] is True
+    assert dedicated_capability["future_adapter_hint"] == (
+        "A future dedicated_aggregated_patch_descriptor_v1 adapter can be added once global pooling is validated."
+    )
+    assert "dedicated" not in payload["retrieval_vector_coverage_by_method"]
+    assert "dedicated" not in payload["retrieval_methods_missing_vectors"]
+    assert "dedicated" not in payload["retrieval_methods_with_zero_coverage"]
+    assert payload["vector_storage_schema"]["mode"] == "method_generic_pgvector_table_with_legacy_compat"
+    assert payload["vector_storage_schema"]["method_generic_vectors_supported"] is True
+    assert payload["vector_storage_schema"]["generic_retrieval_vectors_table_present"] is True
+    assert payload["vector_storage_schema"]["generic_population_by_method"]["dl"]["generic_covers_legacy"] is True
+    assert payload["vector_storage_schema"]["backfill_recommended"] is False
+    assert payload["vector_storage_schema"]["configured_vector_specs"]["dl"]["storage_column"] == "vector_512"
+    assert payload["vector_storage_schema"]["legacy_compatibility_methods"] == ["dl", "vit"]
+    assert payload["vector_storage_schema"]["dual_write_methods"] == ["dl", "vit"]
+    assert payload["vector_storage_schema"]["generic_only_methods"] == [
+        "classic_gftt_orb",
+        "classic_orb",
+        "harris",
+        "sift",
+    ]
+    assert payload["vector_storage_schema"]["configured_vector_specs"]["dl"]["preferred_storage"] == "dual"
+    assert payload["vector_storage_schema"]["configured_vector_specs"]["dl"]["legacy_storage_enabled"] is True
+    assert payload["vector_storage_schema"]["configured_vector_specs"]["dl"]["generic_storage_enabled"] is True
     assert payload["schema_hardening"]["identity_map_guarantees"]["contract_enforced"] is True
     assert payload["schema_hardening"]["drift"]["missing_constraints"] == []
     assert payload["schema_hardening"]["drift"]["missing_indexes"] == []
+    assert payload["template_protection"]["raw_image_storage_policy"] == "metadata_only_new_writes"
+    assert payload["template_protection"]["new_raw_image_persistence_enabled"] is False
+    assert payload["template_protection"]["raw_image_bytes_column_present"] is True
+    assert payload["template_protection"]["raw_image_bytes_column_nullable"] is True
+    assert payload["template_protection"]["legacy_raw_image_bytes_row_count"] == 0
+    assert payload["template_protection"]["legacy_raw_image_bytes_sample"] == []
+    assert payload["template_protection"]["legacy_raw_image_storage_status"] == "clear"
     assert payload["reconciliation"]["validation_mode"] == "bounded_exact_streaming"
     assert payload["reconciliation"]["drift_counts"]["people_without_identity_rows"] == 0
     assert payload["reconciliation"]["drift_counts"]["identity_rows_without_people"] == 0
@@ -434,6 +596,117 @@ def test_inspection_state_keeps_warning_only_layouts_ready(monkeypatch) -> None:
     warning_by_code = {issue["code"]: issue for issue in payload["warnings"]}
     assert warning_by_code["vector_rows_without_person"]["repairability"] == "safely_repairable"
     assert warning_by_code["identity_rows_missing_profile"]["repairability"] == "not_safely_repairable"
+
+
+def test_inspection_state_recommends_generic_vector_backfill(monkeypatch) -> None:
+    biometric_url = "postgresql://admin:bio_secret@localhost:5432/biometric_db"
+    state = _inspection_state("backfill_")
+    state["generic_vector_counts"] = {}
+
+    def _fake_connect(self, database_url: str, *, database_role: str):
+        assert database_url == biometric_url
+        assert database_role == "biometric_db"
+        return FakeInspectionConnection(state)
+
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_postgres_inspection", _fake_connect)
+
+    payload = SecureSplitFingerprintStore.inspect_runtime_state(
+        database_url=biometric_url,
+        table_prefix="backfill",
+    )
+
+    assert payload["vector_storage_schema"]["method_generic_vectors_supported"] is True
+    assert payload["vector_storage_schema"]["legacy_fallback_used"] is True
+    assert payload["vector_storage_schema"]["backfill_recommended"] is True
+    assert payload["vector_storage_schema"]["generic_population_by_method"]["dl"]["backfill_recommended"] is True
+    warning_by_code = {issue["code"]: issue for issue in payload["warnings"]}
+    assert warning_by_code["generic_vector_backfill_recommended"]["repairability"] == "safely_repairable"
+    assert warning_by_code["generic_vector_backfill_recommended"]["repair_actions"] == [
+        "backfill_generic_retrieval_vectors"
+    ]
+
+
+def test_inspection_state_reports_legacy_raw_image_privacy_warning(monkeypatch) -> None:
+    biometric_url = "postgresql://admin:bio_secret@localhost:5432/biometric_db"
+    state = _inspection_state(
+        "privacy_",
+        legacy_raw_image_ids=[f"rid_{idx:02d}" for idx in range(12)],
+    )
+
+    def _fake_connect(self, database_url: str, *, database_role: str):
+        assert database_url == biometric_url
+        assert database_role == "biometric_db"
+        return FakeInspectionConnection(state)
+
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_postgres_inspection", _fake_connect)
+
+    payload = SecureSplitFingerprintStore.inspect_runtime_state(
+        database_url=biometric_url,
+        table_prefix="privacy",
+    )
+
+    template_protection = payload["template_protection"]
+    assert template_protection["raw_image_bytes_column_present"] is True
+    assert template_protection["raw_image_bytes_column_nullable"] is True
+    assert template_protection["legacy_raw_image_bytes_row_count"] == 12
+    assert template_protection["legacy_raw_image_bytes_sample"] == [f"rid_{idx:02d}" for idx in range(10)]
+    assert template_protection["legacy_raw_image_storage_status"] == "legacy_payloads_present"
+    assert payload["overall_ok"] is True
+    assert payload["readiness"]["status"] == "ready_with_warnings"
+
+    warning = {issue["code"]: issue for issue in payload["warnings"]}["legacy_raw_image_bytes_present"]
+    assert warning["severity"] == "warning"
+    assert warning["database_role"] == "biometric_db"
+    assert warning["table"] == "privacy_raw_fingerprints"
+    assert warning["column"] == "image_bytes"
+    assert warning["row_count"] == 12
+    assert warning["sample_random_ids"] == [f"rid_{idx:02d}" for idx in range(10)]
+    assert warning["repair_actions"] == ["redact_legacy_raw_image_bytes"]
+    assert "--redact-legacy-raw-image-bytes" in warning["repair_commands"][0]
+
+    report = SecureSplitFingerprintStore.reconcile_runtime_state(
+        database_url=biometric_url,
+        table_prefix="privacy",
+    )
+    assert "redact_legacy_raw_image_bytes" in report["available_repairs"]
+
+
+def test_reconcile_runtime_state_redacts_legacy_raw_image_bytes_without_touching_rows(monkeypatch) -> None:
+    biometric_url = "postgresql://admin:single_secret@localhost:5432/biometric_db"
+    state = _inspection_state(
+        "redact_",
+        person_ids=["rid_a", "rid_b"],
+        identity_ids=["rid_a", "rid_b"],
+        legacy_raw_image_ids=["rid_a", "rid_b"],
+    )
+
+    def _fake_connect(self, database_url: str, *, database_role: str):
+        assert database_url == biometric_url
+        assert database_role == "biometric_db"
+        return FakeInspectionConnection(state)
+
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_postgres_inspection", _fake_connect)
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_biometric", lambda self: FakeInspectionConnection(state))
+
+    report = SecureSplitFingerprintStore.reconcile_runtime_state(
+        database_url=biometric_url,
+        table_prefix="redact",
+        repair_actions=["redact_legacy_raw_image_bytes"],
+    )
+
+    applied = report["applied_repairs"][0]
+    assert applied["action"] == "redact_legacy_raw_image_bytes"
+    assert applied["redacted_count"] == 2
+    assert applied["table"] == "redact_raw_fingerprints"
+    assert applied["column"] == "image_bytes"
+    assert applied["sensitive_backup_created"] is False
+    assert report["inspection"]["template_protection"]["legacy_raw_image_bytes_row_count"] == 0
+    assert report["inspection"]["template_protection"]["legacy_raw_image_storage_status"] == "clear"
+    assert report["inspection"]["row_counts"]["people"] == 2
+    assert report["inspection"]["row_counts"]["identity"] == 2
+    assert report["inspection"]["row_counts"]["raw"] == 2
+    assert report["inspection"]["row_counts"]["vectors_by_method"] == {"dl": 2, "vit": 1}
+    assert state["legacy_raw_image_ids"]["redact_raw_fingerprints"] == []
 
 
 def test_inspection_state_marks_missing_required_tables_as_not_ready(monkeypatch) -> None:
@@ -626,7 +899,39 @@ def test_check_script_allows_warning_only_layouts(monkeypatch, capsys) -> None:
 
     assert exit_code == 0
     assert "ready_with_warnings" in output
+    assert "[template_protection]" in output
+    assert "legacy_raw_image_storage_status: clear" in output
     assert "warn_secret" not in output
+
+
+def test_check_script_prints_legacy_raw_image_privacy_status(monkeypatch, capsys) -> None:
+    module = _load_script_module("check_identification_db_schema.py")
+    biometric_url = "postgresql://admin:privacy_secret@localhost:5432/biometric_db"
+    state = _inspection_state("privacy_", legacy_raw_image_ids=["rid_a"])
+
+    def _fake_connect(self, database_url: str, *, database_role: str):
+        assert database_url == biometric_url
+        assert database_role == "biometric_db"
+        return FakeInspectionConnection(state)
+
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_postgres_inspection", _fake_connect)
+
+    exit_code = module.main(
+        [
+            "--database-url",
+            biometric_url,
+            "--table-prefix",
+            "privacy",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "[template_protection]" in output
+    assert "legacy_raw_image_storage_status: legacy_payloads_present" in output
+    assert "legacy_raw_image_bytes_row_count: 1" in output
+    assert "legacy_raw_image_bytes_present" in output
+    assert "privacy_secret" not in output
 
 
 def test_reconcile_script_report_only_outputs_structured_report(monkeypatch, capsys) -> None:
@@ -710,6 +1015,70 @@ def test_reconcile_script_can_apply_safe_raw_orphan_repair(monkeypatch, capsys) 
     assert report["applied_repairs"][0]["action"] == "repair_raw_orphans"
     assert report["applied_repairs"][0]["deleted_rows"] == 1
     assert {issue["code"] for issue in report["inspection"]["issues"]} == set()
+
+
+def test_reconcile_script_report_only_does_not_redact_legacy_raw_image_bytes(monkeypatch, capsys) -> None:
+    module = _load_script_module("reconcile_identification_runtime_db.py")
+    biometric_url = "postgresql://admin:single_secret@localhost:5432/biometric_db"
+    state = _inspection_state("report_", legacy_raw_image_ids=["rid_a"])
+
+    def _fake_connect(self, database_url: str, *, database_role: str):
+        assert database_url == biometric_url
+        assert database_role == "biometric_db"
+        return FakeInspectionConnection(state)
+
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_postgres_inspection", _fake_connect)
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_biometric", lambda self: FakeInspectionConnection(state))
+
+    exit_code = module.main(
+        [
+            "--database-url",
+            biometric_url,
+            "--table-prefix",
+            "report",
+        ]
+    )
+    report = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert report["report_mode"] == "report_only"
+    assert report["applied_repairs"] == []
+    assert report["inspection"]["template_protection"]["legacy_raw_image_bytes_row_count"] == 1
+    assert state["legacy_raw_image_ids"]["report_raw_fingerprints"] == ["rid_a"]
+
+
+def test_reconcile_script_can_redact_legacy_raw_image_bytes(monkeypatch, capsys) -> None:
+    module = _load_script_module("reconcile_identification_runtime_db.py")
+    biometric_url = "postgresql://admin:single_secret@localhost:5432/biometric_db"
+    state = _inspection_state("redactcli_", legacy_raw_image_ids=["rid_a", "rid_b"])
+
+    def _fake_connect(self, database_url: str, *, database_role: str):
+        assert database_url == biometric_url
+        assert database_role == "biometric_db"
+        return FakeInspectionConnection(state)
+
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_postgres_inspection", _fake_connect)
+    monkeypatch.setattr(SecureSplitFingerprintStore, "_connect_biometric", lambda self: FakeInspectionConnection(state))
+
+    exit_code = module.main(
+        [
+            "--database-url",
+            biometric_url,
+            "--table-prefix",
+            "redactcli",
+            "--redact-legacy-raw-image-bytes",
+        ]
+    )
+    report = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert report["report_mode"] == "repair"
+    assert report["requested_repairs"] == ["redact_legacy_raw_image_bytes"]
+    assert report["applied_repairs"][0]["action"] == "redact_legacy_raw_image_bytes"
+    assert report["applied_repairs"][0]["redacted_count"] == 2
+    assert report["applied_repairs"][0]["sensitive_backup_created"] is False
+    assert report["inspection"]["template_protection"]["legacy_raw_image_bytes_row_count"] == 0
+    assert state["legacy_raw_image_ids"]["redactcli_raw_fingerprints"] == []
 
 
 def test_reconcile_script_can_apply_explicit_identity_orphan_repair(monkeypatch, capsys) -> None:

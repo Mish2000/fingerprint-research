@@ -40,7 +40,7 @@ from apps.api.demo_store import (
     load_demo_cases,
     resolve_demo_case_path,
 )
-from apps.api.identification_service import IdentificationService
+from apps.api.identification_service import IdentificationService, resolve_enrollment_vector_methods
 from apps.api.identify_demo_store import (
     IdentifyDemoStoreError,
     get_identify_browser_seeded_count,
@@ -59,6 +59,7 @@ from apps.api.scanner_capture import (
     ScannerCapturePathError,
     ScannerNormalizedCaptureNotFoundError,
     StaleScannerCaptureError,
+    capture_scanner,
     get_scanner_status,
     import_latest_capture,
     resolve_normalized_capture_path,
@@ -83,6 +84,7 @@ from apps.api.schemas import (
     IdentifyResponse,
     MatchMethod,
     MatchResponse,
+    ScannerCaptureRequest,
 )
 from src.fpbench.identification.secure_split_store import IdentifyHints, SecureSplitFingerprintStore
 
@@ -295,11 +297,23 @@ def _health_method_availability() -> dict[str, dict[str, object]]:
     }
 
 
+def _method_capability_summary() -> dict[str, Any]:
+    registry = load_api_method_registry()
+    method_capabilities = registry.method_capabilities()
+    return {
+        "method_capabilities": method_capabilities,
+        "retrieval_capabilities": method_capabilities,
+        "direct_vector_retrieval_methods": list(registry.direct_vector_retrieval_methods()),
+        "rerank_only_methods": list(registry.rerank_only_methods()),
+    }
+
+
 def _methods_payload() -> dict[str, Any]:
     registry = load_api_method_registry()
     availability = _method_availability()
     entries = []
     for definition in registry.list_methods():
+        retrieval_capability = definition.retrieval_capability_metadata()
         state = availability.get(
             definition.canonical_api_name,
             {"available": True, "error": None},
@@ -313,6 +327,16 @@ def _methods_payload() -> dict[str, Any]:
                 "aliases": list(definition.accepted_aliases),
                 "family": definition.family,
                 "status": definition.status,
+                "presentation_tier": definition.presentation_tier,
+                "showcase_eligible": definition.showcase_eligible,
+                "benchmark_default": definition.benchmark_default,
+                "canonical_default": definition.canonical_default,
+                "research_track": definition.research_track,
+                "promotion_required": definition.promotion_required,
+                "promotion_criteria": list(definition.promotion_criteria),
+                "showcase_exclusion_note": definition.showcase_exclusion_note,
+                "is_experimental": definition.is_experimental,
+                "is_showcase_eligible": definition.is_showcase_eligible,
                 "embedding_dim": definition.embedding_dim,
                 "thresholds": {"decision": definition.decision_threshold},
                 "runtime_defaults": definition.runtime_defaults,
@@ -321,15 +345,30 @@ def _methods_payload() -> dict[str, Any]:
                 "identification_roles": {
                     "retrieval_capable": definition.identification_role.retrieval_capable,
                     "rerank_capable": definition.identification_role.rerank_capable,
+                    "experimental": definition.identification_role.experimental,
+                    "retrieval_capability_status": retrieval_capability["retrieval_capability_status"],
+                    "direct_retrieval_exclusion": retrieval_capability["direct_retrieval_exclusion"],
+                    "supports_direct_vector_retrieval": (
+                        definition.identification_role.supports_direct_vector_retrieval
+                    ),
+                    "supports_pairwise_rerank": definition.identification_role.supports_pairwise_rerank,
+                    "retrieval_vector_dim": definition.identification_role.retrieval_vector_dim,
+                    "retrieval_vector_kind": definition.identification_role.retrieval_vector_kind,
+                    "retrieval_distance_metric": definition.identification_role.retrieval_distance_metric,
+                    "retrieval_unavailable_reason": (
+                        definition.identification_role.retrieval_unavailable_reason
+                    ),
+                    "future_adapter_hint": definition.identification_role.future_adapter_hint,
                     "notes": list(definition.identification_role.notes),
                 },
+                "retrieval_capability": retrieval_capability,
                 "availability": {
                     "available": bool(state.get("available", False)),
                     "error": state.get("error"),
                 },
             }
         )
-    return {"methods": entries}
+    return {"methods": entries, **_method_capability_summary()}
 
 
 def _browser_health_fields() -> dict[str, Any]:
@@ -413,6 +452,7 @@ def health() -> dict[str, Any]:
         "identify_error": identify_error,
         **_browser_health_fields(),
         "methods": _health_method_availability(),
+        **_method_capability_summary(),
     }
 
 
@@ -542,6 +582,19 @@ def scanner_import_latest() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ScannerCaptureError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/scanner/capture")
+def scanner_capture(request: Optional[ScannerCaptureRequest] = None) -> dict[str, Any]:
+    resolved_request = request or ScannerCaptureRequest()
+    return capture_scanner(
+        mode=resolved_request.mode,
+        timeout_ms=resolved_request.timeout_ms,
+        fallback_allowed=resolved_request.fallback_allowed,
+        normalize=resolved_request.normalize,
+        show_ui=resolved_request.show_ui,
+        settle_after_enable_ms=resolved_request.settle_after_enable_ms,
+    )
 
 
 @router.get("/scanner/captures/{capture_id}")
@@ -720,13 +773,13 @@ async def identify_enroll(
     full_name: Annotated[str, Form()],
     national_id: Annotated[str, Form()],
     capture: Annotated[str, Form()] = "plain",
-    vector_methods: Annotated[str, Form()] = "dl,vit",
+    vector_methods: Annotated[Optional[str], Form()] = None,
     replace_existing: Annotated[bool, Form()] = False,
 ) -> EnrollFingerprintResponse:
     service = _get_identification_service()
     path = await save_upload_to_temp(img, prefix="enroll", capture=capture)
     try:
-        methods = [item.strip() for item in vector_methods.split(",") if item.strip()]
+        methods = resolve_enrollment_vector_methods(vector_methods)
         receipt = service.enroll_from_path(
             path=str(path),
             full_name=full_name,
@@ -741,6 +794,8 @@ async def identify_enroll(
         )
     except (ValueError, FileNotFoundError, MethodRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except api_service.MethodUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     finally:
         path.unlink(missing_ok=True)
 
@@ -779,6 +834,8 @@ async def identify_search(
         return IdentifyResponse(**asdict(result))
     except (ValueError, FileNotFoundError, MethodRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except api_service.MethodUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     finally:
         path.unlink(missing_ok=True)
 
@@ -798,6 +855,8 @@ def identify_demo_seed(dataset: str | None = None) -> IdentifyDemoSeedResponse:
     service = _get_identification_service()
     try:
         return IdentifyDemoSeedResponse(**seed_identify_demo_store(service, dataset=dataset))
+    except api_service.MethodUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except (IdentifyDemoStoreError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -826,6 +885,8 @@ def identify_browser_seed_selection(
                 metadata=request.metadata,
             )
         )
+    except api_service.MethodUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except (IdentifyDemoStoreError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -15,6 +15,10 @@ from apps.api.method_registry import (
 )
 from apps.api.schemas import MatchMethod, MatchResponse, Overlay, OverlayMatch
 from src.fpbench.matchers.baseline_dl import BaselineDL, DLBaselineConfig
+from src.fpbench.identification.classic_vectorizers import (
+    orb_aggregated_descriptor_vector,
+    sift_aggregated_descriptor_vector,
+)
 from src.fpbench.matchers.dedicated_matcher import DedicatedMatcher
 from src.fpbench.matchers.matching_baseline import (
     HarrisConfig,
@@ -32,6 +36,18 @@ from src.fpbench.preprocess.preprocess import PreprocessConfig, load_gray, prepr
 
 class MethodUnavailableError(RuntimeError):
     """Raised when a method is known to exist but is not currently usable."""
+
+
+_DL_CONFIG_KEYS = (
+    "backbone",
+    "input_size",
+    "use_mask",
+    "roi_min_frac",
+    "roi_max_frac",
+    "gate_top_plain",
+    "gate_top_roll",
+    "gate_border",
+)
 
 
 def _infer_capture_from_filename(name: str) -> Optional[str]:
@@ -212,6 +228,7 @@ class MatchService:
         *,
         method_registry: ApiMethodRegistry | None = None,
         dedicated_factory: Callable[..., DedicatedMatcher] | None = None,
+        dl_factory: Callable[..., BaselineDL] | None = None,
     ):
         self.method_registry = method_registry or load_api_method_registry()
         self.prep_cfg = _build_preprocess_config(self.method_registry)
@@ -274,43 +291,9 @@ class MatchService:
             "reproj": float(sift_defaults.get("reproj_threshold", 3.0)),
         }
 
-        self.dl_resnet = BaselineDL(
-            dl_cfg=DLBaselineConfig(
-                **_extract_kwargs(
-                    dl_defaults,
-                    (
-                        "backbone",
-                        "input_size",
-                        "use_mask",
-                        "roi_min_frac",
-                        "roi_max_frac",
-                        "gate_top_plain",
-                        "gate_top_roll",
-                        "gate_border",
-                    ),
-                )
-            ),
-            prep_cfg=self.prep_cfg,
-        )
-        self.dl_vit = BaselineDL(
-            dl_cfg=DLBaselineConfig(
-                **_extract_kwargs(
-                    vit_defaults,
-                    (
-                        "backbone",
-                        "input_size",
-                        "use_mask",
-                        "roi_min_frac",
-                        "roi_max_frac",
-                        "gate_top_plain",
-                        "gate_top_roll",
-                        "gate_border",
-                    ),
-                )
-            ),
-            prep_cfg=self.prep_cfg,
-        )
-
+        self.dl_resnet: BaselineDL | None = None
+        self.dl_vit: BaselineDL | None = None
+        self._dl_factory = dl_factory or BaselineDL
         self._dedicated_factory = dedicated_factory or DedicatedMatcher
         self._dedicated_defaults = _extract_kwargs(
             dedicated_defaults,
@@ -321,7 +304,26 @@ class MatchService:
             definition.canonical_api_name: {"available": True, "error": None}
             for definition in self.method_registry.list_methods()
         }
+        self._probe_dl("dl", dl_defaults)
+        self._probe_dl("vit", vit_defaults)
         self._probe_dedicated()
+
+    def _probe_dl(self, method: str, defaults: Dict[str, Any]) -> None:
+        target_attr = "dl_vit" if method == "vit" else "dl_resnet"
+        try:
+            model = self._dl_factory(
+                dl_cfg=DLBaselineConfig(**_extract_kwargs(defaults, _DL_CONFIG_KEYS)),
+                prep_cfg=self.prep_cfg,
+            )
+        except Exception as exc:
+            setattr(self, target_attr, None)
+            self._method_availability[method] = {
+                "available": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        else:
+            setattr(self, target_attr, model)
+            self._method_availability[method] = {"available": True, "error": None}
 
     def _probe_dedicated(self) -> None:
         try:
@@ -388,6 +390,30 @@ class MatchService:
         orb = cv2.ORB_create(nfeatures=int(self._classic_gftt_orb_defaults["nfeatures"]))
         keypoints, desc = orb.compute(img_u8, keypoints)
         return keypoints or [], desc, roi
+
+    def embed_classic_orb_path(self, path: str, capture: Optional[str] = None) -> np.ndarray:
+        del capture
+        img = self._preprocess_path(path)
+        keypoints, descriptors = orb_extract(img, None, self.orb_cfg)
+        return orb_aggregated_descriptor_vector(keypoints, descriptors, img.shape)
+
+    def embed_classic_gftt_orb_path(self, path: str, capture: Optional[str] = None) -> np.ndarray:
+        del capture
+        img = self._benchmark_classic_preprocess_path(path)
+        keypoints, descriptors, _roi = self._classic_gftt_orb_extract(img)
+        return orb_aggregated_descriptor_vector(keypoints, descriptors, img.shape)
+
+    def embed_harris_path(self, path: str, capture: Optional[str] = None) -> np.ndarray:
+        del capture
+        img = self._preprocess_path(path)
+        keypoints, descriptors = harris_extract(img, None, self.harris_cfg)
+        return orb_aggregated_descriptor_vector(keypoints, descriptors, img.shape)
+
+    def embed_sift_path(self, path: str, capture: Optional[str] = None) -> np.ndarray:
+        del capture
+        img = self._preprocess_path(path)
+        _keypoints, descriptors = sift_extract(img, None, self.sift_cfg)
+        return sift_aggregated_descriptor_vector(descriptors)
 
     def _classic_score_and_overlay(
         self,
@@ -755,6 +781,9 @@ class MatchService:
         if method_enum in (MatchMethod.dl, MatchMethod.vit):
             t0 = time.perf_counter()
             model = self.dl_vit if method_enum == MatchMethod.vit else self.dl_resnet
+            if model is None:
+                self._ensure_method_available(resolved_method)
+                raise MethodUnavailableError(f"Method {method_enum.value!r} is unavailable.")
             cap_a = _normalize_capture_label(capture_a, fallback_name=filename_a or path_a)
             cap_b = _normalize_capture_label(capture_b, fallback_name=filename_b or path_b)
             emb_a, ms_a = model.embed_path(path_a, capture=cap_a)

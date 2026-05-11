@@ -6,6 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 import apps.api.main as api_main
+from apps.api.schemas import (
+    IdentificationAdminInspectionResponse,
+    IdentificationAdminReconciliationResponse,
+)
 import apps.api.service as api_service
 
 
@@ -90,6 +94,7 @@ def _inspection_payload(
 ) -> dict[str, object]:
     error_items = list(errors or [])
     warning_items = list(warnings or [])
+    method_capabilities = api_main.SecureSplitFingerprintStore.method_capability_metadata()
     return {
         "backend": "postgresql",
         "layout_version": "v4_dual_database_identity_profile_split",
@@ -104,6 +109,7 @@ def _inspection_payload(
             "identity": "identity_db.identity_map",
             "raw": "biometric_db.raw_fingerprints",
             "vectors": "biometric_db.feature_vectors",
+            "generic_vectors": "biometric_db.method_retrieval_vectors",
         },
         "table_presence": {
             "biometric_db": {
@@ -111,12 +117,14 @@ def _inspection_payload(
                 "identity": False,
                 "raw": True,
                 "vectors": True,
+                "generic_vectors": True,
             },
             "identity_db": {
                 "person": False,
                 "identity": True,
                 "raw": False,
                 "vectors": False,
+                "generic_vectors": False,
             },
         },
         "row_counts": {
@@ -124,9 +132,19 @@ def _inspection_payload(
             "identity": 4,
             "raw": 4,
             "vectors_by_method": {"dl": 4, "vit": 4},
+            "legacy_vectors_by_method": {"dl": 4, "vit": 4},
+            "generic_vectors_by_method_kind": {
+                "dl/deep_embedding_resnet": 4,
+                "vit/vit_embedding": 4,
+            },
         },
         "vector_extension_present_in_biometric_db": True,
         "unexpected_vector_methods": {},
+        "method_capabilities": method_capabilities,
+        "retrieval_capabilities": method_capabilities,
+        "direct_vector_retrieval_methods": ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"],
+        "rerank_only_methods": ["dedicated"],
+        "vector_storage_schema": api_main.SecureSplitFingerprintStore.vector_storage_schema_metadata(),
         "schema_hardening": {
             "identity_map_guarantees": {
                 "contract_enforced": overall_ok,
@@ -139,6 +157,16 @@ def _inspection_payload(
                 "missing_constraints": [],
                 "legacy_schema_elements": [],
             },
+        },
+        "template_protection": {
+            "raw_image_storage_policy": "metadata_only_new_writes",
+            "new_raw_image_persistence_enabled": False,
+            "raw_image_bytes_column_present": True,
+            "raw_image_bytes_column_nullable": True,
+            "legacy_raw_image_bytes_row_count": 0,
+            "legacy_raw_image_bytes_sample": [],
+            "legacy_raw_image_storage_status": "clear",
+            "rerank_legacy_bytes_adapter_enabled": True,
         },
         "integrity_warnings": [str(item["message"]) for item in warning_items],
         "overall_ok": overall_ok,
@@ -192,10 +220,57 @@ def _reconciliation_payload(
             "repair_identity_orphans": (
                 "python scripts/diagnostics/reconcile_identification_runtime_db.py --repair-identity-orphans"
             ),
+            "redact_legacy_raw_image_bytes": (
+                "python scripts/diagnostics/reconcile_identification_runtime_db.py --redact-legacy-raw-image-bytes"
+            ),
+            "backfill_generic_retrieval_vectors": (
+                "python scripts/diagnostics/reconcile_identification_runtime_db.py --backfill-generic-retrieval-vectors"
+            ),
         },
         "inspection": inspection_payload,
         "issues": issues,
     }
+
+
+def test_admin_inspection_schema_accepts_template_protection_section() -> None:
+    payload = _inspection_payload()
+    response = IdentificationAdminInspectionResponse(**payload)
+
+    assert response.template_protection["raw_image_storage_policy"] == "metadata_only_new_writes"
+    assert response.template_protection["legacy_raw_image_storage_status"] == "clear"
+    assert response.template_protection["legacy_raw_image_bytes_row_count"] == 0
+
+
+def test_admin_reconciliation_schema_accepts_legacy_redaction_repair_result() -> None:
+    inspection = _inspection_payload(
+        readiness_status="ready_with_warnings",
+        warnings=[
+            {
+                "code": "legacy_raw_image_bytes_present",
+                "severity": "warning",
+                "database_role": "biometric_db",
+                "message": "legacy raw image bytes are present.",
+                "repair_actions": ["redact_legacy_raw_image_bytes"],
+            }
+        ],
+    )
+    payload = _reconciliation_payload(inspection=inspection)
+    payload["available_repairs"] = ["redact_legacy_raw_image_bytes"]
+    payload["applied_repairs"] = [
+        {
+            "action": "redact_legacy_raw_image_bytes",
+            "redacted_count": 2,
+            "table": "raw_fingerprints",
+            "column": "image_bytes",
+            "sensitive_backup_created": False,
+        }
+    ]
+
+    response = IdentificationAdminReconciliationResponse(**payload)
+
+    assert response.available_repairs == ["redact_legacy_raw_image_bytes"]
+    assert response.applied_repairs[0]["redacted_count"] == 2
+    assert response.applied_repairs[0]["sensitive_backup_created"] is False
 
 
 @pytest.fixture(autouse=True)
@@ -311,6 +386,35 @@ def test_admin_layout_endpoint_returns_redacted_read_only_inspection_payload(
     assert payload["backend"] == "postgresql"
     assert payload["overall_ok"] is True
     assert payload["schema_hardening"]["identity_map_guarantees"]["contract_enforced"] is True
+    assert payload["template_protection"]["raw_image_storage_policy"] == "metadata_only_new_writes"
+    assert payload["template_protection"]["legacy_raw_image_storage_status"] == "clear"
+    assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"]
+    assert payload["rerank_only_methods"] == ["dedicated"]
+    assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
+    assert payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
+    assert payload["method_capabilities"]["sift"]["retrieval_vector_kind"] == "sift_aggregated_descriptor_v1"
+    dedicated_capability = payload["method_capabilities"]["dedicated"]
+    assert dedicated_capability["retrieval_unavailable_reason"] == (
+        "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
+    )
+    assert dedicated_capability["retrieval_capability_status"] == "experimental_rerank_only"
+    assert dedicated_capability["direct_retrieval_exclusion"] == "intentional_rerank_only"
+    assert dedicated_capability["experimental"] is True
+    assert dedicated_capability["supports_direct_vector_retrieval"] is False
+    assert dedicated_capability["supports_pairwise_rerank"] is True
+    assert dedicated_capability["future_adapter_hint"] == (
+        "A future dedicated_aggregated_patch_descriptor_v1 adapter can be added once global pooling is validated."
+    )
+    assert payload["vector_storage_schema"]["method_generic_vectors_supported"] is True
+    assert payload["vector_storage_schema"]["schema_accepts_method_generic_vectors"] is True
+    assert payload["vector_storage_schema"]["legacy_compatibility_methods"] == ["dl", "vit"]
+    assert payload["vector_storage_schema"]["dual_write_methods"] == ["dl", "vit"]
+    assert payload["vector_storage_schema"]["generic_only_methods"] == [
+        "classic_gftt_orb",
+        "classic_orb",
+        "harris",
+        "sift",
+    ]
     assert payload["redacted_database_urls"]["biometric_db"] == "postgresql://admin:***@localhost:5432/biometric_db"
     assert "localhost:5433/identity_db" in payload["redacted_database_urls"]["identity_db"]
     assert "secret" not in json.dumps(payload)

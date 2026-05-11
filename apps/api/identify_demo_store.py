@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from apps.api.catalog_store import CatalogApiError, load_catalog_identify_demo_identity_records, load_catalog_identify_seed_records
-from apps.api.identification_service import IdentificationService
+from apps.api.identification_service import IdentificationService, default_enrollment_vector_methods
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IDENTIFY_DEMO_STATE_PATH = ROOT / "artifacts" / "runtime" / "identify_demo_store_state.json"
@@ -154,6 +154,7 @@ def seed_identify_demo_store(
     updated_count = 0
     seeded_random_ids: list[str] = []
     seeded_identity_ids: list[str] = []
+    vector_methods = default_enrollment_vector_methods(service.method_registry)
 
     for index, record in enumerate(records):
         random_id = _demo_random_id(record.public_item.dataset, record.public_item.id)
@@ -170,7 +171,7 @@ def seed_identify_demo_store(
             full_name=record.public_item.display_label,
             national_id=national_id,
             capture=record.enrollment_capture,
-            vector_methods=("dl", "vit"),
+            vector_methods=vector_methods,
             replace_existing=False,
             random_id=random_id,
             created_at=_demo_created_at(index),
@@ -310,6 +311,7 @@ def seed_identify_browser_store(
     updated_count = 0
     seeded_random_ids: list[str] = []
     seeded_identity_ids: list[str] = []
+    vector_methods = default_enrollment_vector_methods(service.method_registry)
 
     for index, identity_id in enumerate(normalized_selected_ids):
         record = resolved_lookup.get(identity_id)
@@ -330,7 +332,7 @@ def seed_identify_browser_store(
             full_name=record.public_item.display_name,
             national_id=national_id,
             capture=record.enrollment_capture,
-            vector_methods=("dl", "vit"),
+            vector_methods=vector_methods,
             replace_existing=False,
             random_id=random_id,
             created_at=_demo_created_at(index),

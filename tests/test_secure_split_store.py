@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import uuid
 from pathlib import Path
@@ -79,6 +80,16 @@ def test_secure_split_store_enroll_search_and_purge() -> None:
 
     assert store.total_people() == 2
     assert store.count_vectors("dl") == 2
+    generic_counts = _fetch_one(
+        BIOMETRIC_DB_URL,
+        f"""
+        SELECT
+            COUNT(*) FILTER (WHERE method = 'dl' AND vector_kind = 'deep_embedding_resnet') AS dl_count,
+            COUNT(*) FILTER (WHERE method = 'vit' AND vector_kind = 'vit_embedding') AS vit_count
+        FROM {store.generic_vector_table}
+        """,
+    )
+    assert generic_counts == (2, 1)
 
     name_hits = store.search_people(IdentifyHints(name_pattern="mi*"))
     assert {item.full_name for item in name_hits} == {"Michael Sirak", "Mina Cohen"}
@@ -119,7 +130,17 @@ def test_secure_split_store_enroll_search_and_purge() -> None:
     raw = store.load_raw_fingerprint(r2.random_id)
     assert raw is not None
     assert raw.capture == "roll"
-    assert raw.image_bytes == b"fingerprint-b"
+    assert raw.sha256 == hashlib.sha256(b"fingerprint-b").hexdigest()
+    assert raw.byte_size == len(b"fingerprint-b")
+    assert raw.legacy_image_bytes_present is False
+    persisted_raw = _fetch_one(
+        BIOMETRIC_DB_URL,
+        f"SELECT image_bytes, byte_size FROM {store.raw_table} WHERE random_id = %s",
+        (r2.random_id,),
+    )
+    assert persisted_raw is not None
+    assert persisted_raw[0] is None
+    assert int(persisted_raw[1]) == len(b"fingerprint-b")
 
     vec = store.load_vector(r2.random_id, "vit")
     assert vec is not None
@@ -134,6 +155,25 @@ def test_secure_split_store_enroll_search_and_purge() -> None:
         limit=2,
     )
     assert shortlist[0][0] == r1.random_id
+
+    with psycopg.connect(BIOMETRIC_DB_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"DELETE FROM {store.generic_vector_table} WHERE method = 'dl' AND vector_kind = 'deep_embedding_resnet'"
+            )
+    fallback_shortlist = store.shortlist_by_vector(
+        method="dl",
+        probe_vector=np.array([1.0] * 512, dtype=np.float32),
+        limit=2,
+    )
+    assert fallback_shortlist[0][0] == r1.random_id
+
+    backfill = store.backfill_generic_retrieval_vectors()
+    assert backfill["copied_count"] == 2
+    assert backfill["skipped_count"] == 1
+    second_backfill = store.backfill_generic_retrieval_vectors()
+    assert second_backfill["copied_count"] == 0
+    assert second_backfill["skipped_count"] == 3
 
     removed = store.purge(r1.random_id)
     assert removed is True

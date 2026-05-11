@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Fingerprint, FolderInput, Play, ShieldCheck, UserPlus, UserRoundSearch } from "lucide-react";
+import { Fingerprint, Play, ShieldCheck, UserPlus, UserRoundSearch } from "lucide-react";
 import { enrollFingerprint, identifyFingerprint } from "../../api/identificationService.ts";
 import {
+    captureScanner,
+    getScannerStatus,
     importLatestSavedScannerCapture,
     loadScannerCaptureFile,
+    type ScannerCaptureFailureResponse,
+    type ScannerCaptureSuccessResponse,
     type ScannerImportResponse,
+    type ScannerStatusResponse,
 } from "../../api/scannerCaptureService.ts";
 import {
     createErrorState,
@@ -26,15 +31,23 @@ import type {
     IdentifyResponse,
     Method,
 } from "../../types/index.ts";
+import { IDENTIFICATION_RETRIEVAL_METHOD_VALUES } from "../../types/index.ts";
 import { toErrorMessage } from "../../utils/error.ts";
 import LiveEvidenceStrip from "./components/LiveEvidenceStrip.tsx";
 import LiveResultHero from "./components/LiveResultHero.tsx";
-import ScannerCaptureCard from "./components/ScannerCaptureCard.tsx";
+import ScannerCaptureCard, {
+    type ScannerCaptureCardActionKind,
+    type ScannerCaptureCardActionState,
+    type ScannerCaptureCardResult,
+} from "./components/ScannerCaptureCard.tsx";
 
 const DEFAULT_RETRIEVAL_METHOD: IdentificationRetrievalMethod = "dl";
 const DEFAULT_RERANK_METHOD: Method = "sift";
 const DEFAULT_SHORTLIST_SIZE = 10;
-const DEFAULT_ENROLL_VECTOR_METHODS = ["dl", "vit"];
+const DEFAULT_ENROLL_VECTOR_METHODS = [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES];
+const DIRECT_CAPTURE_SETTLE_SECONDS = 3;
+const DIRECT_CAPTURE_COUNTDOWN_TICK_MS = 1000;
+const DIRECT_CAPTURE_SETTLE_AFTER_ENABLE_MS = 1500;
 const ENROLLMENT_CHANGED_MESSAGE = "Enrollment capture changed — enroll again to update this identity.";
 const MISSING_PROBE_MESSAGE = "Upload a probe fingerprint to search the enrolled gallery.";
 const SEEDED_GALLERY_HINT = "You can search an existing gallery, but for a clean demo enroll an identity first.";
@@ -55,18 +68,16 @@ interface LiveEnrollResult {
     fullName: string;
     capture: Capture;
     sourceFileName: string;
-    vectorMethods: string[];
+    vectorMethods: IdentificationRetrievalMethod[];
     response: EnrollFingerprintResponse;
 }
 
 type ScannerImportTarget = "enrollment" | "probe";
 
-interface ScannerImportResult {
-    target: ScannerImportTarget;
-    originalFilename: string;
-    normalizedFilename: string;
-    response: ScannerImportResponse;
-}
+type PendingDirectCaptureTimer = {
+    timeoutId: ReturnType<typeof window.setTimeout>;
+    resolve: (completed: boolean) => void;
+};
 
 interface ActionCardProps {
     title: string;
@@ -219,14 +230,6 @@ function formatVectorMethods(methods: string[]): string {
     return methods.map(formatMethodLabel).join(", ");
 }
 
-function scannerImportButtonLabel(target: ScannerImportTarget): string {
-    return `Import latest saved UMPI capture as ${target}`;
-}
-
-function scannerImportSuccessMessage(result: ScannerImportResult): string {
-    return `Imported ${result.originalFilename} as ${result.target} capture`;
-}
-
 function scannerImportErrorMessage(error: unknown): string {
     const message = toErrorMessage(error);
     const normalized = message.toLowerCase();
@@ -235,70 +238,69 @@ function scannerImportErrorMessage(error: unknown): string {
         return "No saved scanner capture found in the configured folder";
     }
     if (normalized.includes("latest saved umpi capture is too old") || normalized.includes("too old")) {
-        return "Latest saved UMPI capture is too old; save a new fingerprint scan in UMPI and try again";
+        return "Latest saved scan is too old; save a new scanner capture and try again";
     }
 
     return message;
 }
 
-function ScannerBridgePanel({
-    state,
-    disabled,
-    onImport,
-}: {
-    state: AsyncState<ScannerImportResult>;
-    disabled: boolean;
-    onImport: (target: ScannerImportTarget) => void | Promise<void>;
-}) {
-    return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Scanner bridge">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-900">
-                        <FolderInput className="h-3.5 w-3.5" />
-                        Scanner bridge
-                    </div>
-                    <h3 className="mt-3 text-xl font-semibold text-slate-900">Import latest saved UMPI capture</h3>
-                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                        Use the UMPI Diagnostic Tool to capture a fingerprint, save the .tif file into the configured scanner capture folder, then import the latest saved capture here.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Manual upload remains available.</span>
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Direct SDK capture is a future milestone.</span>
-                    </div>
-                </div>
+function scannerCaptureFailureMessage(payload: ScannerCaptureFailureResponse): string {
+    const details = [`${payload.message} Error code: ${payload.error_code}.`];
+    if (payload.fallback_available) {
+        details.push("Use Import latest saved scan.");
+    }
+    return details.join(" ");
+}
 
-                <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
-                    {(["enrollment", "probe"] as const).map((target) => (
-                        <button
-                            key={target}
-                            type="button"
-                            disabled={disabled}
-                            onClick={() => {
-                                void onImport(target);
-                            }}
-                            className="inline-flex items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-950 shadow-sm transition hover:border-brand-300 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-55"
-                        >
-                            <FolderInput className="mr-2 h-4 w-4" />
-                            {scannerImportButtonLabel(target)}
-                        </button>
-                    ))}
-                </div>
-            </div>
+function emptyScannerActionState(): ScannerCaptureCardActionState {
+    return {
+        status: "idle",
+        data: null,
+        error: null,
+        action: null,
+        countdownSeconds: null,
+    };
+}
 
-            <div className="mt-4">
-                {state.status === "loading" ? (
-                    <InlineBanner variant="info">Importing latest saved UMPI capture...</InlineBanner>
-                ) : null}
-                {state.status === "success" && state.data ? (
-                    <InlineBanner variant="success">{scannerImportSuccessMessage(state.data)}</InlineBanner>
-                ) : null}
-                {state.status === "error" && state.error ? (
-                    <InlineBanner variant="error">{state.error}</InlineBanner>
-                ) : null}
-            </div>
-        </section>
-    );
+function loadingScannerActionState(
+    action: ScannerCaptureCardActionKind,
+    countdownSeconds: number | null = null,
+): ScannerCaptureCardActionState {
+    return {
+        status: "loading",
+        data: null,
+        error: null,
+        action,
+        countdownSeconds,
+    };
+}
+
+function scannerResultFromCapture(payload: ScannerCaptureSuccessResponse, fileName: string): ScannerCaptureCardResult {
+    return {
+        sourceLabel: payload.direct_capture ? "Direct TWAIN capture" : "Saved-file fallback",
+        modeUsed: payload.mode_used,
+        directCapture: payload.direct_capture,
+        durationMs: payload.duration_ms,
+        deviceName: payload.device.name,
+        normalizedUrl: payload.normalized_url,
+        fileName,
+        originalFilename: null,
+        warning: payload.warning,
+    };
+}
+
+function scannerResultFromImport(payload: ScannerImportResponse): ScannerCaptureCardResult {
+    return {
+        sourceLabel: "Saved-file fallback",
+        modeUsed: "saved_file_bridge",
+        directCapture: false,
+        durationMs: null,
+        deviceName: null,
+        normalizedUrl: payload.normalized_url,
+        fileName: payload.normalized_filename,
+        originalFilename: payload.original_filename,
+        warning: null,
+    };
 }
 
 function EnrollmentFormPanel({
@@ -461,12 +463,20 @@ export default function FingerprintLiveDemoWorkspace() {
     const [notice, setNotice] = useState<string | null>(null);
     const [enrollmentChangedMessage, setEnrollmentChangedMessage] = useState<string | null>(null);
     const [lastIdentifyProbeFileName, setLastIdentifyProbeFileName] = useState<string | null>(null);
-    const [scannerImportState, setScannerImportState] = useState<AsyncState<ScannerImportResult>>(createIdleState());
+    const [scannerStatusState, setScannerStatusState] = useState<AsyncState<ScannerStatusResponse>>(
+        createLoadingState<ScannerStatusResponse>(),
+    );
+    const [scannerCaptureStates, setScannerCaptureStates] = useState<Record<ScannerImportTarget, ScannerCaptureCardActionState>>({
+        enrollment: emptyScannerActionState(),
+        probe: emptyScannerActionState(),
+    });
+    const directCaptureCountdownTimersRef = useRef<PendingDirectCaptureTimer[]>([]);
+    const scannerCaptureMountedRef = useRef(true);
 
     const isIdentifyBusy = resultState.status === "loading";
     const isEnrollBusy = enrollState.status === "loading";
-    const isScannerImportBusy = scannerImportState.status === "loading";
-    const isBusy = isIdentifyBusy || isEnrollBusy || isScannerImportBusy;
+    const isScannerCaptureBusy = scannerCaptureStates.enrollment.status === "loading" || scannerCaptureStates.probe.status === "loading";
+    const isBusy = isIdentifyBusy || isEnrollBusy || isScannerCaptureBusy;
     const latestResult = resultState.data;
     const latestEnrollment = enrollState.data;
     const identifyDisabled = !probeFile || isBusy;
@@ -488,6 +498,52 @@ export default function FingerprintLiveDemoWorkspace() {
                 ? "Ready to run"
                 : "Needs probe";
 
+    const clearDirectCaptureCountdownTimers = useCallback(() => {
+        for (const timer of directCaptureCountdownTimersRef.current) {
+            window.clearTimeout(timer.timeoutId);
+            timer.resolve(false);
+        }
+        directCaptureCountdownTimersRef.current = [];
+    }, []);
+
+    useEffect(() => {
+        scannerCaptureMountedRef.current = true;
+        return () => {
+            scannerCaptureMountedRef.current = false;
+            clearDirectCaptureCountdownTimers();
+        };
+    }, [clearDirectCaptureCountdownTimers]);
+
+    useEffect(() => {
+        let isCancelled = false;
+
+        async function loadStatus(): Promise<void> {
+            setScannerStatusState((current) => createLoadingState(current.data));
+            try {
+                const status = await getScannerStatus();
+                if (!isCancelled) {
+                    setScannerStatusState(createSuccessState(status));
+                }
+            } catch (error) {
+                if (!isCancelled) {
+                    setScannerStatusState((current) => createErrorState(toErrorMessage(error), current.data));
+                }
+            }
+        }
+
+        void loadStatus();
+        return () => {
+            isCancelled = true;
+        };
+    }, []);
+
+    function setScannerCaptureState(target: ScannerImportTarget, state: ScannerCaptureCardActionState): void {
+        setScannerCaptureStates((current) => ({
+            ...current,
+            [target]: state,
+        }));
+    }
+
     function setEnrollmentCaptureFile(nextFile: File | null): void {
         setEnrollmentFile(nextFile);
         setNotice(null);
@@ -497,7 +553,7 @@ export default function FingerprintLiveDemoWorkspace() {
 
     function handleEnrollmentFileChange(nextFile: File | null): void {
         setEnrollmentCaptureFile(nextFile);
-        setScannerImportState(createIdleState());
+        setScannerCaptureState("enrollment", emptyScannerActionState());
     }
 
     function handleCaptureChange(nextCapture: Capture): void {
@@ -522,7 +578,7 @@ export default function FingerprintLiveDemoWorkspace() {
 
     function handleProbeFileChange(nextFile: File | null): void {
         setProbeCaptureFile(nextFile);
-        setScannerImportState(createIdleState());
+        setScannerCaptureState("probe", emptyScannerActionState());
     }
 
     function useEnrollmentImageAsProbe(): void {
@@ -531,7 +587,7 @@ export default function FingerprintLiveDemoWorkspace() {
         }
 
         setProbeCaptureFile(enrollmentFile);
-        setScannerImportState(createIdleState());
+        setScannerCaptureState("probe", emptyScannerActionState());
     }
 
     function updateEnrollForm(patch: Partial<LiveEnrollForm>): void {
@@ -540,9 +596,110 @@ export default function FingerprintLiveDemoWorkspace() {
         setNotice(null);
     }
 
+    function waitForDirectCaptureCountdownTick(): Promise<boolean> {
+        return new Promise((resolve) => {
+            const timeoutId = window.setTimeout(() => {
+                directCaptureCountdownTimersRef.current = directCaptureCountdownTimersRef.current.filter(
+                    (timer) => timer.timeoutId !== timeoutId,
+                );
+                resolve(scannerCaptureMountedRef.current);
+            }, DIRECT_CAPTURE_COUNTDOWN_TICK_MS);
+
+            directCaptureCountdownTimersRef.current.push({ timeoutId, resolve });
+        });
+    }
+
+    async function runDirectCaptureCountdown(target: ScannerImportTarget): Promise<boolean> {
+        clearDirectCaptureCountdownTimers();
+
+        for (let seconds = DIRECT_CAPTURE_SETTLE_SECONDS; seconds > 0; seconds -= 1) {
+            if (!scannerCaptureMountedRef.current) {
+                return false;
+            }
+
+            setScannerCaptureState(target, loadingScannerActionState("direct", seconds));
+            const tickCompleted = await waitForDirectCaptureCountdownTick();
+            if (!tickCompleted) {
+                return false;
+            }
+        }
+
+        return scannerCaptureMountedRef.current;
+    }
+
+    async function runScannerCapture(target: ScannerImportTarget, action: ScannerCaptureCardActionKind): Promise<void> {
+        setNotice(null);
+        if (action === "direct") {
+            const settled = await runDirectCaptureCountdown(target);
+            if (!settled) {
+                return;
+            }
+        }
+
+        if (!scannerCaptureMountedRef.current) {
+            return;
+        }
+
+        setScannerCaptureState(target, loadingScannerActionState(action));
+
+        try {
+            const payload = await captureScanner({
+                mode: action === "scanner_ui" ? "twain" : "auto",
+                timeout_ms: action === "scanner_ui" ? 60000 : 15000,
+                fallback_allowed: false,
+                normalize: true,
+                show_ui: action === "scanner_ui",
+                settle_after_enable_ms: action === "scanner_ui" ? 0 : DIRECT_CAPTURE_SETTLE_AFTER_ENABLE_MS,
+            });
+
+            if (!scannerCaptureMountedRef.current) {
+                return;
+            }
+
+            if (!payload.ok) {
+                setScannerCaptureState(target, {
+                    status: "error",
+                    data: null,
+                    error: scannerCaptureFailureMessage(payload),
+                    action: null,
+                });
+                return;
+            }
+
+            const scannerFile = await loadScannerCaptureFile(payload);
+
+            if (!scannerCaptureMountedRef.current) {
+                return;
+            }
+
+            if (target === "enrollment") {
+                setEnrollmentCaptureFile(scannerFile);
+            } else {
+                setProbeCaptureFile(scannerFile);
+            }
+
+            setScannerCaptureState(target, {
+                status: "success",
+                data: scannerResultFromCapture(payload, scannerFile.name),
+                error: null,
+                action: null,
+            });
+        } catch (error) {
+            if (!scannerCaptureMountedRef.current) {
+                return;
+            }
+            setScannerCaptureState(target, {
+                status: "error",
+                data: null,
+                error: toErrorMessage(error),
+                action: null,
+            });
+        }
+    }
+
     async function importLatestScannerCapture(target: ScannerImportTarget): Promise<void> {
         setNotice(null);
-        setScannerImportState((current) => createLoadingState(current.data));
+        setScannerCaptureState(target, loadingScannerActionState("import_latest"));
 
         try {
             const importedCapture = await importLatestSavedScannerCapture();
@@ -554,14 +711,19 @@ export default function FingerprintLiveDemoWorkspace() {
                 setProbeCaptureFile(scannerFile);
             }
 
-            setScannerImportState(createSuccessState({
-                target,
-                originalFilename: importedCapture.original_filename,
-                normalizedFilename: importedCapture.normalized_filename,
-                response: importedCapture,
-            }));
+            setScannerCaptureState(target, {
+                status: "success",
+                data: scannerResultFromImport(importedCapture),
+                error: null,
+                action: null,
+            });
         } catch (error) {
-            setScannerImportState((current) => createErrorState(scannerImportErrorMessage(error), current.data));
+            setScannerCaptureState(target, {
+                status: "error",
+                data: null,
+                error: scannerImportErrorMessage(error),
+                action: null,
+            });
         }
     }
 
@@ -725,12 +887,6 @@ export default function FingerprintLiveDemoWorkspace() {
 
             {!probeFile ? <InlineBanner variant="info">{MISSING_PROBE_MESSAGE}</InlineBanner> : null}
 
-            <ScannerBridgePanel
-                state={scannerImportState}
-                disabled={isBusy}
-                onImport={importLatestScannerCapture}
-            />
-
             <div className="grid gap-5 xl:grid-cols-2">
                 <section className="space-y-5" aria-labelledby="enrollment-capture-heading">
                     <div>
@@ -743,12 +899,17 @@ export default function FingerprintLiveDemoWorkspace() {
                         file={enrollmentFile}
                         capture={capture}
                         disabled={isBusy}
+                        scannerStatusState={scannerStatusState}
+                        scannerActionState={scannerCaptureStates.enrollment}
                         eyebrow="Enrollment capture"
                         title="Enrollment fingerprint image"
-                        description="Manual upload remains available. This image is used only for Enroll identity."
+                        description="Capture directly from the TWAIN scanner bridge, import the latest saved scan, or upload an image manually."
                         uploadTitle="Upload enrollment fingerprint"
                         uploadDescription="Recommended first step: choose the identity image that should enter the gallery."
                         onFileChange={handleEnrollmentFileChange}
+                        onCaptureFromScanner={() => runScannerCapture("enrollment", "direct")}
+                        onCaptureWithScannerUi={() => runScannerCapture("enrollment", "scanner_ui")}
+                        onImportLatestSavedScan={() => importLatestScannerCapture("enrollment")}
                     />
 
                     <EnrollmentFormPanel
@@ -774,12 +935,17 @@ export default function FingerprintLiveDemoWorkspace() {
                         file={probeFile}
                         capture={capture}
                         disabled={isBusy}
+                        scannerStatusState={scannerStatusState}
+                        scannerActionState={scannerCaptureStates.probe}
                         eyebrow="Probe capture"
                         title="Probe fingerprint image"
-                        description="Manual upload remains available. This image is used only for Identify 1:N."
+                        description="Capture directly from the TWAIN scanner bridge, import the latest saved scan, or upload an image manually."
                         uploadTitle="Upload probe fingerprint"
                         uploadDescription="Primary demo path: use a separate probe image to avoid same-image matching."
                         onFileChange={handleProbeFileChange}
+                        onCaptureFromScanner={() => runScannerCapture("probe", "direct")}
+                        onCaptureWithScannerUi={() => runScannerCapture("probe", "scanner_ui")}
+                        onImportLatestSavedScan={() => importLatestScannerCapture("probe")}
                     />
 
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

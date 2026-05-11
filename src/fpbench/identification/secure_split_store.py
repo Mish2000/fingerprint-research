@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from contextlib import suppress
 import os
 import re
@@ -11,6 +12,8 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence
 from urllib.parse import urlsplit
 
 import numpy as np
+
+from apps.api.method_registry import MethodRegistryError, load_api_method_registry
 
 DEFAULT_DATABASE_URL = "postgresql://admin:biometric_secret@127.0.0.1:5432/biometric_db"
 DEFAULT_IDENTITY_DATABASE_URL = "postgresql://admin:identity_secret@127.0.0.1:5433/identity_db"
@@ -48,8 +51,9 @@ class RawFingerprintRecord:
     capture: str
     ext: str
     sha256: str
+    byte_size: Optional[int]
     created_at: str
-    image_bytes: bytes
+    legacy_image_bytes_present: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,7 +85,18 @@ class IdentifyHints:
 class VectorSpec:
     method: str
     dim: int
-    column: str
+    vector_kind: str
+    distance_metric: str
+    generic_storage_column: str
+    legacy_storage_column: Optional[str] = None
+    legacy_storage_enabled: bool = False
+    generic_storage_enabled: bool = True
+    preferred_storage: str = "generic"
+
+    @property
+    def column(self) -> str:
+        """Backward-compatible alias for callers that still expect one vector column."""
+        return self.legacy_storage_column or self.generic_storage_column
 
 
 @dataclass(frozen=True)
@@ -113,28 +128,136 @@ class _IdentityReconciliationDrift:
     identity_without_people_sample: List[str]
 
 
-VECTOR_SPECS: Dict[str, VectorSpec] = {
-    "dl": VectorSpec(method="dl", dim=512, column="vector_512"),
-    "vit": VectorSpec(method="vit", dim=768, column="vector_768"),
+LEGACY_VECTOR_COLUMN_BY_DIM = {
+    512: "vector_512",
+    768: "vector_768",
+}
+GENERIC_VECTOR_COLUMN_BY_DIM = dict(LEGACY_VECTOR_COLUMN_BY_DIM)
+LEGACY_COMPATIBLE_RETRIEVAL_METHODS = frozenset({"dl", "vit"})
+VECTOR_STORAGE_SCHEMA = {
+    "mode": "method_generic_pgvector_table_with_legacy_compat",
+    "method_generic_vectors_supported": True,
+    "distance_metric": "cosine",
+    "legacy_vector_columns_by_dim": {
+        str(dim): column for dim, column in sorted(LEGACY_VECTOR_COLUMN_BY_DIM.items())
+    },
+    "generic_vector_columns_by_dim": {
+        str(dim): column for dim, column in sorted(GENERIC_VECTOR_COLUMN_BY_DIM.items())
+    },
+    "indexed_dimensions_available": sorted(GENERIC_VECTOR_COLUMN_BY_DIM),
+    "legacy_compatibility_enabled": True,
+    "write_strategy": "generic_authoritative_with_explicit_legacy_compat",
+    "search_strategy": "generic_first_with_explicit_legacy_fallback",
 }
 
-# Identification capability contract.
-# The secure split store only persists pgvector-backed shortlist retrieval columns
-# for these methods. Other matchers may still exist in the project, but they are
-# rerank-only for 1:N identification unless the schema is extended explicitly.
+
+def _load_vector_specs_from_registry() -> Dict[str, VectorSpec]:
+    registry = load_api_method_registry()
+    specs: Dict[str, VectorSpec] = {}
+    for method, spec in registry.retrieval_vector_specs().items():
+        generic_column = GENERIC_VECTOR_COLUMN_BY_DIM.get(int(spec.dim))
+        if generic_column is None:
+            raise RuntimeError(
+                f"retrieval method {method!r} declares vector dim {spec.dim}, but the "
+                "method-generic pgvector storage schema has no compatible indexed column."
+            )
+        legacy_enabled = method in LEGACY_COMPATIBLE_RETRIEVAL_METHODS
+        legacy_column = LEGACY_VECTOR_COLUMN_BY_DIM.get(int(spec.dim)) if legacy_enabled else None
+        if legacy_enabled and legacy_column is None:
+            raise RuntimeError(
+                f"retrieval method {method!r} is marked legacy-compatible with dim {spec.dim}, but "
+                "feature_vectors has no compatible pgvector column."
+            )
+        specs[method] = VectorSpec(
+            method=method,
+            dim=int(spec.dim),
+            vector_kind=spec.vector_kind,
+            distance_metric=spec.distance_metric,
+            generic_storage_column=generic_column,
+            legacy_storage_column=legacy_column,
+            legacy_storage_enabled=legacy_enabled,
+            generic_storage_enabled=True,
+            preferred_storage="dual" if legacy_enabled else "generic",
+        )
+    return specs
+
+
+def _load_rerank_methods_from_registry() -> frozenset[str]:
+    return frozenset(load_api_method_registry().supported_rerank_methods())
+
+
+VECTOR_SPECS: Dict[str, VectorSpec] = _load_vector_specs_from_registry()
 IDENTIFICATION_RETRIEVAL_VECTOR_METHODS = frozenset(VECTOR_SPECS.keys())
-IDENTIFICATION_RERANK_METHODS = frozenset({"classic_orb", "classic_gftt_orb", "harris", "sift", "dedicated", "dl", "vit"})
+IDENTIFICATION_RERANK_METHODS = _load_rerank_methods_from_registry()
 INSPECTION_MAX_ID_SCAN = 10_000
 RECONCILIATION_SAMPLE_LIMIT = 10
 RECONCILIATION_STREAM_BATCH_SIZE = 1_000
 
 
+def _legacy_storage_methods() -> frozenset[str]:
+    return frozenset(
+        method
+        for method, spec in VECTOR_SPECS.items()
+        if spec.legacy_storage_enabled and spec.legacy_storage_column is not None
+    )
+
+
+def _generic_storage_methods() -> frozenset[str]:
+    return frozenset(
+        method
+        for method, spec in VECTOR_SPECS.items()
+        if spec.generic_storage_enabled
+    )
+
+
+def _dual_write_methods() -> frozenset[str]:
+    return frozenset(
+        method
+        for method, spec in VECTOR_SPECS.items()
+        if spec.generic_storage_enabled and spec.legacy_storage_enabled
+    )
+
+
+def _generic_only_methods() -> frozenset[str]:
+    return frozenset(
+        method
+        for method, spec in VECTOR_SPECS.items()
+        if spec.generic_storage_enabled and not spec.legacy_storage_enabled
+    )
+
+
 def unsupported_identification_retrieval_message(method: str) -> str:
     supported = sorted(IDENTIFICATION_RETRIEVAL_VECTOR_METHODS)
     rerank = sorted(IDENTIFICATION_RERANK_METHODS)
+    method_norm = str(method).strip().lower()
+    try:
+        resolved = load_api_method_registry().resolve(method_norm, field_name="retrieval_method")
+    except MethodRegistryError:
+        resolved = None
+    if resolved is not None and resolved.definition.identification_role.rerank_capable:
+        reason = (
+            resolved.definition.identification_role.retrieval_unavailable_reason
+            or "direct vector retrieval is not configured"
+        )
+        if resolved.definition.is_experimental or resolved.definition.identification_role.experimental:
+            detail = (
+                f"Method {resolved.canonical_api_name!r} is currently an experimental rerank-only method "
+                "and does not have a validated fixed-size direct retrieval vector adapter yet."
+            )
+            if resolved.definition.identification_role.future_adapter_hint:
+                detail = f"{detail} {resolved.definition.identification_role.future_adapter_hint}"
+            return (
+                f"{detail} Use one of {supported} for direct vector retrieval and optionally rerank "
+                f"the shortlist with {rerank}."
+            )
+        return (
+            f"retrieval_method={method!r} resolves to {resolved.canonical_api_name!r}, which is rerank-only "
+            f"for 1:N identification because {reason}. Use one of {supported} for direct vector retrieval "
+            f"and optionally rerank the shortlist with {rerank}."
+        )
     return (
         f"retrieval_method={method!r} is unsupported for 1:N shortlist retrieval because "
-        f"the secure split store only has persisted vector columns for {supported}. "
+        f"the secure split store only has persisted direct retrieval vector specs for {supported}. "
         f"Use one of {supported} for retrieval and optionally rerank the shortlist with {rerank}."
     )
 
@@ -194,6 +317,15 @@ def _load_pgvector_register():
 def _looks_like_missing_vector_type_error(exc: Exception) -> bool:
     message = str(exc).strip().lower()
     return "vector type not found" in message or "type \"vector\" does not exist" in message
+
+
+def _looks_like_missing_generic_vector_storage_error(exc: Exception) -> bool:
+    message = str(exc).strip().lower()
+    return (
+        "does not exist" in message
+        or "undefined column" in message
+        or "undefined table" in message
+    )
 
 
 class SecureSplitFingerprintStore:
@@ -314,6 +446,7 @@ class SecureSplitFingerprintStore:
         self.identity_table = f"{self.table_prefix}identity_map"
         self.raw_table = f"{self.table_prefix}raw_fingerprints"
         self.vector_table = f"{self.table_prefix}feature_vectors"
+        self.generic_vector_table = f"{self.table_prefix}method_retrieval_vectors"
 
         self.idx_person_created_at = f"{self.table_prefix}idx_person_created_at_desc"
         self.idx_person_name = f"{self.table_prefix}idx_person_name_norm_prefix"
@@ -321,8 +454,19 @@ class SecureSplitFingerprintStore:
         self.idx_identity_national = f"{self.table_prefix}idx_identity_national_id_prefix"
         self.legacy_idx_person_national = f"{self.table_prefix}idx_person_national_id_prefix"
         self.idx_vector_method_created_at = f"{self.table_prefix}idx_feature_vectors_method_created_at_desc"
-        self.idx_vector_dl = f"{self.table_prefix}idx_feature_vectors_dl_hnsw"
-        self.idx_vector_vit = f"{self.table_prefix}idx_feature_vectors_vit_hnsw"
+        self.idx_generic_vector_method_kind_created_at = (
+            f"{self.table_prefix}idx_method_retrieval_vectors_method_kind_created_at_desc"
+        )
+        self.idx_generic_vector_hnsw = {
+            dim: f"{self.table_prefix}idx_method_retrieval_vectors_{dim}_hnsw"
+            for dim in sorted(GENERIC_VECTOR_COLUMN_BY_DIM)
+        }
+        self.idx_vector_hnsw = {
+            method: f"{self.table_prefix}idx_feature_vectors_{method}_hnsw"
+            for method in sorted(_legacy_storage_methods())
+        }
+        self.idx_vector_dl = self.idx_vector_hnsw.get("dl", f"{self.table_prefix}idx_feature_vectors_dl_hnsw")
+        self.idx_vector_vit = self.idx_vector_hnsw.get("vit", f"{self.table_prefix}idx_feature_vectors_vit_hnsw")
         self.ck_identity_full_name_not_blank = f"{self.table_prefix}ck_identity_full_name_not_blank"
         self.ck_identity_name_norm_not_blank = f"{self.table_prefix}ck_identity_name_norm_not_blank"
         self.ck_identity_name_norm_matches_full_name = f"{self.table_prefix}ck_identity_name_norm_matches_full_name"
@@ -342,10 +486,12 @@ class SecureSplitFingerprintStore:
         *,
         full_name: str,
         national_id: str,
-        image_bytes: bytes,
         capture: str,
         ext: str,
         vectors: Dict[str, np.ndarray],
+        image_bytes: bytes | None = None,
+        image_sha256: str | None = None,
+        byte_size: int | None = None,
         random_id: str | None = None,
         created_at: str | None = None,
         replace_existing: bool = False,
@@ -367,7 +513,21 @@ class SecureSplitFingerprintStore:
         created_at_iso = created_at_dt.isoformat()
         random_id = random_id or uuid.uuid4().hex
         name_norm = normalize_name(full_name)
-        image_hash = sha256_bytes(image_bytes)
+        if image_sha256 is None:
+            if image_bytes is None:
+                raise ValueError("image_bytes or image_sha256 must be provided")
+            image_hash = sha256_bytes(image_bytes)
+        else:
+            image_hash = str(image_sha256).strip().lower()
+            if not image_hash:
+                raise ValueError("image_sha256 must not be empty")
+        byte_size_value = byte_size
+        if byte_size_value is None and image_bytes is not None:
+            byte_size_value = len(image_bytes)
+        if byte_size_value is not None:
+            byte_size_value = int(byte_size_value)
+            if byte_size_value < 0:
+                raise ValueError("byte_size must be non-negative")
 
         vector_payload: Dict[str, np.ndarray] = {}
         for method, vec in vectors.items():
@@ -381,7 +541,6 @@ class SecureSplitFingerprintStore:
                 full_name=full_name.strip(),
                 name_norm=name_norm,
                 national_id_norm=national_id_norm,
-                image_bytes=image_bytes,
                 capture_norm=capture_norm,
                 ext=ext,
                 vector_payload=vector_payload,
@@ -389,13 +548,13 @@ class SecureSplitFingerprintStore:
                 created_at_dt=created_at_dt,
                 created_at_iso=created_at_iso,
                 image_hash=image_hash,
+                byte_size=byte_size_value,
                 replace_existing=replace_existing,
             )
         return self._enroll_single_database(
             full_name=full_name.strip(),
             name_norm=name_norm,
             national_id_norm=national_id_norm,
-            image_bytes=image_bytes,
             capture_norm=capture_norm,
             ext=ext,
             vector_payload=vector_payload,
@@ -403,6 +562,7 @@ class SecureSplitFingerprintStore:
             created_at_dt=created_at_dt,
             created_at_iso=created_at_iso,
             image_hash=image_hash,
+            byte_size=byte_size_value,
             replace_existing=replace_existing,
         )
 
@@ -420,14 +580,22 @@ class SecureSplitFingerprintStore:
 
     def count_vectors(self, method: str) -> int:
         method_norm = str(method).strip().lower()
+        spec = self._spec_for_method(method_norm)
         with self._connect_biometric() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    f"SELECT COUNT(*) AS n FROM {self.vector_table} WHERE method = %s",
-                    (method_norm,),
-                )
-                row = cur.fetchone()
-        return int(row["n"]) if row else 0
+                if spec.generic_storage_enabled and self._table_exists(cur, self.generic_vector_table):
+                    if self._generic_vector_schema_compatible(cur):
+                        generic_count = self._count_generic_vector_rows_for_spec(cur, spec=spec)
+                        if generic_count > 0:
+                            if not spec.legacy_storage_enabled:
+                                return generic_count
+                            legacy_count = self._count_legacy_vector_rows_for_spec(cur, spec=spec)
+                            if generic_count >= legacy_count:
+                                return generic_count
+                            return legacy_count
+                if not spec.legacy_storage_enabled:
+                    return 0
+                return self._count_legacy_vector_rows_for_spec(cur, spec=spec)
 
     def search_people(self, hints: IdentifyHints, *, limit: int | None = None) -> List[PersonDirectoryRecord]:
         if not self.dual_database_enabled:
@@ -509,11 +677,45 @@ class SecureSplitFingerprintStore:
         )
     def list_random_ids_for_method(self, method: str) -> List[str]:
         method_norm = str(method).strip().lower()
+        spec = self._spec_for_method(method_norm)
         with self._connect_biometric() as conn:
             with conn.cursor() as cur:
+                if spec.generic_storage_enabled and self._table_exists(cur, self.generic_vector_table):
+                    if self._generic_vector_schema_compatible(cur):
+                        generic_count = self._count_generic_vector_rows_for_spec(cur, spec=spec)
+                        if generic_count > 0:
+                            legacy_count = (
+                                0
+                                if not spec.legacy_storage_enabled
+                                else self._count_legacy_vector_rows_for_spec(cur, spec=spec)
+                            )
+                            if spec.legacy_storage_enabled and generic_count < legacy_count:
+                                cur.execute(
+                                    f"SELECT random_id FROM {self.vector_table} "
+                                    "WHERE method = %s ORDER BY created_at DESC",
+                                    (spec.method,),
+                                )
+                                rows = cur.fetchall()
+                                return [str(row["random_id"]) for row in rows]
+                            cur.execute(
+                                f"""
+                                SELECT random_id
+                                FROM {self.generic_vector_table}
+                                WHERE method = %s
+                                  AND vector_kind = %s
+                                  AND dim = %s
+                                  AND distance_metric = %s
+                                ORDER BY created_at DESC
+                                """,
+                                (spec.method, spec.vector_kind, spec.dim, spec.distance_metric),
+                            )
+                            rows = cur.fetchall()
+                            return [str(row["random_id"]) for row in rows]
+                if not spec.legacy_storage_enabled:
+                    return []
                 cur.execute(
                     f"SELECT random_id FROM {self.vector_table} WHERE method = %s ORDER BY created_at DESC",
-                    (method_norm,),
+                    (spec.method,),
                 )
                 rows = cur.fetchall()
         return [str(row["random_id"]) for row in rows]
@@ -523,7 +725,14 @@ class SecureSplitFingerprintStore:
             with conn.cursor() as cur:
                 cur.execute(
                     f"""
-                    SELECT random_id, capture, ext, sha256, created_at, image_bytes
+                    SELECT
+                        random_id,
+                        capture,
+                        ext,
+                        sha256,
+                        byte_size,
+                        created_at,
+                        image_bytes IS NOT NULL AS legacy_image_bytes_present
                     FROM {self.raw_table}
                     WHERE random_id = %s
                     """,
@@ -537,12 +746,43 @@ class SecureSplitFingerprintStore:
             capture=str(row["capture"]),
             ext=str(row["ext"]),
             sha256=str(row["sha256"]),
+            byte_size=None if row["byte_size"] is None else int(row["byte_size"]),
             created_at=self._to_iso(row["created_at"]),
-            image_bytes=bytes(row["image_bytes"]),
+            legacy_image_bytes_present=bool(row["legacy_image_bytes_present"]),
         )
+
+    def load_legacy_raw_fingerprint_image_bytes(self, random_id: str) -> Optional[bytes]:
+        """Return legacy persisted image bytes only for rows created before metadata-only enrollment."""
+        with self._connect_biometric() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT image_bytes
+                    FROM {self.raw_table}
+                    WHERE random_id = %s
+                      AND image_bytes IS NOT NULL
+                    """,
+                    (random_id,),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return None
+        return bytes(row["image_bytes"])
 
     def load_vector(self, random_id: str, method: str) -> Optional[FeatureVectorRecord]:
         method_norm = str(method).strip().lower()
+        spec = self._spec_for_method(method_norm)
+        if spec.generic_storage_enabled:
+            try:
+                generic_row = self._load_generic_vector_row(random_id=random_id, method=method_norm)
+            except Exception as exc:
+                if not _looks_like_missing_generic_vector_storage_error(exc):
+                    raise
+                generic_row = None
+            if generic_row is not None:
+                return self._row_to_vector_record(generic_row)
+        if not spec.legacy_storage_enabled:
+            return None
         with self._connect_biometric() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -563,6 +803,18 @@ class SecureSplitFingerprintStore:
             return iter(())
 
         method_norm = str(method).strip().lower()
+        spec = self._spec_for_method(method_norm)
+        if spec.generic_storage_enabled:
+            try:
+                generic_rows = self._load_generic_vector_rows(random_ids=random_ids, method=method_norm)
+            except Exception as exc:
+                if not _looks_like_missing_generic_vector_storage_error(exc):
+                    raise
+                generic_rows = None
+            if generic_rows is not None:
+                return iter(self._row_to_vector_record(row) for row in generic_rows)
+        if not spec.legacy_storage_enabled:
+            return iter(())
         with self._connect_biometric() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -572,7 +824,7 @@ class SecureSplitFingerprintStore:
                     WHERE method = %s AND random_id = ANY(%s)
                     ORDER BY created_at DESC
                     """,
-                    (method_norm, list(random_ids)),
+                    (spec.method, list(random_ids)),
                 )
                 rows = cur.fetchall()
         return iter(self._row_to_vector_record(row) for row in rows)
@@ -589,8 +841,46 @@ class SecureSplitFingerprintStore:
         spec = self._spec_for_method(method_norm)
         probe = self._prepare_vector(method_norm, probe_vector)
 
+        if spec.generic_storage_enabled:
+            try:
+                generic_result = self._shortlist_by_generic_vector(
+                    spec=spec,
+                    probe=probe,
+                    limit=limit,
+                    candidate_ids=candidate_ids,
+                )
+            except Exception as exc:
+                if not _looks_like_missing_generic_vector_storage_error(exc):
+                    raise
+                generic_result = None
+            if generic_result is not None:
+                return generic_result
+
+        if not spec.legacy_storage_enabled:
+            return []
+
+        return self._shortlist_by_legacy_vector(
+            spec=spec,
+            probe=probe,
+            limit=limit,
+            candidate_ids=candidate_ids,
+        )
+
+    def _shortlist_by_legacy_vector(
+        self,
+        *,
+        spec: VectorSpec,
+        probe: np.ndarray,
+        limit: int,
+        candidate_ids: Sequence[str] | None = None,
+    ) -> List[tuple[str, float]]:
+        if not spec.legacy_storage_enabled or spec.legacy_storage_column is None:
+            return []
+        method_norm = spec.method
+        column = spec.legacy_storage_column
+
         sql_parts = [
-            f"SELECT random_id, 1 - ({spec.column} <=> %s::vector) AS retrieval_score",
+            f"SELECT random_id, 1 - ({column} <=> %s::vector) AS retrieval_score",
             f"FROM {self.vector_table}",
             "WHERE method = %s",
         ]
@@ -602,7 +892,7 @@ class SecureSplitFingerprintStore:
             sql_parts.append("AND random_id = ANY(%s)")
             params.append(list(candidate_ids))
 
-        sql_parts.append(f"ORDER BY {spec.column} <=> %s::vector, created_at DESC")
+        sql_parts.append(f"ORDER BY {column} <=> %s::vector, created_at DESC")
         sql_parts.append("LIMIT %s")
         params.append(probe.tolist())
         params.append(int(limit))
@@ -612,6 +902,217 @@ class SecureSplitFingerprintStore:
                 cur.execute(" ".join(sql_parts), params)
                 rows = cur.fetchall()
         return [(str(row["random_id"]), float(row["retrieval_score"])) for row in rows]
+
+    def _shortlist_by_generic_vector(
+        self,
+        *,
+        spec: VectorSpec,
+        probe: np.ndarray,
+        limit: int,
+        candidate_ids: Sequence[str] | None = None,
+    ) -> Optional[List[tuple[str, float]]]:
+        if not self._should_use_generic_vector_storage(spec=spec, candidate_ids=candidate_ids):
+            return None
+        column = self._generic_vector_column_for_spec(spec)
+        sql_parts = [
+            f"SELECT random_id, 1 - ({column} <=> %s::vector) AS retrieval_score",
+            f"FROM {self.generic_vector_table}",
+            "WHERE method = %s",
+            "AND vector_kind = %s",
+            "AND dim = %s",
+            "AND distance_metric = %s",
+        ]
+        params: List[object] = [probe.tolist(), spec.method, spec.vector_kind, spec.dim, spec.distance_metric]
+
+        if candidate_ids is not None:
+            if not candidate_ids:
+                return []
+            sql_parts.append("AND random_id = ANY(%s)")
+            params.append(list(candidate_ids))
+
+        sql_parts.append(f"ORDER BY {column} <=> %s::vector, created_at DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(probe.tolist())
+        params.append(int(limit))
+
+        with self._connect_biometric() as conn:
+            with conn.cursor() as cur:
+                cur.execute(" ".join(sql_parts), params)
+                rows = cur.fetchall()
+        return [(str(row["random_id"]), float(row["retrieval_score"])) for row in rows]
+
+    def _load_generic_vector_row(self, *, random_id: str, method: str):
+        spec = self._spec_for_method(method)
+        if not spec.generic_storage_enabled:
+            return None
+        _ = self._generic_vector_column_for_spec(spec)
+        with self._connect_biometric() as conn:
+            with conn.cursor() as cur:
+                if not self._table_exists(cur, self.generic_vector_table):
+                    return None
+                if not self._generic_vector_schema_compatible(cur):
+                    return None
+                cur.execute(
+                    f"""
+                    SELECT random_id, method, dim, created_at, vector_512, vector_768
+                    FROM {self.generic_vector_table}
+                    WHERE random_id = %s
+                      AND method = %s
+                      AND vector_kind = %s
+                      AND dim = %s
+                      AND distance_metric = %s
+                    """,
+                    (random_id, spec.method, spec.vector_kind, spec.dim, spec.distance_metric),
+                )
+                return cur.fetchone()
+
+    def _load_generic_vector_rows(self, *, random_ids: Sequence[str], method: str):
+        spec = self._spec_for_method(method)
+        if not spec.generic_storage_enabled:
+            return None
+        _ = self._generic_vector_column_for_spec(spec)
+        with self._connect_biometric() as conn:
+            with conn.cursor() as cur:
+                if not self._table_exists(cur, self.generic_vector_table):
+                    return None
+                if not self._generic_vector_schema_compatible(cur):
+                    return None
+                generic_count = self._count_generic_vector_rows_for_spec(
+                    cur,
+                    spec=spec,
+                    candidate_ids=random_ids,
+                )
+                legacy_count = self._count_legacy_vector_rows_for_spec(
+                    cur,
+                    spec=spec,
+                    candidate_ids=random_ids,
+                )
+                if legacy_count > generic_count:
+                    return None
+                if generic_count == 0:
+                    return []
+                cur.execute(
+                    f"""
+                    SELECT random_id, method, dim, created_at, vector_512, vector_768
+                    FROM {self.generic_vector_table}
+                    WHERE method = %s
+                      AND vector_kind = %s
+                      AND dim = %s
+                      AND distance_metric = %s
+                      AND random_id = ANY(%s)
+                    ORDER BY created_at DESC
+                    """,
+                    (spec.method, spec.vector_kind, spec.dim, spec.distance_metric, list(random_ids)),
+                )
+                return cur.fetchall()
+
+    def _should_use_generic_vector_storage(
+        self,
+        *,
+        spec: VectorSpec,
+        candidate_ids: Sequence[str] | None = None,
+    ) -> bool:
+        if not spec.generic_storage_enabled:
+            return False
+        with self._connect_biometric() as conn:
+            with conn.cursor() as cur:
+                if not self._table_exists(cur, self.generic_vector_table):
+                    return False
+                if not self._generic_vector_schema_compatible(cur):
+                    return False
+                generic_count = self._count_generic_vector_rows_for_spec(
+                    cur,
+                    spec=spec,
+                    candidate_ids=candidate_ids,
+                )
+                if generic_count <= 0:
+                    return False
+                if not spec.legacy_storage_enabled:
+                    return True
+                legacy_count = self._count_legacy_vector_rows_for_spec(
+                    cur,
+                    spec=spec,
+                    candidate_ids=candidate_ids,
+                )
+                return generic_count >= legacy_count
+
+    def _count_generic_vector_rows_for_spec(
+        self,
+        cur,
+        *,
+        spec: VectorSpec,
+        candidate_ids: Sequence[str] | None = None,
+    ) -> int:
+        if not spec.generic_storage_enabled:
+            return 0
+        clauses = [
+            "method = %s",
+            "vector_kind = %s",
+            "dim = %s",
+            "distance_metric = %s",
+        ]
+        params: List[object] = [spec.method, spec.vector_kind, spec.dim, spec.distance_metric]
+        if candidate_ids is not None:
+            if not candidate_ids:
+                return 0
+            clauses.append("random_id = ANY(%s)")
+            params.append(list(candidate_ids))
+        cur.execute(
+            f"""
+            SELECT COUNT(*) AS n
+            FROM {self.generic_vector_table}
+            WHERE {" AND ".join(clauses)}
+            """,
+            params,
+        )
+        row = cur.fetchone()
+        return 0 if row is None else int(row["n"])
+
+    def _count_legacy_vector_rows_for_spec(
+        self,
+        cur,
+        *,
+        spec: VectorSpec,
+        candidate_ids: Sequence[str] | None = None,
+    ) -> int:
+        if not spec.legacy_storage_enabled:
+            return 0
+        if not self._table_exists(cur, self.vector_table):
+            return 0
+        clauses = ["method = %s"]
+        params: List[object] = [spec.method]
+        if candidate_ids is not None:
+            if not candidate_ids:
+                return 0
+            clauses.append("random_id = ANY(%s)")
+            params.append(list(candidate_ids))
+        cur.execute(
+            f"""
+            SELECT COUNT(*) AS n
+            FROM {self.vector_table}
+            WHERE {" AND ".join(clauses)}
+            """,
+            params,
+        )
+        row = cur.fetchone()
+        return 0 if row is None else int(row["n"])
+
+    @staticmethod
+    def _generic_vector_column_for_spec(spec: VectorSpec) -> str:
+        if not spec.generic_storage_enabled:
+            raise ValueError(f"retrieval method {spec.method!r} does not enable generic vector storage")
+        if spec.distance_metric != "cosine":
+            raise ValueError(
+                f"retrieval method {spec.method!r} declares distance_metric={spec.distance_metric!r}, "
+                "but generic indexed retrieval storage currently supports cosine pgvector search only"
+            )
+        column = spec.generic_storage_column or GENERIC_VECTOR_COLUMN_BY_DIM.get(int(spec.dim))
+        if column is None or column not in GENERIC_VECTOR_COLUMN_BY_DIM.values():
+            raise ValueError(
+                f"retrieval method {spec.method!r} declares vector dim {spec.dim}, but generic retrieval "
+                "storage has no indexed pgvector column for that dimension"
+            )
+        return column
 
     def dump_layout(self) -> Dict[str, str]:
         biometric_name = self._database_name_from_url(self.biometric_database_url)
@@ -625,7 +1126,45 @@ class SecureSplitFingerprintStore:
             "person_table": f"{biometric_name}.{self.person_table}",
             "raw_fingerprints_table": f"{biometric_name}.{self.raw_table}",
             "feature_vectors_table": f"{biometric_name}.{self.vector_table}",
+            "method_retrieval_vectors_table": f"{biometric_name}.{self.generic_vector_table}",
             "identity_map_table": f"{identity_name}.{self.identity_table}",
+            "vector_storage_mode": str(VECTOR_STORAGE_SCHEMA["mode"]),
+            "method_generic_vectors_supported": "true",
+        }
+
+    @staticmethod
+    def method_capability_metadata() -> Dict[str, Dict[str, object]]:
+        return load_api_method_registry().method_capabilities()
+
+    @staticmethod
+    def vector_storage_schema_metadata() -> Dict[str, object]:
+        return {
+            **VECTOR_STORAGE_SCHEMA,
+            "legacy_compatibility_methods": sorted(_legacy_storage_methods()),
+            "generic_storage_methods": sorted(_generic_storage_methods()),
+            "generic_only_methods": sorted(_generic_only_methods()),
+            "dual_write_methods": sorted(_dual_write_methods()),
+            "configured_vector_specs": {
+                method: {
+                    "method": spec.method,
+                    "vector_dim": spec.dim,
+                    "vector_kind": spec.vector_kind,
+                    "distance_metric": spec.distance_metric,
+                    "legacy_storage_enabled": spec.legacy_storage_enabled,
+                    "generic_storage_enabled": spec.generic_storage_enabled,
+                    "preferred_storage": spec.preferred_storage,
+                    "legacy_storage_column": (
+                        spec.legacy_storage_column if spec.legacy_storage_enabled else None
+                    ),
+                    "generic_storage_column": spec.generic_storage_column,
+                    "storage_column": spec.generic_storage_column,
+                }
+                for method, spec in sorted(VECTOR_SPECS.items())
+            },
+            "schema_accepts_method_generic_vectors": True,
+            "schema_check_constraint_mode": "generic_dim_vector_column_without_method_names",
+            "generic_table": "method_retrieval_vectors",
+            "generic_primary_key": ["random_id", "method", "vector_kind"],
         }
 
     def collect_reconciliation_report(
@@ -661,6 +1200,10 @@ class SecureSplitFingerprintStore:
             report["inspection_before_repairs"] = initial_inspection
         return report
 
+    def backfill_generic_retrieval_vectors(self) -> Dict[str, object]:
+        """Copy legacy dl/vit pgvector rows into method-generic retrieval storage."""
+        return self._backfill_generic_retrieval_vectors()
+
     def collect_inspection_state(self) -> Dict[str, object]:
         biometric_name = self._database_name_from_url(self.biometric_database_url)
         identity_name = self._database_name_from_url(self.identity_database_url)
@@ -695,10 +1238,18 @@ class SecureSplitFingerprintStore:
             expected={"identity"},
         )
         self._append_legacy_layout_issues(issues, biometric_snapshot, identity_snapshot)
+        self._append_vector_storage_migration_issues(issues, biometric_snapshot)
         reconciliation = self._append_integrity_issues(issues, biometric_snapshot, identity_snapshot)
         schema_hardening = self._build_schema_hardening_state(
             biometric_snapshot=biometric_snapshot,
             identity_snapshot=identity_snapshot,
+        )
+        template_protection = self._build_template_protection_state(
+            biometric_snapshot=biometric_snapshot,
+        )
+        self._append_template_protection_issues(
+            issues,
+            template_protection=template_protection,
         )
         self._append_schema_hardening_issues(
             issues,
@@ -713,6 +1264,12 @@ class SecureSplitFingerprintStore:
         readiness_status = "not_ready"
         if overall_ok:
             readiness_status = "ready_with_warnings" if warnings else "ready"
+        registry = load_api_method_registry()
+        method_capabilities = registry.method_capabilities()
+        retrieval_vector_coverage = self._build_retrieval_vector_coverage_state(
+            biometric_snapshot=biometric_snapshot,
+            registry=registry,
+        )
 
         return {
             "backend": "postgresql",
@@ -728,6 +1285,7 @@ class SecureSplitFingerprintStore:
                 "identity": f"{identity_name}.{self.identity_table}",
                 "raw": f"{biometric_name}.{self.raw_table}",
                 "vectors": f"{biometric_name}.{self.vector_table}",
+                "generic_vectors": f"{biometric_name}.{self.generic_vector_table}",
             },
             "table_presence": {
                 "biometric_db": dict(biometric_snapshot["table_presence"]),
@@ -739,9 +1297,23 @@ class SecureSplitFingerprintStore:
                 "identity": identity_snapshot["row_counts"]["identity"],
                 "raw": biometric_snapshot["row_counts"]["raw"],
                 "vectors_by_method": dict(biometric_snapshot["row_counts"]["vectors_by_method"]),
+                "legacy_vectors_by_method": dict(biometric_snapshot["row_counts"]["vectors_by_method"]),
+                "generic_vectors_by_method_kind": dict(
+                    biometric_snapshot["row_counts"]["generic_vectors_by_method_kind"]
+                ),
             },
             "unexpected_vector_methods": dict(biometric_snapshot["row_counts"]["unexpected_vector_methods"]),
+            "method_capabilities": method_capabilities,
+            "retrieval_capabilities": method_capabilities,
+            "direct_vector_retrieval_methods": list(registry.direct_vector_retrieval_methods()),
+            "rerank_only_methods": list(registry.rerank_only_methods()),
+            "retrieval_vector_coverage_by_method": retrieval_vector_coverage["coverage_by_method"],
+            "retrieval_methods_missing_vectors": retrieval_vector_coverage["methods_missing_vectors"],
+            "retrieval_methods_with_zero_coverage": retrieval_vector_coverage["methods_with_zero_coverage"],
+            "coverage_recommendation": retrieval_vector_coverage["recommendation"],
+            "vector_storage_schema": self._build_vector_storage_schema_state(biometric_snapshot),
             "schema_hardening": schema_hardening,
+            "template_protection": template_protection,
             "reconciliation": reconciliation,
             "integrity_warnings": [str(issue["message"]) for issue in warnings],
             "overall_ok": overall_ok,
@@ -774,14 +1346,17 @@ class SecureSplitFingerprintStore:
                 "identity": False,
                 "raw": False,
                 "vectors": False,
+                "generic_vectors": False,
             },
             "row_counts": {
                 "people": None,
                 "identity": None,
                 "raw": None,
-                "vectors_by_method": {method: None for method in sorted(VECTOR_SPECS)},
+                "vectors_by_method": {method: None for method in sorted(_legacy_storage_methods())},
+                "generic_vectors_by_method_kind": {},
                 "unexpected_vector_methods": {},
             },
+            "generic_vector_schema_compatible": None,
             "vector_extension_present": None,
             "legacy_person_columns": {
                 "national_id": False,
@@ -800,6 +1375,10 @@ class SecureSplitFingerprintStore:
             "raw_orphan_count": 0,
             "vector_orphan_sample": [],
             "vector_orphan_count": 0,
+            "raw_image_bytes_column_present": None,
+            "raw_image_bytes_column_nullable": None,
+            "legacy_raw_image_bytes_row_count": None,
+            "legacy_raw_image_bytes_sample": [],
         }
 
         try:
@@ -811,6 +1390,7 @@ class SecureSplitFingerprintStore:
                     table_presence["identity"] = self._table_exists(cur, self.identity_table)
                     table_presence["raw"] = self._table_exists(cur, self.raw_table)
                     table_presence["vectors"] = self._table_exists(cur, self.vector_table)
+                    table_presence["generic_vectors"] = self._table_exists(cur, self.generic_vector_table)
                     snapshot["index_presence"] = self._collect_schema_index_presence(
                         cur,
                         table_presence=table_presence,
@@ -836,6 +1416,24 @@ class SecureSplitFingerprintStore:
 
                     if table_presence["raw"]:
                         snapshot["row_counts"]["raw"] = self._count_rows(cur, self.raw_table)
+                        raw_image_bytes_column_present = self._column_exists(cur, self.raw_table, "image_bytes")
+                        snapshot["raw_image_bytes_column_present"] = raw_image_bytes_column_present
+                        if raw_image_bytes_column_present:
+                            snapshot["raw_image_bytes_column_nullable"] = not self._column_is_not_null(
+                                cur,
+                                self.raw_table,
+                                "image_bytes",
+                            )
+                            snapshot["legacy_raw_image_bytes_row_count"] = (
+                                self._count_legacy_raw_image_bytes_rows(cur)
+                            )
+                            snapshot["legacy_raw_image_bytes_sample"] = (
+                                self._sample_legacy_raw_image_bytes_random_ids(cur)
+                            )
+                        else:
+                            snapshot["raw_image_bytes_column_nullable"] = None
+                            snapshot["legacy_raw_image_bytes_row_count"] = 0
+                            snapshot["legacy_raw_image_bytes_sample"] = []
                         if table_presence["person"]:
                             snapshot["raw_orphan_count"] = self._count_orphan_rows(
                                 cur,
@@ -855,7 +1453,7 @@ class SecureSplitFingerprintStore:
                         snapshot["row_counts"]["unexpected_vector_methods"] = {
                             method: int(count)
                             for method, count in method_counts.items()
-                            if method not in snapshot["row_counts"]["vectors_by_method"]
+                            if method not in _legacy_storage_methods()
                         }
                         if table_presence["person"]:
                             snapshot["vector_orphan_count"] = self._count_orphan_rows(
@@ -868,6 +1466,11 @@ class SecureSplitFingerprintStore:
                                 child_table=self.vector_table,
                                 parent_table=self.person_table,
                             )
+                    if table_presence["generic_vectors"]:
+                        snapshot["generic_vector_schema_compatible"] = self._generic_vector_schema_compatible(cur)
+                        snapshot["row_counts"]["generic_vectors_by_method_kind"] = (
+                            self._count_generic_vector_rows_by_method_kind(cur)
+                        )
         except Exception as exc:
             self._append_issue(
                 issues,
@@ -978,6 +1581,286 @@ class SecureSplitFingerprintStore:
                 table=self.vector_table,
                 methods=dict(unexpected_vector_methods),
             )
+
+    def _append_vector_storage_migration_issues(
+        self,
+        issues: List[Dict[str, object]],
+        biometric_snapshot: Dict[str, Any],
+    ) -> None:
+        storage_state = self._build_vector_storage_schema_state(biometric_snapshot)
+        if not bool(storage_state.get("backfill_recommended")):
+            return
+        missing = {
+            method: details
+            for method, details in dict(storage_state.get("generic_population_by_method", {})).items()
+            if bool(dict(details).get("backfill_recommended"))
+        }
+        self._append_issue(
+            issues,
+            code="generic_vector_backfill_recommended",
+            severity="warning",
+            database_role="biometric_db",
+            message=(
+                f"{self.generic_vector_table} is not fully populated for legacy direct retrieval vectors; "
+                "run the generic vector backfill before relying exclusively on method-generic storage."
+            ),
+            table=self.generic_vector_table,
+            source_table=self.vector_table,
+            methods=missing,
+        )
+
+    def _build_retrieval_vector_coverage_state(
+        self,
+        *,
+        biometric_snapshot: Dict[str, Any],
+        registry,
+    ) -> Dict[str, object]:
+        people_count_raw = biometric_snapshot["row_counts"].get("people")
+        people_count = None if people_count_raw is None else int(people_count_raw)
+        legacy_counts = {
+            method: (None if count is None else int(count))
+            for method, count in dict(biometric_snapshot["row_counts"]["vectors_by_method"]).items()
+        }
+        generic_counts = {
+            str(key): int(value)
+            for key, value in dict(biometric_snapshot["row_counts"].get("generic_vectors_by_method_kind", {})).items()
+        }
+        generic_table_present = bool(biometric_snapshot["table_presence"].get("generic_vectors"))
+
+        coverage_by_method: Dict[str, Dict[str, object]] = {}
+        methods_missing_vectors: List[str] = []
+        methods_with_zero_coverage: List[str] = []
+        for method in registry.direct_vector_retrieval_methods():
+            spec = VECTOR_SPECS.get(method)
+            if spec is None:
+                continue
+
+            legacy_count = legacy_counts.get(method) if spec.legacy_storage_enabled else None
+            generic_key = self._generic_vector_count_key(method=method, vector_kind=spec.vector_kind)
+            generic_count = (
+                int(generic_counts.get(generic_key, 0))
+                if generic_table_present and spec.generic_storage_enabled
+                else None
+            )
+            available_counts = [
+                count
+                for count in (legacy_count, generic_count)
+                if count is not None
+            ]
+            available_count = max(available_counts) if available_counts else 0
+            missing_count = None if people_count is None else max(people_count - available_count, 0)
+            coverage_ratio = (
+                None
+                if people_count is None or people_count <= 0
+                else min(1.0, available_count / people_count)
+            )
+
+            if people_count is None:
+                coverage_status = "unknown"
+            elif people_count <= 0:
+                coverage_status = "no_identities"
+            elif available_count <= 0:
+                coverage_status = "zero"
+            elif missing_count and missing_count > 0:
+                coverage_status = "partial"
+            else:
+                coverage_status = "full"
+
+            if missing_count and missing_count > 0:
+                methods_missing_vectors.append(method)
+            if people_count is not None and people_count > 0 and available_count <= 0:
+                methods_with_zero_coverage.append(method)
+
+            coverage_by_method[method] = {
+                "method": method,
+                "vector_kind": spec.vector_kind,
+                "expected_identity_count": people_count,
+                "legacy_row_count": legacy_count,
+                "generic_row_count": generic_count,
+                "available_row_count": available_count,
+                "missing_vector_count": missing_count,
+                "coverage_ratio": coverage_ratio,
+                "coverage_status": coverage_status,
+                "preferred_storage": spec.preferred_storage,
+                "generic_storage_enabled": spec.generic_storage_enabled,
+                "legacy_storage_enabled": spec.legacy_storage_enabled,
+                "source_path_required_for_reembedding": True,
+            }
+
+        if people_count is None:
+            recommendation = (
+                "Retrieval vector coverage could not be evaluated because the enrolled identity count "
+                "was not available."
+            )
+        elif people_count <= 0:
+            recommendation = (
+                "No enrolled identities are present, so retrieval vector coverage will populate on the next "
+                "enrollment or demo/browser seed."
+            )
+        elif methods_missing_vectors:
+            recommendation = (
+                "One or more direct retrieval methods have fewer vectors than enrolled identities. "
+                "Reseed demo/browser stores or re-enroll affected operational identities with the missing "
+                "methods. Existing operational rows cannot be generically re-embedded unless a trusted source "
+                "image path is known, because new operational uploads persist metadata and vectors rather "
+                "than raw image bytes."
+            )
+        else:
+            recommendation = (
+                "All configured direct-vector retrieval methods have vector coverage for the current "
+                "enrolled identities."
+            )
+
+        return {
+            "coverage_by_method": coverage_by_method,
+            "methods_missing_vectors": methods_missing_vectors,
+            "methods_with_zero_coverage": methods_with_zero_coverage,
+            "recommendation": recommendation,
+        }
+
+    def _build_vector_storage_schema_state(self, biometric_snapshot: Dict[str, Any]) -> Dict[str, object]:
+        legacy_counts = {
+            method: (None if count is None else int(count))
+            for method, count in dict(biometric_snapshot["row_counts"]["vectors_by_method"]).items()
+        }
+        generic_counts = {
+            str(key): int(value)
+            for key, value in dict(biometric_snapshot["row_counts"].get("generic_vectors_by_method_kind", {})).items()
+        }
+        generic_table_present = bool(biometric_snapshot["table_presence"].get("generic_vectors"))
+        generic_schema_compatible = bool(biometric_snapshot.get("generic_vector_schema_compatible"))
+        generic_population_by_method: Dict[str, Dict[str, object]] = {}
+        backfill_recommended = False
+        legacy_fallback_used = False
+        for method, spec in sorted(VECTOR_SPECS.items()):
+            legacy_count_raw = legacy_counts.get(method) if spec.legacy_storage_enabled else None
+            legacy_count = 0 if legacy_count_raw is None else int(legacy_count_raw)
+            generic_key = self._generic_vector_count_key(method=method, vector_kind=spec.vector_kind)
+            generic_count = (
+                int(generic_counts.get(generic_key, 0))
+                if generic_table_present and spec.generic_storage_enabled
+                else 0
+            )
+            method_backfill_recommended = (
+                spec.legacy_storage_enabled
+                and spec.generic_storage_enabled
+                and legacy_count > generic_count
+            )
+            method_legacy_fallback = (
+                spec.legacy_storage_enabled
+                and method_backfill_recommended
+                and legacy_count > 0
+            )
+            backfill_recommended = backfill_recommended or method_backfill_recommended
+            legacy_fallback_used = legacy_fallback_used or method_legacy_fallback
+            generic_population_by_method[method] = {
+                "vector_kind": spec.vector_kind,
+                "legacy_storage_enabled": spec.legacy_storage_enabled,
+                "generic_storage_enabled": spec.generic_storage_enabled,
+                "preferred_storage": spec.preferred_storage,
+                "legacy_row_count": legacy_count_raw,
+                "generic_row_count": generic_count if generic_table_present else None,
+                "generic_populated": (
+                    spec.generic_storage_enabled and generic_table_present and generic_count > 0
+                ),
+                "generic_covers_legacy": (
+                    generic_table_present
+                    and (
+                        not spec.legacy_storage_enabled
+                        or generic_count >= legacy_count
+                    )
+                ),
+                "legacy_fallback_used": method_legacy_fallback,
+                "backfill_recommended": method_backfill_recommended,
+            }
+
+        return {
+            **self.vector_storage_schema_metadata(),
+            "legacy_feature_vectors_table_present": bool(biometric_snapshot["table_presence"].get("vectors")),
+            "generic_retrieval_vectors_table_present": generic_table_present,
+            "generic_table_name": self.generic_vector_table,
+            "generic_schema_compatible": generic_schema_compatible,
+            "method_generic_vectors_supported": generic_table_present and generic_schema_compatible,
+            "generic_rows_by_method_vector_kind": generic_counts,
+            "legacy_rows_by_method": legacy_counts,
+            "generic_population_by_method": generic_population_by_method,
+            "legacy_fallback_used": legacy_fallback_used,
+            "backfill_recommended": backfill_recommended,
+            "backfill_action": "backfill_generic_retrieval_vectors",
+            "backfill_command": self._reconciliation_script_command("--backfill-generic-retrieval-vectors"),
+        }
+
+    def _build_template_protection_state(
+        self,
+        *,
+        biometric_snapshot: Dict[str, Any],
+    ) -> Dict[str, object]:
+        raw_table_present = bool(biometric_snapshot["table_presence"].get("raw"))
+        column_present = biometric_snapshot.get("raw_image_bytes_column_present")
+        column_nullable = biometric_snapshot.get("raw_image_bytes_column_nullable")
+        legacy_count = biometric_snapshot.get("legacy_raw_image_bytes_row_count")
+        legacy_sample = [
+            str(random_id)
+            for random_id in list(biometric_snapshot.get("legacy_raw_image_bytes_sample", []))
+        ]
+
+        status = "unknown"
+        if biometric_snapshot["connection_ok"]:
+            if not raw_table_present:
+                column_present = False
+                column_nullable = None
+                legacy_count = None
+                legacy_sample = []
+            elif column_present is False:
+                status = "no_legacy_column"
+                legacy_count = 0
+                legacy_sample = []
+            elif column_present is True and legacy_count is not None:
+                status = "legacy_payloads_present" if int(legacy_count) > 0 else "clear"
+
+        return {
+            "raw_image_storage_policy": "metadata_only_new_writes",
+            "new_raw_image_persistence_enabled": False,
+            "database_role": "biometric_db",
+            "table": self.raw_table,
+            "column": "image_bytes",
+            "raw_table_present": raw_table_present if biometric_snapshot["connection_ok"] else None,
+            "raw_image_bytes_column_present": column_present,
+            "raw_image_bytes_column_nullable": column_nullable,
+            "legacy_raw_image_bytes_row_count": legacy_count,
+            "legacy_raw_image_bytes_sample": legacy_sample,
+            "legacy_raw_image_storage_status": status,
+            "rerank_legacy_bytes_adapter_enabled": True,
+        }
+
+    def _append_template_protection_issues(
+        self,
+        issues: List[Dict[str, object]],
+        *,
+        template_protection: Dict[str, object],
+    ) -> None:
+        if template_protection.get("legacy_raw_image_storage_status") != "legacy_payloads_present":
+            return
+        row_count = int(template_protection.get("legacy_raw_image_bytes_row_count") or 0)
+        sample_random_ids = [
+            str(random_id)
+            for random_id in list(template_protection.get("legacy_raw_image_bytes_sample", []))
+        ]
+        self._append_issue(
+            issues,
+            code="legacy_raw_image_bytes_present",
+            severity="warning",
+            database_role="biometric_db",
+            message=(
+                f"{self.raw_table}.image_bytes still contains legacy raw biometric image bytes in "
+                f"{row_count} row(s). Redact these payloads to satisfy template-protection and "
+                "data-minimization policy while preserving metadata and vectors."
+            ),
+            table=self.raw_table,
+            column="image_bytes",
+            row_count=row_count,
+            sample_random_ids=sample_random_ids,
+        )
 
     def _append_integrity_issues(
         self,
@@ -1294,6 +2177,12 @@ class SecureSplitFingerprintStore:
             "repair_raw_orphans": self._reconciliation_script_command("--repair-raw-orphans"),
             "repair_vector_orphans": self._reconciliation_script_command("--repair-vector-orphans"),
             "repair_identity_orphans": self._reconciliation_script_command("--repair-identity-orphans"),
+            "redact_legacy_raw_image_bytes": self._reconciliation_script_command(
+                "--redact-legacy-raw-image-bytes"
+            ),
+            "backfill_generic_retrieval_vectors": self._reconciliation_script_command(
+                "--backfill-generic-retrieval-vectors"
+            ),
         }
 
     def _issue_reconciliation_guidance(self, code: str) -> Dict[str, object]:
@@ -1333,6 +2222,30 @@ class SecureSplitFingerprintStore:
                     "cannot be matched to person_directory rows in the current runtime state. Run "
                     + self._reconciliation_script_command("--repair-identity-orphans")
                     + " only if deleting those orphan identity rows is acceptable."
+                ),
+            },
+            "legacy_raw_image_bytes_present": {
+                "repairability": "safely_repairable",
+                "manual_reconciliation_required": False,
+                "repair_actions": ["redact_legacy_raw_image_bytes"],
+                "repair_commands": [self._reconciliation_script_command("--redact-legacy-raw-image-bytes")],
+                "remediation": (
+                    "Safe redaction is available because only legacy raw biometric image payloads are cleared; "
+                    "metadata, hashes, vectors, and identity rows are preserved. Run "
+                    + self._reconciliation_script_command("--redact-legacy-raw-image-bytes")
+                    + "."
+                ),
+            },
+            "generic_vector_backfill_recommended": {
+                "repairability": "safely_repairable",
+                "manual_reconciliation_required": False,
+                "repair_actions": ["backfill_generic_retrieval_vectors"],
+                "repair_commands": [self._reconciliation_script_command("--backfill-generic-retrieval-vectors")],
+                "remediation": (
+                    "Safe backfill is available because existing feature_vectors rows can be copied into "
+                    "method_retrieval_vectors without reading raw images or re-embedding. Run "
+                    + self._reconciliation_script_command("--backfill-generic-retrieval-vectors")
+                    + "."
                 ),
             },
             "people_without_identity_rows": {
@@ -1581,6 +2494,7 @@ class SecureSplitFingerprintStore:
             "identity": "identity_map",
             "raw": "raw_fingerprints",
             "vectors": "feature_vectors",
+            "generic_vectors": "method_retrieval_vectors",
         }
         return mapping.get(table_key, table_key)
 
@@ -1600,6 +2514,78 @@ class SecureSplitFingerprintStore:
             """
         )
         return {str(row["method"]): int(row["n"]) for row in cur.fetchall()}
+
+    @staticmethod
+    def _generic_vector_count_key(*, method: str, vector_kind: str) -> str:
+        return f"{method}/{vector_kind}"
+
+    def _count_generic_vector_rows_by_method_kind(self, cur) -> Dict[str, int]:
+        cur.execute(
+            f"""
+            SELECT method, vector_kind, COUNT(*) AS n
+            FROM {self.generic_vector_table}
+            GROUP BY method, vector_kind
+            ORDER BY method, vector_kind
+            """
+        )
+        return {
+            self._generic_vector_count_key(
+                method=str(row["method"]),
+                vector_kind=str(row["vector_kind"]),
+            ): int(row["n"])
+            for row in cur.fetchall()
+        }
+
+    def _generic_vector_schema_compatible(self, cur) -> bool:
+        required_columns = {
+            "random_id",
+            "method",
+            "vector_kind",
+            "dim",
+            "distance_metric",
+            "created_at",
+            "metadata_json",
+            "vector_512",
+            "vector_768",
+        }
+        columns_present = all(
+            self._column_exists(cur, self.generic_vector_table, column)
+            for column in required_columns
+        )
+        return columns_present and self._generic_vector_constraints_compatible(cur)
+
+    def _generic_vector_constraints_compatible(self, cur) -> bool:
+        cur.execute(
+            """
+            SELECT c.contype, pg_get_constraintdef(c.oid) AS definition
+            FROM pg_catalog.pg_constraint AS c
+            JOIN pg_catalog.pg_class AS t ON t.oid = c.conrelid
+            JOIN pg_catalog.pg_namespace AS n ON n.oid = t.relnamespace
+            WHERE n.nspname = current_schema()
+              AND t.relname = %s
+            """,
+            (self.generic_vector_table,),
+        )
+        definitions = [
+            (str(row["contype"]), str(row["definition"]).lower())
+            for row in cur.fetchall()
+        ]
+        has_primary_key = any(
+            contype == "p"
+            and "random_id" in definition
+            and "method" in definition
+            and "vector_kind" in definition
+            for contype, definition in definitions
+        )
+        has_method_generic_dim_check = any(
+            contype == "c"
+            and "dim = 512" in definition
+            and "dim = 768" in definition
+            and "method =" not in definition
+            and "method=" not in definition
+            for contype, definition in definitions
+        )
+        return has_primary_key and has_method_generic_dim_check
 
     @staticmethod
     def _count_orphan_rows(cur, *, child_table: str, parent_table: str) -> int:
@@ -1628,6 +2614,35 @@ class SecureSplitFingerprintStore:
         )
         row = cur.fetchone()
         return 0 if row is None else int(row["n"])
+
+    def _count_legacy_raw_image_bytes_rows(self, cur) -> int:
+        cur.execute(
+            f"""
+            SELECT COUNT(*) AS n
+            FROM {self.raw_table}
+            WHERE image_bytes IS NOT NULL
+            """
+        )
+        row = cur.fetchone()
+        return 0 if row is None else int(row["n"])
+
+    def _sample_legacy_raw_image_bytes_random_ids(
+        self,
+        cur,
+        *,
+        limit: int = RECONCILIATION_SAMPLE_LIMIT,
+    ) -> List[str]:
+        cur.execute(
+            f"""
+            SELECT random_id
+            FROM {self.raw_table}
+            WHERE image_bytes IS NOT NULL
+            ORDER BY random_id
+            LIMIT %s
+            """,
+            (int(limit),),
+        )
+        return [str(row["random_id"]) for row in cur.fetchall()]
 
     @staticmethod
     def _sample_missing_random_ids(
@@ -1885,6 +2900,8 @@ class SecureSplitFingerprintStore:
             "repair_raw_orphans",
             "repair_vector_orphans",
             "repair_identity_orphans",
+            "redact_legacy_raw_image_bytes",
+            "backfill_generic_retrieval_vectors",
         }
         normalized: List[str] = []
         for action in repair_actions or ():
@@ -1914,6 +2931,8 @@ class SecureSplitFingerprintStore:
             "repair_raw_orphans": self._repair_raw_orphans,
             "repair_vector_orphans": self._repair_vector_orphans,
             "repair_identity_orphans": self._repair_identity_orphans,
+            "redact_legacy_raw_image_bytes": self._redact_legacy_raw_image_bytes,
+            "backfill_generic_retrieval_vectors": self._backfill_generic_retrieval_vectors,
         }
         results: List[Dict[str, object]] = []
         for action in repair_actions:
@@ -1950,6 +2969,177 @@ class SecureSplitFingerprintStore:
                 command_flag="--repair-identity-orphans",
             )
         return self._repair_dual_database_identity_orphans()
+
+    def _redact_legacy_raw_image_bytes(self) -> Dict[str, object]:
+        conn = self._connect_biometric()
+        table_present = False
+        column_present = False
+        candidate_row_count = 0
+        redacted_count = 0
+
+        try:
+            with conn.cursor() as cur:
+                table_present = self._table_exists(cur, self.raw_table)
+                if table_present:
+                    column_present = self._column_exists(cur, self.raw_table, "image_bytes")
+                if table_present and column_present:
+                    candidate_row_count = self._count_legacy_raw_image_bytes_rows(cur)
+                    cur.execute(
+                        f"""
+                        UPDATE {self.raw_table}
+                        SET image_bytes = NULL
+                        WHERE image_bytes IS NOT NULL
+                        """
+                    )
+                    redacted_count = int(cur.rowcount or 0)
+            conn.commit()
+        except Exception:
+            self._safe_rollback(conn)
+            raise
+        finally:
+            conn.close()
+
+        noop_reason = None
+        status = "applied" if redacted_count else "noop"
+        if not table_present:
+            noop_reason = "raw_table_missing"
+        elif not column_present:
+            noop_reason = "image_bytes_column_missing"
+        elif candidate_row_count == 0:
+            noop_reason = "no_legacy_raw_image_bytes"
+
+        result = {
+            "action": "redact_legacy_raw_image_bytes",
+            "database_role": "biometric_db",
+            "status": status,
+            "repair_command": self._reconciliation_script_command("--redact-legacy-raw-image-bytes"),
+            "candidate_row_count": int(candidate_row_count),
+            "redacted_count": int(redacted_count),
+            "table": self.raw_table,
+            "column": "image_bytes",
+            "sensitive_backup_created": False,
+        }
+        if noop_reason is not None:
+            result["noop_reason"] = noop_reason
+        return result
+
+    def _backfill_generic_retrieval_vectors(self) -> Dict[str, object]:
+        conn = self._connect_biometric()
+        candidate_row_count = 0
+        copied_count = 0
+        skipped_count = 0
+        method_results: Dict[str, Dict[str, object]] = {}
+        errors: List[Dict[str, str]] = []
+        noop_reason = None
+
+        try:
+            with conn.cursor() as cur:
+                self._require_vector_extension(cur)
+                person_table_present = self._table_exists(cur, self.person_table)
+                legacy_table_present = self._table_exists(cur, self.vector_table)
+                if not person_table_present:
+                    noop_reason = "person_table_missing"
+                elif not legacy_table_present:
+                    noop_reason = "legacy_feature_vectors_table_missing"
+
+                if noop_reason is None:
+                    self._init_generic_vector_schema(cur)
+                    for method in sorted(_legacy_storage_methods()):
+                        spec = VECTOR_SPECS[method]
+                        cur.execute("SAVEPOINT backfill_generic_retrieval_vectors_method")
+                        try:
+                            legacy_count = self._count_legacy_vector_rows_for_spec(cur, spec=spec)
+                            existing_before = self._count_generic_vector_rows_for_spec(cur, spec=spec)
+                            metadata = json.dumps(
+                                {
+                                    "source": "legacy_feature_vectors",
+                                    "backfilled": True,
+                                }
+                            )
+                            cur.execute(
+                                f"""
+                                INSERT INTO {self.generic_vector_table}
+                                    (
+                                        random_id,
+                                        method,
+                                        vector_kind,
+                                        dim,
+                                        distance_metric,
+                                        created_at,
+                                        metadata_json,
+                                        vector_512,
+                                        vector_768,
+                                        vector_blob
+                                    )
+                                SELECT
+                                    random_id,
+                                    method,
+                                    %s,
+                                    dim,
+                                    %s,
+                                    created_at,
+                                    %s::jsonb,
+                                    vector_512,
+                                    vector_768,
+                                    NULL
+                                FROM {self.vector_table}
+                                WHERE method = %s
+                                  AND dim = %s
+                                ON CONFLICT (random_id, method, vector_kind) DO NOTHING
+                                """,
+                                (spec.vector_kind, spec.distance_metric, metadata, method, spec.dim),
+                            )
+                            copied = int(cur.rowcount or 0)
+                            existing_after = self._count_generic_vector_rows_for_spec(cur, spec=spec)
+                            skipped = max(0, int(legacy_count) - copied)
+                            candidate_row_count += int(legacy_count)
+                            copied_count += copied
+                            skipped_count += skipped
+                            method_results[method] = {
+                                "legacy_row_count": int(legacy_count),
+                                "generic_existing_before": int(existing_before),
+                                "generic_existing_after": int(existing_after),
+                                "copied": copied,
+                                "skipped": skipped,
+                                "vector_kind": spec.vector_kind,
+                                "dim": spec.dim,
+                                "distance_metric": spec.distance_metric,
+                            }
+                            cur.execute("RELEASE SAVEPOINT backfill_generic_retrieval_vectors_method")
+                        except Exception as exc:
+                            cur.execute("ROLLBACK TO SAVEPOINT backfill_generic_retrieval_vectors_method")
+                            cur.execute("RELEASE SAVEPOINT backfill_generic_retrieval_vectors_method")
+                            errors.append({"method": method, "error": str(exc)})
+            conn.commit()
+        except Exception:
+            self._safe_rollback(conn)
+            raise
+        finally:
+            conn.close()
+
+        status = "applied" if copied_count else "noop"
+        if errors:
+            status = "partial" if copied_count else "failed"
+        elif noop_reason is None and candidate_row_count == 0:
+            noop_reason = "no_legacy_vectors"
+
+        result: Dict[str, object] = {
+            "action": "backfill_generic_retrieval_vectors",
+            "database_role": "biometric_db",
+            "status": status,
+            "repair_command": self._reconciliation_script_command("--backfill-generic-retrieval-vectors"),
+            "source_table": self.vector_table,
+            "target_table": self.generic_vector_table,
+            "candidate_row_count": int(candidate_row_count),
+            "copied_count": int(copied_count),
+            "skipped_count": int(skipped_count),
+            "error_count": len(errors),
+            "errors": errors,
+            "methods": method_results,
+        }
+        if noop_reason is not None:
+            result["noop_reason"] = noop_reason
+        return result
 
     def _repair_same_database_orphans(
         self,
@@ -2160,8 +3350,47 @@ class SecureSplitFingerprintStore:
                 'Install it once with: CREATE EXTENSION vector;'
             )
 
+    @staticmethod
+    def _legacy_vector_check_constraint_sql() -> str:
+        columns = tuple(sorted(LEGACY_VECTOR_COLUMN_BY_DIM.values()))
+        clauses: List[str] = []
+        for method in sorted(_legacy_storage_methods()):
+            spec = VECTOR_SPECS[method]
+            active_column = spec.legacy_storage_column
+            if active_column is None:
+                continue
+            column_checks = [
+                f"{column} IS {'NOT ' if column == active_column else ''}NULL"
+                for column in columns
+            ]
+            clauses.append(
+                "("
+                + f"method = '{method}' AND dim = {int(spec.dim)} AND "
+                + " AND ".join(column_checks)
+                + ")"
+            )
+        return " OR ".join(clauses) or "FALSE"
+
+    @staticmethod
+    def _generic_vector_check_constraint_sql() -> str:
+        columns = tuple(sorted(GENERIC_VECTOR_COLUMN_BY_DIM.values()))
+        clauses: List[str] = []
+        for dim, active_column in sorted(GENERIC_VECTOR_COLUMN_BY_DIM.items()):
+            column_checks = [
+                f"{column} IS {'NOT ' if column == active_column else ''}NULL"
+                for column in columns
+            ]
+            clauses.append(
+                "("
+                + f"dim = {int(dim)} AND "
+                + " AND ".join(column_checks)
+                + ")"
+            )
+        return " OR ".join(clauses)
+
     def _init_biometric_schema(self, cur) -> None:
         self._require_vector_extension(cur)
+        vector_check_sql = self._legacy_vector_check_constraint_sql()
         cur.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {self.person_table} (
@@ -2184,11 +3413,14 @@ class SecureSplitFingerprintStore:
                 capture TEXT NOT NULL,
                 ext TEXT NOT NULL,
                 sha256 TEXT NOT NULL,
+                byte_size BIGINT,
                 created_at TIMESTAMPTZ NOT NULL,
-                image_bytes BYTEA NOT NULL
+                image_bytes BYTEA
             )
             """
         )
+        cur.execute(f"ALTER TABLE {self.raw_table} ADD COLUMN IF NOT EXISTS byte_size BIGINT")
+        cur.execute(f"ALTER TABLE {self.raw_table} ALTER COLUMN image_bytes DROP NOT NULL")
 
         cur.execute(
             f"""
@@ -2200,11 +3432,7 @@ class SecureSplitFingerprintStore:
                 vector_512 vector(512),
                 vector_768 vector(768),
                 PRIMARY KEY (random_id, method),
-                CHECK (
-                    (method = 'dl' AND dim = 512 AND vector_512 IS NOT NULL AND vector_768 IS NULL)
-                    OR
-                    (method = 'vit' AND dim = 768 AND vector_768 IS NOT NULL AND vector_512 IS NULL)
-                )
+                CHECK ({vector_check_sql})
             )
             """
         )
@@ -2214,22 +3442,81 @@ class SecureSplitFingerprintStore:
             ON {self.vector_table} (method, created_at DESC)
             """
         )
+        for method in sorted(_legacy_storage_methods()):
+            spec = VECTOR_SPECS[method]
+            if spec.legacy_storage_column is None:
+                continue
+            index_name = self.idx_vector_hnsw[method]
+            cur.execute(
+                f"""
+                CREATE INDEX IF NOT EXISTS {index_name}
+                ON {self.vector_table}
+                USING hnsw ({spec.legacy_storage_column} vector_cosine_ops)
+                WHERE method = '{method}'
+                """
+            )
+
+        self._init_generic_vector_schema(cur)
+
+    def _init_generic_vector_schema(self, cur) -> None:
+        vector_check_sql = self._generic_vector_check_constraint_sql()
         cur.execute(
             f"""
-            CREATE INDEX IF NOT EXISTS {self.idx_vector_dl}
-            ON {self.vector_table}
-            USING hnsw (vector_512 vector_cosine_ops)
-            WHERE method = 'dl'
+            CREATE TABLE IF NOT EXISTS {self.generic_vector_table} (
+                random_id TEXT NOT NULL REFERENCES {self.person_table}(random_id) ON DELETE CASCADE,
+                method TEXT NOT NULL,
+                vector_kind TEXT NOT NULL,
+                dim INTEGER NOT NULL,
+                distance_metric TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                metadata_json JSONB NOT NULL DEFAULT '{{}}'::jsonb,
+                vector_512 vector(512),
+                vector_768 vector(768),
+                vector_blob BYTEA,
+                PRIMARY KEY (random_id, method, vector_kind),
+                CHECK (BTRIM(method) <> ''),
+                CHECK (BTRIM(vector_kind) <> ''),
+                CHECK (BTRIM(distance_metric) <> ''),
+                CHECK ({vector_check_sql})
+            )
             """
         )
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS random_id TEXT")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS method TEXT")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS vector_kind TEXT")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS dim INTEGER")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS distance_metric TEXT")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS vector_512 vector(512)")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS vector_768 vector(768)")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS metadata_json JSONB")
         cur.execute(
             f"""
-            CREATE INDEX IF NOT EXISTS {self.idx_vector_vit}
-            ON {self.vector_table}
-            USING hnsw (vector_768 vector_cosine_ops)
-            WHERE method = 'vit'
+            UPDATE {self.generic_vector_table}
+            SET metadata_json = '{{}}'::jsonb
+            WHERE metadata_json IS NULL
             """
         )
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ALTER COLUMN metadata_json SET DEFAULT '{{}}'::jsonb")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ALTER COLUMN metadata_json SET NOT NULL")
+        cur.execute(f"ALTER TABLE {self.generic_vector_table} ADD COLUMN IF NOT EXISTS vector_blob BYTEA")
+        cur.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {self.idx_generic_vector_method_kind_created_at}
+            ON {self.generic_vector_table} (method, vector_kind, created_at DESC)
+            """
+        )
+        for dim, column in sorted(GENERIC_VECTOR_COLUMN_BY_DIM.items()):
+            cur.execute(
+                f"""
+                CREATE INDEX IF NOT EXISTS {self.idx_generic_vector_hnsw[dim]}
+                ON {self.generic_vector_table}
+                USING hnsw ({column} vector_cosine_ops)
+                WHERE dim = {int(dim)}
+                  AND distance_metric = 'cosine'
+                  AND {column} IS NOT NULL
+                """
+            )
     def _init_identity_schema(self, cur, *, same_database: bool) -> None:
         if same_database:
             cur.execute(
@@ -2721,7 +4008,6 @@ class SecureSplitFingerprintStore:
         full_name: str,
         name_norm: str,
         national_id_norm: str,
-        image_bytes: bytes,
         capture_norm: str,
         ext: str,
         vector_payload: Dict[str, np.ndarray],
@@ -2729,6 +4015,7 @@ class SecureSplitFingerprintStore:
         created_at_dt: datetime,
         created_at_iso: str,
         image_hash: str,
+        byte_size: int | None,
         replace_existing: bool,
     ) -> EnrollmentReceipt:
         bio_conn = self._connect_biometric()
@@ -2762,8 +4049,8 @@ class SecureSplitFingerprintStore:
                     capture=capture_norm,
                     ext=ext,
                     sha256=image_hash,
+                    byte_size=byte_size,
                     created_at=created_at_dt,
-                    image_bytes=image_bytes,
                 )
                 self._insert_vector_rows(
                     bio_cur,
@@ -2923,7 +4210,6 @@ class SecureSplitFingerprintStore:
         full_name: str,
         name_norm: str,
         national_id_norm: str,
-        image_bytes: bytes,
         capture_norm: str,
         ext: str,
         vector_payload: Dict[str, np.ndarray],
@@ -2931,6 +4217,7 @@ class SecureSplitFingerprintStore:
         created_at_dt: datetime,
         created_at_iso: str,
         image_hash: str,
+        byte_size: int | None,
         replace_existing: bool,
     ) -> EnrollmentReceipt:
         with self._connect_biometric() as conn:
@@ -2966,8 +4253,8 @@ class SecureSplitFingerprintStore:
                     capture=capture_norm,
                     ext=ext,
                     sha256=image_hash,
+                    byte_size=byte_size,
                     created_at=created_at_dt,
-                    image_bytes=image_bytes,
                 )
                 self._insert_vector_rows(
                     cur,
@@ -3193,15 +4480,30 @@ class SecureSplitFingerprintStore:
         capture: str,
         ext: str,
         sha256: str,
+        byte_size: int | None,
         created_at: datetime,
-        image_bytes: bytes,
     ) -> None:
         cur.execute(
             f"""
-            INSERT INTO {self.raw_table} (random_id, capture, ext, sha256, created_at, image_bytes)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO {self.raw_table} (random_id, capture, ext, sha256, byte_size, created_at, image_bytes)
+            VALUES (%s, %s, %s, %s, %s, %s, NULL)
             """,
-            (random_id, capture, ext, sha256, created_at, bytes(image_bytes)),
+            (random_id, capture, ext, sha256, byte_size, created_at),
+        )
+
+    @staticmethod
+    def _vector_payloads_for_column(
+        vec: np.ndarray,
+        *,
+        column: str,
+        method: str,
+    ) -> tuple[list[float] | None, list[float] | None]:
+        if column not in GENERIC_VECTOR_COLUMN_BY_DIM.values():  # pragma: no cover - defensive branch
+            raise ValueError(f"Unsupported vector column {column!r} for method={method}")
+        payload = vec.tolist()
+        return (
+            payload if column == "vector_512" else None,
+            payload if column == "vector_768" else None,
         )
 
     def _insert_vector_rows(
@@ -3214,26 +4516,65 @@ class SecureSplitFingerprintStore:
     ) -> None:
         for method, vec in vector_payload.items():
             spec = self._spec_for_method(method)
-            if spec.column == "vector_512":
+            if spec.generic_storage_enabled:
+                vector_512, vector_768 = self._vector_payloads_for_column(
+                    vec,
+                    column=spec.generic_storage_column,
+                    method=spec.method,
+                )
+                cur.execute(
+                    f"""
+                    INSERT INTO {self.generic_vector_table}
+                        (
+                            random_id,
+                            method,
+                            vector_kind,
+                            dim,
+                            distance_metric,
+                            created_at,
+                            metadata_json,
+                            vector_512,
+                            vector_768
+                        )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                    ON CONFLICT (random_id, method, vector_kind)
+                    DO UPDATE SET
+                        dim = EXCLUDED.dim,
+                        distance_metric = EXCLUDED.distance_metric,
+                        created_at = EXCLUDED.created_at,
+                        metadata_json = EXCLUDED.metadata_json,
+                        vector_512 = EXCLUDED.vector_512,
+                        vector_768 = EXCLUDED.vector_768
+                    """,
+                    (
+                        random_id,
+                        spec.method,
+                        spec.vector_kind,
+                        spec.dim,
+                        spec.distance_metric,
+                        created_at,
+                        json.dumps({"source": "enroll"}),
+                        vector_512,
+                        vector_768,
+                    ),
+                )
+
+            if spec.legacy_storage_enabled:
+                if spec.legacy_storage_column is None:  # pragma: no cover - defensive branch
+                    raise ValueError(f"Legacy storage enabled without a legacy column for method={method}")
+                vector_512, vector_768 = self._vector_payloads_for_column(
+                    vec,
+                    column=spec.legacy_storage_column,
+                    method=spec.method,
+                )
                 cur.execute(
                     f"""
                     INSERT INTO {self.vector_table}
                         (random_id, method, dim, created_at, vector_512, vector_768)
-                    VALUES (%s, %s, %s, %s, %s, NULL)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (random_id, method, spec.dim, created_at, vec.tolist()),
+                    (random_id, spec.method, spec.dim, created_at, vector_512, vector_768),
                 )
-            elif spec.column == "vector_768":
-                cur.execute(
-                    f"""
-                    INSERT INTO {self.vector_table}
-                        (random_id, method, dim, created_at, vector_512, vector_768)
-                    VALUES (%s, %s, %s, %s, NULL, %s)
-                    """,
-                    (random_id, method, spec.dim, created_at, vec.tolist()),
-                )
-            else:  # pragma: no cover - defensive branch
-                raise ValueError(f"Unsupported vector column for method={method}")
 
     def _insert_identity_rows(self, cur, rows: Sequence[_IdentityMapRow]) -> None:
         if not rows:
@@ -3486,7 +4827,7 @@ class SecureSplitFingerprintStore:
             raise
 
     def _schema_index_contract(self) -> List[Dict[str, str]]:
-        return [
+        base = [
             {
                 "key": "person_created_at_desc",
                 "database_role": "biometric_db",
@@ -3512,18 +4853,31 @@ class SecureSplitFingerprintStore:
                 "name": self.idx_vector_method_created_at,
             },
             {
-                "key": "feature_vectors_dl_hnsw",
+                "key": "method_retrieval_vectors_method_kind_created_at_desc",
                 "database_role": "biometric_db",
-                "table_key": "vectors",
-                "name": self.idx_vector_dl,
-            },
-            {
-                "key": "feature_vectors_vit_hnsw",
-                "database_role": "biometric_db",
-                "table_key": "vectors",
-                "name": self.idx_vector_vit,
+                "table_key": "generic_vectors",
+                "name": self.idx_generic_vector_method_kind_created_at,
             },
         ]
+        for method in sorted(_legacy_storage_methods()):
+            base.append(
+                {
+                    "key": f"feature_vectors_{method}_hnsw",
+                    "database_role": "biometric_db",
+                    "table_key": "vectors",
+                    "name": self.idx_vector_hnsw[method],
+                }
+            )
+        for dim in sorted(GENERIC_VECTOR_COLUMN_BY_DIM):
+            base.append(
+                {
+                    "key": f"method_retrieval_vectors_{dim}_hnsw",
+                    "database_role": "biometric_db",
+                    "table_key": "generic_vectors",
+                    "name": self.idx_generic_vector_hnsw[dim],
+                }
+            )
+        return base
 
     def _identity_constraint_contract(self) -> List[Dict[str, str]]:
         return [
@@ -3760,7 +5114,9 @@ class SecureSplitFingerprintStore:
     def _row_to_vector_record(self, row) -> FeatureVectorRecord:
         method = str(row["method"])
         spec = self._spec_for_method(method)
-        payload = row.get(spec.column)
+        payload = row.get(spec.generic_storage_column)
+        if payload is None and spec.legacy_storage_column is not None:
+            payload = row.get(spec.legacy_storage_column)
         vec = np.asarray(payload, dtype=np.float32).reshape(-1).copy()
         return FeatureVectorRecord(
             random_id=str(row["random_id"]),
@@ -3791,16 +5147,19 @@ class SecureSplitFingerprintStore:
     def _prepare_vector(self, method: str, vec: np.ndarray) -> np.ndarray:
         spec = self._spec_for_method(method)
         arr = np.asarray(vec, dtype=np.float32).reshape(-1)
-        if arr.size < spec.dim:
+        if arr.size != spec.dim:
             raise ValueError(
-                f"vector for method={method} has dim={arr.size}, but at least {spec.dim} dimensions are required"
+                f"vector for method={method!r} has dim={arr.size}, expected exactly {spec.dim}"
             )
-        if arr.size > spec.dim:
-            arr = arr[: spec.dim]
-        norm = float(np.linalg.norm(arr))
-        if norm > 0.0:
-            arr = arr / norm
-        return arr.astype(np.float32, copy=False)
+        calc = arr.astype(np.float64, copy=False)
+        if not np.all(np.isfinite(calc)):
+            return arr.astype(np.float32, copy=False)
+
+        norm = float(np.linalg.norm(calc))
+        if not np.isfinite(norm) or norm <= 1e-12:
+            return arr.astype(np.float32, copy=False)
+
+        return (calc / norm).astype(np.float32, copy=False)
 
     @staticmethod
     def _pattern_to_like(raw: str) -> str:

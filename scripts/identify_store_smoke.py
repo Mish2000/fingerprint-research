@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from apps.api.identification_service import IdentificationService
+from apps.api.identification_service import IdentificationService, default_enrollment_vector_methods
 from apps.api.schemas import MatchMethod
 from src.fpbench.identification.secure_split_store import (
     IDENTIFICATION_RETRIEVAL_VECTOR_METHODS,
@@ -22,11 +22,13 @@ def main() -> int:
     p_enroll.add_argument("--full-name", required=True)
     p_enroll.add_argument("--national-id", required=True)
     p_enroll.add_argument("--capture", default="plain")
+    default_vector_methods = ",".join(default_enrollment_vector_methods())
     p_enroll.add_argument(
         "--vector-methods",
-        default="dl,vit",
+        default=default_vector_methods,
         help=(
             "Comma-separated vector-backed enrollment methods. "
+            "Use all/direct/retrieval for every direct retrieval method. "
             f"Supported shortlist retrieval methods: {sorted(IDENTIFICATION_RETRIEVAL_VECTOR_METHODS)}"
         ),
     )

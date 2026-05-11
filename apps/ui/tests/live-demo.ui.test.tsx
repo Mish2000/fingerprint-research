@@ -1,13 +1,18 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import FingerprintLiveDemoWorkspace from "../src/features/live-demo/FingerprintLiveDemoWorkspace.tsx";
+import { IDENTIFICATION_RETRIEVAL_METHOD_VALUES } from "../src/types/index.ts";
 import type { EnrollFingerprintResponse, IdentifyCandidate, IdentifyResponse } from "../src/types/index.ts";
 
 type RenderedWorkspace = {
     container: HTMLDivElement;
     root: Root;
 };
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 function createJsonResponse(payload: unknown, status = 200): Response {
     return new Response(JSON.stringify(payload), {
@@ -36,6 +41,17 @@ function getButtonByText(container: HTMLElement, text: string): HTMLButtonElemen
     }
 
     return button;
+}
+
+function getButtonsByText(container: HTMLElement, text: string): HTMLButtonElement[] {
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((item) =>
+        normalizeText(item.textContent).includes(text),
+    );
+    if (buttons.length === 0) {
+        throw new Error(`Unable to find buttons with text: ${text}`);
+    }
+
+    return buttons;
 }
 
 async function flush(): Promise<void> {
@@ -108,6 +124,21 @@ async function click(button: HTMLButtonElement): Promise<void> {
     });
 }
 
+async function advanceTimersByTime(ms: number): Promise<void> {
+    await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+    });
+    await flush();
+}
+
+function expectScannerCaptureButtonsDisabled(container: HTMLElement, disabled: boolean): void {
+    for (const buttonText of ["Capture from scanner", "Import latest saved scan", "Capture with scanner UI"]) {
+        for (const button of getButtonsByText(container, buttonText)) {
+            expect(button.disabled).toBe(disabled);
+        }
+    }
+}
+
 async function renderWorkspace(): Promise<RenderedWorkspace> {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -162,15 +193,46 @@ const identifyResponse: IdentifyResponse = {
 const enrollResponse: EnrollFingerprintResponse = {
     random_id: "live_identity_001",
     created_at: "2026-05-01T12:00:00Z",
-    vector_methods: ["dl", "vit"],
+    vector_methods: [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES],
     image_sha256: "abc123",
     storage_layout: {},
 };
 
 interface FetchMockOptions {
     scannerImport?: "success" | "no-capture";
+    scannerStatus?: "direct" | "fallback" | "unavailable";
+    scannerCapture?: "success" | "failure";
     scannerOriginalFilename?: string;
     scannerNormalizedFilename?: string;
+    scannerCaptureId?: string;
+    scannerCaptureDelayMs?: number;
+}
+
+function scannerStatusPayload(options: FetchMockOptions = {}) {
+    const mode = options.scannerStatus ?? "direct";
+    const directAvailable = mode === "direct";
+    const fallbackAvailable = mode === "direct" || mode === "fallback";
+    return {
+        active_mode: directAvailable ? "twain" : fallbackAvailable ? "saved_file_bridge" : "unavailable",
+        available_modes: [
+            ...(directAvailable ? ["twain"] : []),
+            ...(fallbackAvailable ? ["saved_file_bridge"] : []),
+        ],
+        direct_capture_available: directAvailable,
+        saved_file_bridge_available: fallbackAvailable,
+        device_detected: null,
+        device_name: directAvailable ? "TWAIN Biometrika Driver" : null,
+        driver_detected: directAvailable,
+        twain_source_detected: directAvailable,
+        last_error: directAvailable ? null : "TWAIN direct capture is unavailable and fallback is not allowed.",
+        diagnostics: {},
+        configured: true,
+        enabled: directAvailable || fallbackAvailable,
+        direct_capture_enabled: directAvailable,
+        saved_file_bridge_enabled: fallbackAvailable,
+        capture_dir_display: "data/scanner_captures/incoming",
+        normalized_dir_display: "data/scanner_captures/normalized",
+    };
 }
 
 function scannerImportPayload(options: FetchMockOptions = {}) {
@@ -188,13 +250,61 @@ function scannerImportPayload(options: FetchMockOptions = {}) {
     };
 }
 
+function scannerCapturePayload(request: Record<string, unknown>, options: FetchMockOptions = {}) {
+    const captureId = options.scannerCaptureId ?? "scanner_20260502_121500_direct01";
+    const modeUsed = request.mode === "saved_file_bridge" ? "saved_file_bridge" : "twain";
+    const directCapture = modeUsed === "twain";
+    return {
+        ok: true,
+        mode_used: modeUsed,
+        direct_capture: directCapture,
+        normalized_url: `/api/scanner/captures/${captureId}`,
+        capture_id: captureId,
+        raw_file: { size_bytes: 1024, format: "bmp" },
+        normalized_file: { path: `data/scanner_captures/normalized/${captureId}.png`, size_bytes: 2048, format: "png", mime_type: "image/png" },
+        duration_ms: directCapture ? 42 : 9,
+        device: { name: directCapture ? "TWAIN Biometrika Driver" : null, provider: modeUsed },
+        warning: null,
+        metadata: {},
+    };
+}
+
 function installFetchMock(options: FetchMockOptions = {}) {
     let submittedIdentifyFormData: FormData | null = null;
     let submittedEnrollFormData: FormData | null = null;
     let scannerImportCalls = 0;
+    let scannerStatusCalls = 0;
+    const scannerCaptureRequests: Record<string, unknown>[] = [];
 
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const parsed = new URL(String(input), "http://localhost");
+
+        if (parsed.pathname === "/api/scanner/status") {
+            scannerStatusCalls += 1;
+            return createJsonResponse(scannerStatusPayload(options));
+        }
+
+        if (parsed.pathname === "/api/scanner/capture") {
+            const request = typeof init?.body === "string"
+                ? JSON.parse(init.body) as Record<string, unknown>
+                : {};
+            scannerCaptureRequests.push(request);
+            if (options.scannerCaptureDelayMs != null) {
+                await new Promise((resolve) => setTimeout(resolve, options.scannerCaptureDelayMs));
+            }
+            if (options.scannerCapture === "failure") {
+                return createJsonResponse({
+                    ok: false,
+                    error_code: "twain_unavailable",
+                    message: "TWAIN direct capture is unavailable and fallback is not allowed.",
+                    mode_requested: String(request.mode ?? "auto"),
+                    fallback_available: true,
+                    diagnostics: {},
+                });
+            }
+
+            return createJsonResponse(scannerCapturePayload(request, options));
+        }
 
         if (parsed.pathname === "/api/scanner/import-latest") {
             scannerImportCalls += 1;
@@ -226,10 +336,182 @@ function installFetchMock(options: FetchMockOptions = {}) {
         getSubmittedIdentifyFormData: () => submittedIdentifyFormData,
         getSubmittedEnrollFormData: () => submittedEnrollFormData,
         getScannerImportCalls: () => scannerImportCalls,
+        getScannerStatusCalls: () => scannerStatusCalls,
+        getScannerCaptureRequests: () => scannerCaptureRequests,
     };
 }
 
 describe("Fingerprint Live Demo workspace", () => {
+    it("renders direct scanner capture controls when direct capture is available", async () => {
+        const controls = installFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Direct scanner capture available");
+            expect(text).toContain("TWAIN Biometrika Driver");
+            expect(text).toContain("Capture from scanner");
+            expect(text).toContain("Import latest saved scan");
+        });
+
+        expect(controls.getScannerStatusCalls()).toBe(1);
+        expect(getButtonsByText(container, "Capture from scanner")[0].disabled).toBe(false);
+
+        await unmountWorkspace(root);
+    });
+
+    it("waits through the direct scanner countdown before capture and displays direct-capture metadata", async () => {
+        const controls = installFetchMock({
+            scannerCaptureId: "scanner_20260502_121500_direct01",
+            scannerCaptureDelayMs: 1000,
+        });
+        const { container, root } = await renderWorkspace();
+
+        const captureButton = getButtonsByText(container, "Capture from scanner")[0];
+        await waitFor(() => {
+            expect(captureButton.disabled).toBe(false);
+        });
+
+        vi.useFakeTimers();
+        await click(captureButton);
+
+        expect(controls.getScannerCaptureRequests()).toEqual([]);
+        expectScannerCaptureButtonsDisabled(container, true);
+        expect(normalizeText(container.textContent)).toContain("Place finger on scanner and keep holding still during capture.");
+        expect(normalizeText(container.textContent)).toContain("Capturing in 3...");
+
+        await advanceTimersByTime(1000);
+        expect(controls.getScannerCaptureRequests()).toEqual([]);
+        expect(normalizeText(container.textContent)).toContain("Capturing in 2...");
+
+        await advanceTimersByTime(1000);
+        expect(controls.getScannerCaptureRequests()).toEqual([]);
+        expect(normalizeText(container.textContent)).toContain("Capturing in 1...");
+
+        await advanceTimersByTime(1000);
+        expect(controls.getScannerCaptureRequests()).toEqual([
+            {
+                mode: "auto",
+                timeout_ms: 15000,
+                fallback_allowed: false,
+                normalize: true,
+                show_ui: false,
+                settle_after_enable_ms: 1500,
+            },
+        ]);
+        expectScannerCaptureButtonsDisabled(container, true);
+        expect(normalizeText(container.textContent)).toContain("Scanner is active — keep finger still.");
+
+        await advanceTimersByTime(1000);
+        vi.useRealTimers();
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Direct TWAIN capture");
+            expect(text).toContain("scanner_20260502_121500_direct01.png");
+            expect(text).toContain("mode_usedtwain");
+            expect(text).toContain("direct_capturetrue");
+            expect(text).toContain("duration_ms42");
+            expect(text).toContain("device.nameTWAIN Biometrika Driver");
+            expect(container.querySelector('img[alt="Uploaded fingerprint preview"]')).not.toBeNull();
+        });
+
+        expectScannerCaptureButtonsDisabled(container, false);
+
+        await unmountWorkspace(root);
+    });
+
+    it("shows backend ok=false scanner capture errors without success metadata", async () => {
+        installFetchMock({ scannerCapture: "failure" });
+        const { container, root } = await renderWorkspace();
+
+        const captureButton = getButtonsByText(container, "Capture from scanner")[0];
+        await waitFor(() => {
+            expect(captureButton.disabled).toBe(false);
+        });
+
+        vi.useFakeTimers();
+        await click(captureButton);
+        expect(normalizeText(container.textContent)).toContain("Capturing in 3...");
+        await advanceTimersByTime(3000);
+        vi.useRealTimers();
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Capture failed");
+            expect(text).toContain("TWAIN direct capture is unavailable and fallback is not allowed.");
+            expect(text).toContain("Error code: twain_unavailable.");
+            expect(text).toContain("Use Import latest saved scan.");
+            expect(text).not.toContain("Direct TWAIN capture");
+            expect(text).not.toContain("mode_usedtwain");
+        });
+
+        await unmountWorkspace(root);
+    });
+
+    it("does not call direct scanner capture after unmount during the countdown", async () => {
+        const controls = installFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        const captureButton = getButtonsByText(container, "Capture from scanner")[0];
+        await waitFor(() => {
+            expect(captureButton.disabled).toBe(false);
+        });
+
+        vi.useFakeTimers();
+        await click(captureButton);
+        expect(normalizeText(container.textContent)).toContain("Capturing in 3...");
+
+        await unmountWorkspace(root);
+        await advanceTimersByTime(3000);
+
+        expect(controls.getScannerCaptureRequests()).toEqual([]);
+    });
+
+    it("renders saved-file fallback controls when direct capture is unavailable", async () => {
+        installFetchMock({ scannerStatus: "fallback" });
+        const { container, root } = await renderWorkspace();
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Direct capture unavailable. Saved-file import fallback available.");
+        });
+
+        expect(getButtonsByText(container, "Capture from scanner")[0].disabled).toBe(true);
+        expect(getButtonsByText(container, "Import latest saved scan")[0].disabled).toBe(false);
+
+        await unmountWorkspace(root);
+    });
+
+    it("sends show_ui true and a longer timeout for scanner UI capture", async () => {
+        const controls = installFetchMock({ scannerCaptureId: "scanner_20260502_122000_ui01" });
+        const { container, root } = await renderWorkspace();
+
+        const scannerUiButton = getButtonsByText(container, "Capture with scanner UI")[0];
+        await waitFor(() => {
+            expect(scannerUiButton.disabled).toBe(false);
+        });
+
+        await click(scannerUiButton);
+
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("scanner_20260502_122000_ui01.png");
+        });
+
+        expect(controls.getScannerCaptureRequests()).toEqual([
+            {
+                mode: "twain",
+                timeout_ms: 60000,
+                fallback_allowed: false,
+                normalize: true,
+                show_ui: true,
+                settle_after_enable_ms: 0,
+            },
+        ]);
+
+        await unmountWorkspace(root);
+    });
+
     it("disables Identify until a probe fingerprint exists", async () => {
         const controls = installFetchMock();
         const { container, root } = await renderWorkspace();
@@ -315,7 +597,7 @@ describe("Fingerprint Live Demo workspace", () => {
             expect(text).toContain("Alex Demo");
             expect(text).toContain("live_identity_001");
             expect(text).toContain("Contactless");
-            expect(text).toContain("Deep Learning (ResNet50)");
+            expect(text).toContain("Deep Learning (ResNet18)");
             expect(text).toContain("Deep Learning (ViT)");
         });
 
@@ -325,7 +607,7 @@ describe("Fingerprint Live Demo workspace", () => {
         expect(enrollFormData?.get("full_name")).toBe("Alex Demo");
         expect(enrollFormData?.get("national_id")).toBe("123456789");
         expect(enrollFormData?.get("capture")).toBe("contactless");
-        expect(enrollFormData?.get("vector_methods")).toBe("dl,vit");
+        expect(enrollFormData?.get("vector_methods")).toBe(IDENTIFICATION_RETRIEVAL_METHOD_VALUES.join(","));
         expect(enrollFormData?.get("replace_existing")).toBe("true");
 
         const probeFile = new File([new Blob(["probe"], { type: "image/png" })], "probe.png", { type: "image/png" });
@@ -357,26 +639,26 @@ describe("Fingerprint Live Demo workspace", () => {
         await unmountWorkspace(root);
     });
 
-    it("imports the latest saved UMPI capture as enrollment and enrolls with that normalized file", async () => {
+    it("imports the latest saved scan as enrollment and enrolls with that normalized file", async () => {
         const controls = installFetchMock({
             scannerOriginalFilename: "umpi_enrollment.tif",
             scannerNormalizedFilename: "scanner_20260502_120000_enroll01.png",
         });
         const { container, root } = await renderWorkspace();
 
-        expect(normalizeText(container.textContent)).toContain("Scanner bridge");
-        expect(normalizeText(container.textContent)).toContain(
-            "Use the UMPI Diagnostic Tool to capture a fingerprint, save the .tif file into the configured scanner capture folder, then import the latest saved capture here.",
-        );
-        expect(normalizeText(container.textContent)).toContain("Manual upload remains available.");
-        expect(normalizeText(container.textContent)).toContain("Direct SDK capture is a future milestone.");
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("Direct scanner capture available");
+            expect(getButtonsByText(container, "Import latest saved scan")[0].disabled).toBe(false);
+        });
 
-        await click(getButtonByText(container, "Import latest saved UMPI capture as enrollment"));
+        await click(getButtonsByText(container, "Import latest saved scan")[0]);
 
         await waitFor(() => {
             const text = normalizeText(container.textContent);
-            expect(text).toContain("Imported umpi_enrollment.tif as enrollment capture");
+            expect(text).toContain("Saved-file fallback");
             expect(text).toContain("scanner_20260502_120000_enroll01.png");
+            expect(text).toContain("mode_usedsaved_file_bridge");
+            expect(text).toContain("direct_capturefalse");
             expect(text).toContain("Enrollment sourceImage source ready");
             expect(getButtonByText(container, "Enroll identity").disabled).toBe(false);
         });
@@ -398,7 +680,7 @@ describe("Fingerprint Live Demo workspace", () => {
         await unmountWorkspace(root);
     });
 
-    it("imports the latest saved UMPI capture as probe and identifies with that normalized file", async () => {
+    it("imports the latest saved scan as probe and identifies with that normalized file", async () => {
         const controls = installFetchMock({
             scannerOriginalFilename: "umpi_probe.tif",
             scannerNormalizedFilename: "scanner_20260502_120500_probe001.png",
@@ -407,11 +689,14 @@ describe("Fingerprint Live Demo workspace", () => {
 
         expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(true);
 
-        await click(getButtonByText(container, "Import latest saved UMPI capture as probe"));
+        await waitFor(() => {
+            expect(getButtonsByText(container, "Import latest saved scan")[1].disabled).toBe(false);
+        });
+        await click(getButtonsByText(container, "Import latest saved scan")[1]);
 
         await waitFor(() => {
             const text = normalizeText(container.textContent);
-            expect(text).toContain("Imported umpi_probe.tif as probe capture");
+            expect(text).toContain("Saved-file fallback");
             expect(text).toContain("scanner_20260502_120500_probe001.png");
             expect(text).toContain("Probe sourceImage source ready");
             expect(getButtonByText(container, "Run Identify 1:N").disabled).toBe(false);
@@ -435,7 +720,10 @@ describe("Fingerprint Live Demo workspace", () => {
         installFetchMock({ scannerImport: "no-capture" });
         const { container, root } = await renderWorkspace();
 
-        await click(getButtonByText(container, "Import latest saved UMPI capture as enrollment"));
+        await waitFor(() => {
+            expect(getButtonsByText(container, "Import latest saved scan")[0].disabled).toBe(false);
+        });
+        await click(getButtonsByText(container, "Import latest saved scan")[0]);
 
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("No saved scanner capture found in the configured folder");

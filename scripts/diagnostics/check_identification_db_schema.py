@@ -45,6 +45,13 @@ def _format_vectors(counts: dict[str, object]) -> str:
     return ", ".join(ordered) or "(none)"
 
 
+def _format_generic_vectors(counts: dict[str, object]) -> str:
+    ordered = []
+    for key in sorted(counts):
+        ordered.append(f"{key}={_count_text(counts[key])}")
+    return ", ".join(ordered) or "(none)"
+
+
 def _print_payload(payload: dict[str, object]) -> None:
     urls = dict(payload["redacted_database_urls"])
     tables = dict(payload["resolved_table_names"])
@@ -53,6 +60,7 @@ def _print_payload(payload: dict[str, object]) -> None:
     issues = list(payload["issues"])
     readiness = dict(payload.get("readiness", {}))
     hardening = dict(payload.get("schema_hardening", {}))
+    template_protection = dict(payload.get("template_protection", {}))
 
     print("[layout]")
     print(f"  backend: {payload['backend']}")
@@ -69,13 +77,15 @@ def _print_payload(payload: dict[str, object]) -> None:
     print(f"  identity: {tables['identity']}")
     print(f"  raw:      {tables['raw']}")
     print(f"  vectors:  {tables['vectors']}")
+    if "generic_vectors" in tables:
+        print(f"  generic_vectors: {tables['generic_vectors']}")
 
     print("\n[table_presence]")
     for database_role in ("biometric_db", "identity_db"):
         role_presence = dict(presence[database_role])
         fields = ", ".join(
             f"{name}={_bool_text(bool(role_presence.get(name)))}"
-            for name in ("person", "identity", "raw", "vectors")
+            for name in ("person", "identity", "raw", "vectors", "generic_vectors")
         )
         print(f"  {database_role}: {fields}")
 
@@ -85,9 +95,32 @@ def _print_payload(payload: dict[str, object]) -> None:
     print(f"  raw: { _count_text(counts['raw']) }")
     print(f"  vectors_by_method: {_format_vectors(dict(counts['vectors_by_method']))}")
     print(
+        "  generic_vectors_by_method_kind: "
+        + _format_generic_vectors(dict(counts.get("generic_vectors_by_method_kind", {})))
+    )
+    print(
         "  vector_extension_present_in_biometric_db: "
         + _bool_text(payload["vector_extension_present_in_biometric_db"])
     )
+
+    vector_storage = dict(payload.get("vector_storage_schema", {}))
+    if vector_storage:
+        print("\n[vector_storage]")
+        print(f"  mode: {vector_storage.get('mode', 'unknown')}")
+        print(
+            "  method_generic_vectors_supported: "
+            + _bool_text(vector_storage.get("method_generic_vectors_supported"))
+        )
+        print(
+            "  generic_retrieval_vectors_table_present: "
+            + _bool_text(vector_storage.get("generic_retrieval_vectors_table_present"))
+        )
+        print(
+            "  generic_schema_compatible: "
+            + _bool_text(vector_storage.get("generic_schema_compatible"))
+        )
+        print("  legacy_fallback_used: " + _bool_text(vector_storage.get("legacy_fallback_used")))
+        print("  backfill_recommended: " + _bool_text(vector_storage.get("backfill_recommended")))
 
     if hardening:
         guarantees = dict(hardening.get("identity_map_guarantees", {}))
@@ -103,6 +136,32 @@ def _print_payload(payload: dict[str, object]) -> None:
             "  missing_indexes: "
             + (", ".join(drift.get("missing_indexes", [])) or "(none)")
         )
+
+    if template_protection:
+        print("\n[template_protection]")
+        print(f"  raw_image_storage_policy: {template_protection.get('raw_image_storage_policy', 'unknown')}")
+        print(
+            "  new_raw_image_persistence_enabled: "
+            + _bool_text(template_protection.get("new_raw_image_persistence_enabled"))
+        )
+        print(
+            "  raw_image_bytes_column_present: "
+            + _bool_text(template_protection.get("raw_image_bytes_column_present"))
+        )
+        print(
+            "  raw_image_bytes_column_nullable: "
+            + _bool_text(template_protection.get("raw_image_bytes_column_nullable"))
+        )
+        print(
+            "  legacy_raw_image_storage_status: "
+            + str(template_protection.get("legacy_raw_image_storage_status", "unknown"))
+        )
+        print(
+            "  legacy_raw_image_bytes_row_count: "
+            + _count_text(template_protection.get("legacy_raw_image_bytes_row_count"))
+        )
+        sample = [str(item) for item in list(template_protection.get("legacy_raw_image_bytes_sample", []))]
+        print("  legacy_raw_image_bytes_sample: " + (", ".join(sample) or "(none)"))
 
     print("\n[readiness]")
     print(f"  status: {readiness.get('status', 'unknown')}")

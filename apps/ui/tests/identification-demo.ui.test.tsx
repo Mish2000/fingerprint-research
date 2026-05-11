@@ -3,6 +3,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import IdentificationWorkspace from "../src/features/identification/IdentificationWorkspace.tsx";
+import { IDENTIFICATION_RETRIEVAL_OPTIONS } from "../src/features/identification/methodOptions.ts";
+import { IDENTIFICATION_RETRIEVAL_METHOD_VALUES } from "../src/types/index.ts";
 import type {
     CatalogDatasetBrowserResponse,
     CatalogDatasetsResponse,
@@ -71,6 +73,12 @@ function getLabelField<T extends HTMLInputElement | HTMLSelectElement>(container
 async function click(button: HTMLButtonElement): Promise<void> {
     await act(async () => {
         button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+}
+
+async function toggleCheckbox(input: HTMLInputElement): Promise<void> {
+    await act(async () => {
+        input.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 }
 
@@ -157,6 +165,15 @@ function createStats(totalEnrolled: number, demoSeededCount: number, browserSeed
         },
     };
 }
+
+const retrievalMethodLabels = [
+    "Classic (ORB)",
+    "Classic (ROI GFTT+ORB)",
+    "Harris",
+    "SIFT",
+    "Deep Learning (ResNet18)",
+    "Deep Learning (ViT)",
+];
 
 const identifyGalleryItems = [
     {
@@ -639,6 +656,7 @@ function installFetchMock(options: FetchMockOptions = {}) {
     };
     let currentStats = createStats(0, 0, 0);
     let submittedSearchFormData: FormData | null = null;
+    let submittedEnrollFormData: FormData | null = null;
     let submittedBrowserSeedPayload: Record<string, unknown> | null = null;
     let demoSearchResponsePayload: IdentifyResponse = successResponse;
     let browserSearchResponsePayload: IdentifyResponse = browserSuccessResponse;
@@ -764,11 +782,12 @@ function installFetchMock(options: FetchMockOptions = {}) {
         }
 
         if (url === "/api/identify/enroll") {
+            submittedEnrollFormData = init?.body as FormData;
             currentStats = createStats(currentStats.total_enrolled + 1, currentStats.demo_seeded_count, currentStats.browser_seeded_count);
             return createJsonResponse({
                 random_id: "manual_identity_001",
                 created_at: "2026-04-02T00:00:00Z",
-                vector_methods: ["dl", "vit"],
+                vector_methods: [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES],
                 image_sha256: "hash",
                 storage_layout: currentStats.storage_layout,
             });
@@ -800,6 +819,7 @@ function installFetchMock(options: FetchMockOptions = {}) {
             browserSearchResponsePayload = payload;
         },
         getSubmittedSearchFormData: () => submittedSearchFormData,
+        getSubmittedEnrollFormData: () => submittedEnrollFormData,
         getSubmittedBrowserSeedPayload: () => submittedBrowserSeedPayload,
     };
 }
@@ -810,6 +830,14 @@ afterEach(() => {
 });
 
 describe("Identification demo gallery workspace", () => {
+    it("keeps dedicated out of direct retrieval options", () => {
+        const directMethods = [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES];
+
+        expect(directMethods).toEqual(["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"]);
+        expect(directMethods).not.toContain("dedicated");
+        expect(IDENTIFICATION_RETRIEVAL_OPTIONS.map((option) => option.value)).toEqual(directMethods);
+    });
+
     it("loads the identify gallery by default and keeps the selected probe stable across mode switches", async () => {
         installFetchMock();
         const { container, root } = await renderWorkspace();
@@ -1210,7 +1238,7 @@ describe("Identification demo gallery workspace", () => {
     });
 
     it("preserves operational enroll, manual search, and delete workflows", async () => {
-        installFetchMock();
+        const controls = installFetchMock();
         const { container, root } = await renderWorkspace();
 
         await click(getButtonByText(container, "Operational Mode"));
@@ -1229,6 +1257,9 @@ describe("Identification demo gallery workspace", () => {
             expect(normalizeText(container.textContent)).toContain("Enrollment completed");
             expect(normalizeText(container.textContent)).toContain("manual_identity_001");
         });
+        expect(controls.getSubmittedEnrollFormData()?.get("vector_methods")).toBe(
+            IDENTIFICATION_RETRIEVAL_METHOD_VALUES.join(","),
+        );
 
         await uploadFile(fileInputs[1], new File([new Blob(["manual-search"], { type: "image/png" })], "manual-search.png", { type: "image/png" }));
         await click(getButtonByText(container, "Search identities"));
@@ -1248,6 +1279,63 @@ describe("Identification demo gallery workspace", () => {
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("Identity removed");
         });
+
+        await unmountWorkspace(root);
+    });
+
+    it("removes deselected enrollment vector methods from the request", async () => {
+        const controls = installFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        await click(getButtonByText(container, "Operational Mode"));
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("Vector methods");
+        });
+
+        for (const label of retrievalMethodLabels) {
+            expect(getLabelField<HTMLInputElement>(container, label).checked).toBe(true);
+        }
+        await toggleCheckbox(getLabelField<HTMLInputElement>(container, "Harris"));
+
+        const fileInputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+        await uploadFile(fileInputs[0], new File([new Blob(["manual-enroll"], { type: "image/png" })], "manual-enroll.png", { type: "image/png" }));
+        await changeFieldValue(getLabelField<HTMLInputElement>(container, "Full name"), "Manual Person");
+        await changeFieldValue(getLabelField<HTMLInputElement>(container, "National ID"), "123456789");
+        await click(getButtonByText(container, "Enroll identity"));
+
+        await waitFor(() => {
+            expect(controls.getSubmittedEnrollFormData()).not.toBeNull();
+        });
+        expect(controls.getSubmittedEnrollFormData()?.get("vector_methods")).toBe(
+            IDENTIFICATION_RETRIEVAL_METHOD_VALUES.filter((method) => method !== "harris").join(","),
+        );
+
+        await unmountWorkspace(root);
+    });
+
+    it("rejects operational enrollment when no vector methods are selected", async () => {
+        const controls = installFetchMock();
+        const { container, root } = await renderWorkspace();
+
+        await click(getButtonByText(container, "Operational Mode"));
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("Vector methods");
+        });
+
+        for (const label of retrievalMethodLabels) {
+            await toggleCheckbox(getLabelField<HTMLInputElement>(container, label));
+        }
+
+        const fileInputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+        await uploadFile(fileInputs[0], new File([new Blob(["manual-enroll"], { type: "image/png" })], "manual-enroll.png", { type: "image/png" }));
+        await changeFieldValue(getLabelField<HTMLInputElement>(container, "Full name"), "Manual Person");
+        await changeFieldValue(getLabelField<HTMLInputElement>(container, "National ID"), "123456789");
+        await click(getButtonByText(container, "Enroll identity"));
+
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("Choose at least one vector method for enrollment.");
+        });
+        expect(controls.getSubmittedEnrollFormData()).toBeNull();
 
         await unmountWorkspace(root);
     });

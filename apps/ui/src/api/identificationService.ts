@@ -14,23 +14,24 @@ import {
     normalizeIdentificationStatsResponse,
     normalizeIdentifyResponse,
 } from "./contracts.ts";
-import type {
-    CatalogIdentifyGalleryResponse,
-    CatalogIdentifyProbeCase,
-    DeleteIdentityResponse,
-    EnrollFingerprintRequest,
-    EnrollFingerprintResponse,
-    IdentificationAdminInspectionResponse,
-    IdentificationAdminReconciliationResponse,
-    IdentificationHealthResponse,
-    IdentifyBrowserResetResponse,
-    IdentifyBrowserSeedSelectionRequest,
-    IdentifyBrowserSeedSelectionResponse,
-    IdentifyDemoResetResponse,
-    IdentifyDemoSeedResponse,
-    IdentificationStatsResponse,
-    IdentifyFingerprintRequest,
-    IdentifyResponse,
+import {
+    IDENTIFICATION_RETRIEVAL_METHOD_VALUES,
+    type CatalogIdentifyGalleryResponse,
+    type CatalogIdentifyProbeCase,
+    type DeleteIdentityResponse,
+    type EnrollFingerprintRequest,
+    type EnrollFingerprintResponse,
+    type IdentificationAdminInspectionResponse,
+    type IdentificationAdminReconciliationResponse,
+    type IdentificationHealthResponse,
+    type IdentifyBrowserResetResponse,
+    type IdentifyBrowserSeedSelectionRequest,
+    type IdentifyBrowserSeedSelectionResponse,
+    type IdentifyDemoResetResponse,
+    type IdentifyDemoSeedResponse,
+    type IdentificationStatsResponse,
+    type IdentifyFingerprintRequest,
+    type IdentifyResponse,
 } from "../types/index.ts";
 
 
@@ -98,7 +99,7 @@ export async function enrollFingerprint(
     form.append("full_name", request.fullName);
     form.append("national_id", request.nationalId);
     form.append("capture", request.capture);
-    form.append("vector_methods", (request.vectorMethods ?? ["dl", "vit"]).join(","));
+    form.append("vector_methods", (request.vectorMethods ?? [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES]).join(","));
     form.append("replace_existing", String(Boolean(request.replaceExisting)));
 
     const response = await fetch("/api/identify/enroll", { method: "POST", body: form });

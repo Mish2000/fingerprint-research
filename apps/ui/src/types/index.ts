@@ -38,12 +38,37 @@ export type BenchmarkSortMode = (typeof BENCHMARK_SORT_MODE_VALUES)[number];
 export const BENCHMARK_BEST_METRIC_VALUES = ["best_auc", "best_eer", "best_latency"] as const;
 export type BenchmarkBestMetric = (typeof BENCHMARK_BEST_METRIC_VALUES)[number];
 
-export const IDENTIFICATION_RETRIEVAL_METHOD_VALUES = ["dl", "vit"] as const;
+export const IDENTIFICATION_RETRIEVAL_METHOD_VALUES = [
+    "classic_orb",
+    "classic_gftt_orb",
+    "harris",
+    "sift",
+    "dl",
+    "vit",
+] as const;
 export type IdentificationRetrievalMethod = (typeof IDENTIFICATION_RETRIEVAL_METHOD_VALUES)[number];
 
 export type JsonRecord = Record<string, unknown>;
 export type StorageLayout = Record<string, string>;
 export type LatencyBreakdown = Record<string, number>;
+
+export type MethodRetrievalCapability = {
+    method: Method;
+    display_label: string;
+    status?: string | null;
+    presentation_tier?: string | null;
+    experimental?: boolean;
+    research_track?: boolean;
+    retrieval_capability_status?: string | null;
+    direct_retrieval_exclusion?: string | null;
+    supports_pairwise_rerank: boolean;
+    supports_direct_vector_retrieval: boolean;
+    retrieval_vector_dim?: number | null;
+    retrieval_vector_kind?: string | null;
+    retrieval_distance_metric?: string | null;
+    retrieval_unavailable_reason?: string | null;
+    future_adapter_hint?: string | null;
+};
 
 export type OverlayMatch = {
     a: [number, number];
@@ -114,9 +139,20 @@ export type BenchmarkProvenance = {
     artifact_source: string;
     methods_in_run: string[];
     benchmark_methods_in_run: string[];
+    showcase_methods_in_run: string[];
+    showcase_benchmark_methods_in_run: string[];
+    research_methods_in_run: string[];
+    research_benchmark_methods_in_run: string[];
     canonical_method?: string | null;
     benchmark_method?: string | null;
     method_label?: string | null;
+    method_status?: string | null;
+    presentation_tier?: string | null;
+    showcase_eligible: boolean;
+    benchmark_default: boolean;
+    canonical_default: boolean;
+    research_track: boolean;
+    not_champion_candidate: boolean;
     timestamp_utc?: string | null;
     limit?: number | null;
     pairs_path?: string | null;
@@ -155,6 +191,10 @@ export type BenchmarkRunInfo = {
     summary_note: string;
     methods: string[];
     benchmark_methods: string[];
+    showcase_methods: string[];
+    showcase_benchmark_methods: string[];
+    research_methods: string[];
+    research_benchmark_methods: string[];
     splits: string[];
     dataset_info?: NamedInfo | null;
     benchmark_source_root?: "live" | "reference" | null;
@@ -215,6 +255,14 @@ export type ComparisonRow = {
     method: string;
     benchmark_method: string;
     method_label?: string | null;
+    method_status?: string | null;
+    presentation_tier?: string | null;
+    showcase_eligible: boolean;
+    benchmark_default: boolean;
+    canonical_default: boolean;
+    research_track: boolean;
+    not_champion_candidate: boolean;
+    showcase_exclusion_note?: string | null;
     auc: number;
     eer: number;
     n_pairs?: number | null;
@@ -238,6 +286,12 @@ export type ComparisonRow = {
     provenance?: BenchmarkProvenance | null;
 };
 
+export type ResearchRunGroupInfo = {
+    totalCount: number;
+    hiddenCount: number;
+    hiddenRows: ComparisonRow[];
+};
+
 export type ComparisonResponse = {
     rows: ComparisonRow[];
     datasets: string[];
@@ -257,6 +311,9 @@ export type BestMethodEntry = {
     method: string;
     benchmark_method?: string | null;
     method_label?: string | null;
+    method_status?: string | null;
+    presentation_tier?: string | null;
+    showcase_eligible: boolean;
     run: string;
     value: number;
     run_family?: string | null;
@@ -539,7 +596,7 @@ export type EnrollFingerprintRequest = {
     fullName: string;
     nationalId: string;
     capture: Capture;
-    vectorMethods?: string[];
+    vectorMethods?: IdentificationRetrievalMethod[];
     replaceExisting?: boolean;
 };
 
@@ -616,6 +673,10 @@ export type IdentificationHealthResponse = {
     identify_browser_error?: string | null;
     identify_browser_status: string;
     methods: Record<string, IdentificationHealthMethodAvailability>;
+    method_capabilities?: Record<string, MethodRetrievalCapability>;
+    retrieval_capabilities?: Record<string, MethodRetrievalCapability>;
+    direct_vector_retrieval_methods?: IdentificationRetrievalMethod[];
+    rerank_only_methods?: Method[];
 };
 
 export type IdentificationAdminDatabaseUrls = {
@@ -628,6 +689,7 @@ export type IdentificationAdminResolvedTableNames = {
     identity: string;
     raw: string;
     vectors: string;
+    generic_vectors?: string | null;
 };
 
 export type IdentificationAdminRoleTablePresence = {
@@ -635,6 +697,7 @@ export type IdentificationAdminRoleTablePresence = {
     identity: boolean;
     raw: boolean;
     vectors: boolean;
+    generic_vectors: boolean;
 };
 
 export type IdentificationAdminTablePresence = {
@@ -647,6 +710,8 @@ export type IdentificationAdminRowCounts = {
     identity?: number | null;
     raw?: number | null;
     vectors_by_method: Record<string, number | null>;
+    legacy_vectors_by_method: Record<string, number | null>;
+    generic_vectors_by_method_kind: Record<string, number>;
 };
 
 export type IdentificationAdminIssue = JsonRecord & {
@@ -674,6 +739,15 @@ export type IdentificationAdminInspectionResponse = {
     row_counts: IdentificationAdminRowCounts;
     vector_extension_present_in_biometric_db?: boolean | null;
     unexpected_vector_methods: Record<string, number>;
+    method_capabilities?: Record<string, MethodRetrievalCapability>;
+    retrieval_capabilities?: Record<string, MethodRetrievalCapability>;
+    direct_vector_retrieval_methods?: IdentificationRetrievalMethod[];
+    rerank_only_methods?: Method[];
+    retrieval_vector_coverage_by_method?: Record<string, JsonRecord>;
+    retrieval_methods_missing_vectors?: IdentificationRetrievalMethod[];
+    retrieval_methods_with_zero_coverage?: IdentificationRetrievalMethod[];
+    coverage_recommendation?: string;
+    vector_storage_schema?: JsonRecord;
     schema_hardening: JsonRecord;
     reconciliation: JsonRecord;
     integrity_warnings: string[];

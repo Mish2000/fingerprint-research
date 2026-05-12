@@ -7,8 +7,8 @@ from apps.api.method_registry import load_api_method_registry
 import src.fpbench.identification.secure_split_store as secure_store_module
 from src.fpbench.identification.secure_split_store import SecureSplitFingerprintStore, VECTOR_SPECS, VectorSpec
 
-CLASSIC_GENERIC_ONLY_METHODS = ["classic_gftt_orb", "classic_orb", "harris", "sift"]
-ALL_GENERIC_STORAGE_METHODS = ["classic_gftt_orb", "classic_orb", "dl", "harris", "sift", "vit"]
+CLASSIC_GENERIC_ONLY_METHODS = ["classic_gftt_orb", "classic_orb", "harris", "minutiae", "sift"]
+ALL_GENERIC_STORAGE_METHODS = ["classic_gftt_orb", "classic_orb", "dl", "harris", "minutiae", "sift", "vit"]
 
 
 @pytest.fixture()
@@ -55,6 +55,7 @@ def test_store_vector_specs_are_derived_from_method_registry() -> None:
     assert set(VECTOR_SPECS) == set(registry_specs) == {
         "classic_orb",
         "classic_gftt_orb",
+        "minutiae",
         "harris",
         "sift",
         "dl",
@@ -119,8 +120,8 @@ def test_vector_storage_schema_metadata_reports_generic_only_strategy(monkeypatc
 
     assert metadata["legacy_compatibility_methods"] == ["dl", "vit"]
     assert metadata["dual_write_methods"] == ["dl", "vit"]
-    assert metadata["generic_storage_methods"] == ["classic_gftt_orb", "classic_orb", "dl", "future", "harris", "sift", "vit"]
-    assert metadata["generic_only_methods"] == ["classic_gftt_orb", "classic_orb", "future", "harris", "sift"]
+    assert metadata["generic_storage_methods"] == ["classic_gftt_orb", "classic_orb", "dl", "future", "harris", "minutiae", "sift", "vit"]
+    assert metadata["generic_only_methods"] == ["classic_gftt_orb", "classic_orb", "future", "harris", "minutiae", "sift"]
     assert metadata["configured_vector_specs"]["future"]["legacy_storage_enabled"] is False
     assert metadata["configured_vector_specs"]["future"]["generic_storage_enabled"] is True
     assert metadata["configured_vector_specs"]["future"]["preferred_storage"] == "generic"
@@ -132,7 +133,7 @@ def test_generic_vector_check_constraint_is_not_method_specific() -> None:
     check_sql = SecureSplitFingerprintStore._generic_vector_check_constraint_sql()
 
     assert "method =" not in check_sql
-    for method in ("classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"):
+    for method in ("classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"):
         assert method not in check_sql
     assert "dim = 512" in check_sql
     assert "dim = 768" in check_sql
@@ -157,6 +158,6 @@ def test_legacy_vector_check_constraint_only_names_legacy_compat_methods(monkeyp
 
     assert "method = 'dl'" in check_sql
     assert "method = 'vit'" in check_sql
-    for method in ("classic_orb", "classic_gftt_orb", "harris", "sift"):
+    for method in ("classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift"):
         assert method not in check_sql
     assert "future" not in check_sql

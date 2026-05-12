@@ -169,6 +169,7 @@ function createStats(totalEnrolled: number, demoSeededCount: number, browserSeed
 const retrievalMethodLabels = [
     "Classic (ORB)",
     "Classic (ROI GFTT+ORB)",
+    "Classic (Minutiae)",
     "Harris",
     "SIFT",
     "Deep Learning (ResNet18)",
@@ -833,7 +834,7 @@ describe("Identification demo gallery workspace", () => {
     it("keeps dedicated out of direct retrieval options", () => {
         const directMethods = [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES];
 
-        expect(directMethods).toEqual(["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"]);
+        expect(directMethods).toEqual(["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]);
         expect(directMethods).not.toContain("dedicated");
         expect(IDENTIFICATION_RETRIEVAL_OPTIONS.map((option) => option.value)).toEqual(directMethods);
     });

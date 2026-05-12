@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List
 
 
-FALLBACK_CANONICAL_BENCHMARK_METHODS = ["classic_v2", "harris", "sift", "dl_quick", "vit"]
+FALLBACK_CANONICAL_BENCHMARK_METHODS = ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"]
 FALLBACK_RESEARCH_BENCHMARK_METHODS = ["dedicated"]
 PROFILE_NAMES = ("canonical", "dedicated", "research")
 

@@ -20,6 +20,12 @@ from src.fpbench.identification.classic_vectorizers import (
     sift_aggregated_descriptor_vector,
 )
 from src.fpbench.matchers.dedicated_matcher import DedicatedMatcher
+from src.fpbench.matchers.minutiae_matcher import (
+    MinutiaeConfig,
+    extract_minutiae_template,
+    minutiae_aggregate_vector,
+    score_pair_minutiae,
+)
 from src.fpbench.matchers.matching_baseline import (
     HarrisConfig,
     ORBConfig,
@@ -235,6 +241,7 @@ class MatchService:
 
         classic_orb_defaults = _copy_dict(self.method_registry.definition_for("classic_orb").runtime_defaults)
         classic_gftt_orb_defaults = _copy_dict(self.method_registry.definition_for("classic_gftt_orb").runtime_defaults)
+        minutiae_defaults = _copy_dict(self.method_registry.definition_for("minutiae").runtime_defaults)
         harris_defaults = _copy_dict(self.method_registry.definition_for("harris").runtime_defaults)
         sift_defaults = _copy_dict(self.method_registry.definition_for("sift").runtime_defaults)
         dl_defaults = _copy_dict(self.method_registry.definition_for("dl").runtime_defaults)
@@ -267,6 +274,43 @@ class MatchService:
             **_extract_kwargs(
                 sift_defaults,
                 ("nfeatures", "nOctaveLayers", "contrastThreshold", "edgeThreshold", "sigma"),
+            )
+        )
+        if "clahe_grid" in minutiae_defaults and isinstance(minutiae_defaults["clahe_grid"], list):
+            minutiae_defaults["clahe_grid"] = tuple(minutiae_defaults["clahe_grid"])
+        self.minutiae_cfg = MinutiaeConfig(
+            **_extract_kwargs(
+                minutiae_defaults,
+                (
+                    "target_size",
+                    "clahe_clip",
+                    "clahe_grid",
+                    "blur_ksize",
+                    "preprocess",
+                    "ridge_kernel_size",
+                    "min_ridge_response",
+                    "min_binary_component_area",
+                    "min_skeleton_component_area",
+                    "border_px",
+                    "suppress_top_ratio",
+                    "roi_border_px",
+                    "min_distance",
+                    "orientation_radius",
+                    "max_minutiae",
+                    "max_thinning_iterations",
+                    "candidate_quality_floor",
+                    "dense_bifurcation_radius",
+                    "max_dense_bifurcation_density",
+                    "bifurcation_suppression_scale",
+                    "spatial_tolerance",
+                    "angle_tolerance_deg",
+                    "anchor_limit",
+                    "min_required_minutiae",
+                    "allow_kind_mismatch",
+                    "kind_mismatch_weight",
+                    "orientation_periodic_pi",
+                    "max_tentative_return",
+                ),
             )
         )
 
@@ -414,6 +458,12 @@ class MatchService:
         img = self._preprocess_path(path)
         _keypoints, descriptors = sift_extract(img, None, self.sift_cfg)
         return sift_aggregated_descriptor_vector(descriptors)
+
+    def embed_minutiae_path(self, path: str, capture: Optional[str] = None) -> np.ndarray:
+        del capture
+        gray = load_gray(path)
+        template = extract_minutiae_template(gray, mask=None, cfg=self.minutiae_cfg)
+        return minutiae_aggregate_vector(template, template.image_shape)
 
     def _classic_score_and_overlay(
         self,
@@ -674,6 +724,72 @@ class MatchService:
 
         return score, meta, ov
 
+    def _minutiae_score_and_overlay(
+        self,
+        path_a: str,
+        path_b: str,
+        *,
+        return_overlay: bool,
+        max_draw: int = 200,
+    ) -> Tuple[float, Dict[str, Any], Optional[Overlay]]:
+        img1 = load_gray(path_a)
+        img2 = load_gray(path_b)
+        result = score_pair_minutiae(img1, img2, mask1=None, mask2=None, cfg=self.minutiae_cfg)
+
+        meta = {
+            "matched_minutiae": int(result.matched_count),
+            "tentative_minutiae": int(result.tentative_count),
+            "minutiae_count_a": int(result.minutiae_count_a),
+            "minutiae_count_b": int(result.minutiae_count_b),
+            "endings_a": int(result.endings_a),
+            "endings_b": int(result.endings_b),
+            "bifurcations_a": int(result.bifurcations_a),
+            "bifurcations_b": int(result.bifurcations_b),
+            "spatial_tolerance": float(result.spatial_tolerance),
+            "angle_tolerance_deg": float(result.angle_tolerance_deg),
+            "transform_angle_deg": result.transform_angle_deg,
+            "transform_dx": result.transform_dx,
+            "transform_dy": result.transform_dy,
+            "raw_alignment_score": float(result.raw_alignment_score),
+            "score_multiplier": float(result.score_multiplier),
+            "score_components": dict(result.score_components),
+            "skeleton_foreground_pixels_a": int(result.skeleton_foreground_pixels_a),
+            "skeleton_foreground_pixels_b": int(result.skeleton_foreground_pixels_b),
+            "skeleton_density_a": float(result.skeleton_density_a),
+            "skeleton_density_b": float(result.skeleton_density_b),
+            "raw_candidate_endings_a": int(result.raw_candidate_endings_a),
+            "raw_candidate_endings_b": int(result.raw_candidate_endings_b),
+            "raw_candidate_bifurcations_a": int(result.raw_candidate_bifurcations_a),
+            "raw_candidate_bifurcations_b": int(result.raw_candidate_bifurcations_b),
+            "saturated_by_max_minutiae_a": bool(result.saturated_by_max_minutiae_a),
+            "saturated_by_max_minutiae_b": bool(result.saturated_by_max_minutiae_b),
+            "ridge_polarity_a": result.ridge_polarity_a,
+            "ridge_polarity_b": result.ridge_polarity_b,
+            "extraction_quality_flags_a": list(result.extraction_quality_flags_a),
+            "extraction_quality_flags_b": list(result.extraction_quality_flags_b),
+            "score_mode": "quality_penalized_matched_minutiae_over_min_template_count_floor",
+            "method_semantics_epoch": "minutiae_crossing_number_aligned_v2",
+        }
+
+        overlay = None
+        if return_overlay:
+            rendered = []
+            for match in result.matched_minutiae[:max_draw]:
+                a = match["a"]
+                b = match["b"]
+                sim = 1.0 - min(float(match.get("distance", 0.0)) / max(float(result.spatial_tolerance), 1.0), 1.0)
+                rendered.append(
+                    OverlayMatch(
+                        a=(float(a[0]), float(a[1])),
+                        b=(float(b[0]), float(b[1])),
+                        kind="inlier",
+                        sim=float(sim),
+                    )
+                )
+            overlay = Overlay(matches=rendered)
+
+        return float(result.score), meta, overlay
+
     def match(
         self,
         *,
@@ -765,6 +881,25 @@ class MatchService:
                 return_overlay=return_overlay,
                 ratio=float(self._sift_match_defaults["ratio"]),
                 reproj=float(self._sift_match_defaults["reproj"]),
+            )
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            return MatchResponse(
+                method=method_enum,
+                score=score,
+                decision=bool(score >= th),
+                threshold=th,
+                latency_ms=float(latency_ms),
+                meta=meta,
+                overlay=ov,
+                method_metadata=method_metadata,
+            )
+
+        if method_enum == MatchMethod.minutiae:
+            t0 = time.perf_counter()
+            score, meta, ov = self._minutiae_score_and_overlay(
+                path_a,
+                path_b,
+                return_overlay=return_overlay,
             )
             latency_ms = (time.perf_counter() - t0) * 1000.0
             return MatchResponse(

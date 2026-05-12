@@ -44,7 +44,7 @@ flowchart LR
     API --> Bench[Benchmark catalog]
     API --> Scanner[Scanner capture bridge]
 
-    Match --> Classic[Classic CV matchers\nORB / GFTT+ORB / Harris / SIFT]
+    Match --> Classic[Classic CV matchers\nORB / GFTT+ORB / Minutiae / Harris / SIFT]
     Match --> Deep[Pretrained embedding baselines\nResNet / ViT]
     Match --> Dedicated[Dedicated patch descriptor\nexperimental]
 
@@ -101,12 +101,15 @@ The backend exposes scanner status, capture, latest-import, and normalized asset
 |---|---|---|---|
 | Classic ORB | 1:1 verification, 1:N retrieval, rerank | API/runtime classic baseline | Canonical |
 | Classic ROI GFTT+ORB | 1:1 verification, 1:N retrieval, rerank | `classic_v2` benchmark family | Canonical |
+| Classic Minutiae | 1:1 verification, 1:N retrieval, rerank | `minutiae` | Canonical |
 | Harris + ORB | 1:1 verification, 1:N retrieval, rerank | `harris` | Canonical |
 | SIFT | 1:1 verification, 1:N retrieval, rerank | `sift` | Canonical |
 | Pretrained CNN embedding | 1:1 verification, vector retrieval, rerank | `dl_quick` | Canonical baseline |
 | ViT embedding | 1:1 verification, vector retrieval, rerank | `vit` | Canonical baseline |
 | Dedicated Patch AI | Pairwise research rerank | `dedicated` | Experimental / research |
 | Fusion Balanced v1 | Benchmark-only score fusion | `fusion_balanced_v1` | Research artifact, not a production API method |
+
+The classical minutiae baseline is separate from ORB, Harris, SIFT, DL, and ViT. It extracts crossing-number ridge endings and bifurcations from a polarity-validated skeletonized ridge map, reports extraction-quality diagnostics, then uses quality-penalized alignment-based pairwise minutiae matching as the authoritative score. Its deterministic 512D `minutiae_aggregate_v1` vector is used only for 1:N shortlist retrieval. The current minutiae API threshold is not a calibrated FAR/FRR/EER operating point.
 
 The registry explicitly prevents unsupported method usage. For example, experimental methods that are valid for reranking are not automatically advertised as direct retrieval methods unless a scientifically validated global retrieval vector exists.
 
@@ -128,12 +131,24 @@ Current benchmark snapshot: **NIST SD300b**, `test` split, **2,844 pairs**. Thes
 
 Key interpretation: SIFT is currently the strongest canonical single-method performer on the shown NIST SD300b test split, while fusion experiments are tracked separately as research artifacts.
 
+Minutiae is now a canonical method, but existing archived benchmark snapshots may predate the v2 semantics epoch (`minutiae_crossing_number_aligned_v2`). Minutiae extraction and skeleton matching are more expensive than the ORB/Harris/SIFT retrieval-vector paths, so use a small `--limit` for smoke checks:
+
+```powershell
+python scripts/run_benchmark_once.py --method minutiae --split val --limit 50 --outdir artifacts/reports/benchmark/minutiae_smoke
+```
+
+Launch full minutiae benchmark runs manually only when calibration artifacts are intended:
+
+```powershell
+python pipelines/benchmark/run_benchmark_matrix.py --methods classic_v2,minutiae,harris,sift,dl_quick,vit --splits val,test
+```
+
 ## Tech stack
 
 | Layer | Technologies |
 |---|---|
 | Backend | Python 3.11, FastAPI, Pydantic, Uvicorn |
-| Computer vision | OpenCV, NumPy, SIFT/ORB/Harris/GFTT, geometric verification |
+| Computer vision | OpenCV, NumPy, SIFT/ORB/Harris/GFTT, skeletonized crossing-number minutiae, geometric verification |
 | Deep learning | PyTorch, torchvision pretrained backbones |
 | Storage | PostgreSQL, pgvector, optional split biometric/identity databases |
 | Frontend | React, TypeScript, Vite, Tailwind CSS, lucide-react |

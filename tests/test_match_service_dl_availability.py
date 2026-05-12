@@ -101,6 +101,7 @@ def test_health_and_methods_payload_include_dl_vit_availability(
     assert health_payload["direct_vector_retrieval_methods"] == [
         "classic_orb",
         "classic_gftt_orb",
+        "minutiae",
         "harris",
         "sift",
         "dl",
@@ -122,6 +123,7 @@ def test_health_and_methods_payload_include_dl_vit_availability(
     assert methods_payload["direct_vector_retrieval_methods"] == [
         "classic_orb",
         "classic_gftt_orb",
+        "minutiae",
         "harris",
         "sift",
         "dl",

@@ -6,6 +6,7 @@ decision:
     classic_v2: 0.01
     classic_orb: 0.01
     classic_gftt_orb: 0.01
+    minutiae: 0.25
     harris: 0.01
     sift: 0.01
     dl: 0.45
@@ -103,6 +104,31 @@ classic_gftt_orb:
     ransac_thresh: 4.0
     roi_mode: benchmark_texture_roi
     geometry_model: affine_partial_2d
+minutiae:
+  api_runtime:
+    target_size: 512
+    clahe_clip: 2.0
+    clahe_grid:
+    - 8
+    - 8
+    blur_ksize: 3
+    ridge_kernel_size: 15
+    max_minutiae: 96
+    candidate_quality_floor: 0.20
+    dense_bifurcation_radius: 5
+    max_dense_bifurcation_density: 0.24
+    bifurcation_suppression_scale: 1.35
+    spatial_tolerance: 14.0
+    angle_tolerance_deg: 30.0
+    min_required_minutiae: 12
+  benchmark_defaults:
+    preprocess: runtime_square_512_clahe_blur
+    extraction: polarity_validated_ridge_enhancement_otsu_skeleton_crossing_number
+    skeletonization: zhang_suen_numpy
+    alignment: anchor_orientation_rotation_translation
+    score_mode: quality_penalized_matched_minutiae_over_min_template_count_floor
+    method_semantics_epoch: minutiae_crossing_number_aligned_v2
+    threshold_calibration_note: Initial conservative and unvalidated API threshold; do not interpret as calibrated FAR/FRR/EER until real benchmark calibration is run.
 classic_harris:
   api_runtime:
     nfeatures: 1500

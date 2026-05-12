@@ -31,6 +31,24 @@ def test_build_eval_cmd_supports_fusion_balanced_v1(tmp_path: Path) -> None:
     assert cmd[cmd.index("--fusion_vit_weight") + 1] == "0.05"
 
 
+def test_build_eval_cmd_supports_minutiae(tmp_path: Path) -> None:
+    cmd = matrix.build_eval_cmd(
+        outdir=tmp_path,
+        dataset="demo_ds",
+        data_dir=tmp_path / "dataset",
+        method="minutiae",
+        split="test",
+        limit=25,
+        ensure_pairs=False,
+        dedicated_ckpt="auto",
+    )
+
+    assert cmd[cmd.index("--method") + 1] == "minutiae"
+    assert cmd[cmd.index("--minutiae_target_size") + 1] == "512"
+    assert cmd[cmd.index("--minutiae_spatial_tolerance") + 1] == "14.0"
+    assert cmd[cmd.index("--minutiae_min_required_minutiae") + 1] == "12"
+
+
 @pytest.mark.parametrize(
     ("method", "expected_backbone"),
     [
@@ -121,7 +139,7 @@ def test_default_methods_are_canonical_only() -> None:
         include_research_methods=False,
     )
 
-    assert methods == ["classic_v2", "harris", "sift", "dl_quick", "vit"]
+    assert methods == ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"]
     assert "dedicated" not in methods
 
 
@@ -129,13 +147,13 @@ def test_benchmark_method_profiles_are_loaded_from_registry() -> None:
     profiles = load_benchmark_method_profiles()
 
     assert profiles.loaded_from_registry is True
-    assert list(profiles.canonical) == ["classic_v2", "harris", "sift", "dl_quick", "vit"]
+    assert list(profiles.canonical) == ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"]
     assert "dedicated" not in profiles.canonical
     assert list(profiles.research_methods) == ["dedicated"]
     assert list(profiles.dedicated) == ["dedicated"]
     assert matrix.BENCHMARK_METHOD_PROFILES == {
-        "canonical": ["classic_v2", "harris", "sift", "dl_quick", "vit"],
-        "research": ["classic_v2", "harris", "sift", "dl_quick", "vit", "dedicated"],
+        "canonical": ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"],
+        "research": ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit", "dedicated"],
         "dedicated": ["dedicated"],
     }
 
@@ -147,7 +165,7 @@ def test_research_profile_includes_dedicated_explicitly() -> None:
         include_research_methods=False,
     )
 
-    assert methods == ["classic_v2", "harris", "sift", "dl_quick", "vit", "dedicated"]
+    assert methods == ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit", "dedicated"]
 
 
 def test_explicit_methods_can_run_dedicated_only() -> None:

@@ -315,6 +315,16 @@ def build_eval_cmd(
             "--ratio", "0.75",
             "--ransac_thresh", "4.0",
         ]
+    elif method == "minutiae":
+        # Extraction and skeleton alignment are comparatively expensive; keep CI/tests to small --limit smoke runs.
+        cmd += [
+            "--minutiae_target_size", "512",
+            "--minutiae_max_minutiae", "96",
+            "--minutiae_min_distance", "8.0",
+            "--minutiae_spatial_tolerance", "14.0",
+            "--minutiae_angle_tolerance_deg", "30.0",
+            "--minutiae_min_required_minutiae", "12",
+        ]
     elif method == "harris":
         cmd += [
             "--detector", "harris_orb",
@@ -381,12 +391,13 @@ def render_results_md(summary_csv: Path, summary_md: Path) -> None:
     split_order = {"val": 0, "test": 1, "train": 2}
     method_order = {
         "classic_v2": 0,
-        "harris": 1,
-        "sift": 2,
-        "dl_quick": 3,
-        "dedicated": 4,
+        "minutiae": 1,
+        "harris": 2,
+        "sift": 3,
+        "dl_quick": 4,
         "vit": 5,
-        FUSION_METHOD: 6,
+        "dedicated": 6,
+        FUSION_METHOD: 7,
     }
 
     rows.sort(

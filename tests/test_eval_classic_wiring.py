@@ -184,6 +184,79 @@ def test_evaluate_dl_branch_forwards_explicit_no_mask_ablation(
     assert out_run_meta.exists()
 
 
+def test_evaluate_minutiae_branch_forwards_dedicated_script_and_metadata(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    data_dir = _write_dataset_dir(tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_run_subprocess(cmd, *, cwd):
+        captured["cmd"] = cmd
+        captured["cwd"] = cwd
+
+    def fake_save_roc_png(_y, _s, out_png: Path, title: str) -> None:
+        out_png.parent.mkdir(parents=True, exist_ok=True)
+        out_png.write_bytes(b"PNG")
+
+    monkeypatch.chdir(repo_root)
+    monkeypatch.setattr(evaluate, "run_subprocess", fake_run_subprocess)
+    monkeypatch.setattr(evaluate, "read_scores", lambda _path: (np.array([1, 0]), np.array([0.9, 0.1])))
+    monkeypatch.setattr(evaluate, "compute_auc_eer", lambda _y, _s: (0.99, 0.01))
+    monkeypatch.setattr(evaluate, "tar_at_far", lambda _y, _s, _far: 0.95)
+    monkeypatch.setattr(evaluate, "save_roc_png", fake_save_roc_png)
+    monkeypatch.setattr(
+        evaluate,
+        "append_summary_row",
+        lambda _summary_csv, row: captured.setdefault("row", row),
+    )
+
+    summary_csv = tmp_path / "results_summary.csv"
+    out_scores = tmp_path / "scores.csv"
+    out_roc = tmp_path / "roc.png"
+    out_run_meta = tmp_path / "run.meta.json"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate.py",
+            "--method",
+            "minutiae",
+            "--dataset",
+            "demo_ds",
+            "--data_dir",
+            str(data_dir),
+            "--summary_csv",
+            str(summary_csv),
+            "--out_scores",
+            str(out_scores),
+            "--out_roc",
+            str(out_roc),
+            "--out_run_meta",
+            str(out_run_meta),
+        ],
+    )
+
+    evaluate.main()
+
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[1] == str(repo_root / "pipelines" / "benchmark" / "eval_minutiae.py")
+    assert cmd[cmd.index("--pairs") + 1] == str(data_dir / "pairs_val.csv")
+    assert cmd[cmd.index("--target_size") + 1] == "512"
+    assert cmd[cmd.index("--spatial_tolerance") + 1] == "14.0"
+
+    row = captured["row"]
+    config = json.loads(row.config_json)
+    assert config["method"] == "minutiae"
+    assert config["method_semantics_epoch"] == "minutiae_crossing_number_aligned_v2"
+    assert config["minutiae"]["crossing_number"] == {"ridge_ending": 1, "bifurcation": 3}
+    assert config["minutiae"]["alignment"] == "anchor_orientation_rotation_translation"
+    assert out_run_meta.exists()
+
+
 def test_eval_quick_no_mask_flag_disables_masking_in_model_config(
     monkeypatch,
     tmp_path: Path,

@@ -2,7 +2,10 @@ import type { BenchmarkBestMetric, BenchmarkSortMode, BenchmarkViewMode, Compari
 
 const METHOD_LABELS: Record<string, string> = {
     classic: "Classic (ORB)",
-    classic_v2: "Classic (ORB)",
+    classic_v2: "Classic (ROI GFTT+ORB)",
+    classic_gftt_orb: "Classic (ROI GFTT+ORB)",
+    classic_orb: "Classic (ORB)",
+    minutiae: "Classic (Minutiae)",
     harris: "Classic (Harris + ORB)",
     sift: "Classic (SIFT)",
     dl: "Deep Learning (ResNet18)",

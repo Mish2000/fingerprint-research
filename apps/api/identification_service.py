@@ -33,6 +33,7 @@ _MATCH_SERVICE_MODEL_ATTRS = {
 _MATCH_SERVICE_EMBED_METHODS = {
     "classic_orb": "embed_classic_orb_path",
     "classic_gftt_orb": "embed_classic_gftt_orb_path",
+    "minutiae": "embed_minutiae_path",
     "harris": "embed_harris_path",
     "sift": "embed_sift_path",
 }

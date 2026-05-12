@@ -9,9 +9,11 @@ import pytest
 from apps.api.service import MatchService
 from src.fpbench.identification.classic_vectorizers import (
     RETRIEVAL_VECTOR_DIM,
+    minutiae_aggregate_vector,
     orb_aggregated_descriptor_vector,
     sift_aggregated_descriptor_vector,
 )
+from src.fpbench.matchers.minutiae_matcher import MinutiaeTemplate
 
 
 class _FakeDL:
@@ -59,6 +61,7 @@ def _assert_vector_contract(vec: np.ndarray) -> None:
     [
         "embed_classic_orb_path",
         "embed_classic_gftt_orb_path",
+        "embed_minutiae_path",
         "embed_harris_path",
         "embed_sift_path",
     ],
@@ -78,6 +81,7 @@ def test_classic_match_service_vectorizers_return_512d_finite_float32(
     [
         "embed_classic_orb_path",
         "embed_classic_gftt_orb_path",
+        "embed_minutiae_path",
         "embed_harris_path",
         "embed_sift_path",
     ],
@@ -98,8 +102,11 @@ def test_classic_match_service_vectorizers_are_deterministic(
 def test_no_feature_inputs_return_nonzero_finite_sentinel_vectors() -> None:
     orb_vec = orb_aggregated_descriptor_vector([], None, (256, 256))
     sift_vec = sift_aggregated_descriptor_vector(None)
+    minutiae_vec = minutiae_aggregate_vector(MinutiaeTemplate(points=(), image_shape=(256, 256)))
 
     _assert_vector_contract(orb_vec)
     _assert_vector_contract(sift_vec)
+    _assert_vector_contract(minutiae_vec)
     assert orb_vec[-1] == pytest.approx(1.0)
     assert sift_vec[-1] == pytest.approx(1.0)
+    assert minutiae_vec[-1] == pytest.approx(1.0)

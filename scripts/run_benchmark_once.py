@@ -16,6 +16,7 @@ from pipelines.benchmark import run_benchmark_matrix as matrix
 
 SUPPORTED_METHODS = [
     "classic_v2",
+    "minutiae",
     "harris",
     "sift",
     "dl_quick",

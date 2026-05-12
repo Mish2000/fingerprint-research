@@ -4,7 +4,7 @@ from scripts import run_all
 
 
 def test_run_all_help_default_methods_are_registry_derived() -> None:
-    assert run_all.DEFAULT_BENCHMARK_METHODS == "classic_v2,harris,sift,dl_quick,vit"
+    assert run_all.DEFAULT_BENCHMARK_METHODS == "classic_v2,minutiae,harris,sift,dl_quick,vit"
 
 
 def test_run_all_shim_routes_eval_all_to_run_benchmark_matrix(monkeypatch: pytest.MonkeyPatch) -> None:

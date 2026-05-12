@@ -4,6 +4,8 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from src.fpbench.matchers.minutiae_matcher import minutiae_aggregate_vector
+
 RETRIEVAL_VECTOR_DIM = 512
 SIFT_DESCRIPTOR_DIM = 128
 ORB_DESCRIPTOR_BYTES = 32

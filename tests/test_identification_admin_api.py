@@ -142,7 +142,7 @@ def _inspection_payload(
         "unexpected_vector_methods": {},
         "method_capabilities": method_capabilities,
         "retrieval_capabilities": method_capabilities,
-        "direct_vector_retrieval_methods": ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"],
+        "direct_vector_retrieval_methods": ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"],
         "rerank_only_methods": ["dedicated"],
         "vector_storage_schema": api_main.SecureSplitFingerprintStore.vector_storage_schema_metadata(),
         "schema_hardening": {
@@ -388,7 +388,7 @@ def test_admin_layout_endpoint_returns_redacted_read_only_inspection_payload(
     assert payload["schema_hardening"]["identity_map_guarantees"]["contract_enforced"] is True
     assert payload["template_protection"]["raw_image_storage_policy"] == "metadata_only_new_writes"
     assert payload["template_protection"]["legacy_raw_image_storage_status"] == "clear"
-    assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"]
+    assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
     assert payload["rerank_only_methods"] == ["dedicated"]
     assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
@@ -413,6 +413,7 @@ def test_admin_layout_endpoint_returns_redacted_read_only_inspection_payload(
         "classic_gftt_orb",
         "classic_orb",
         "harris",
+        "minutiae",
         "sift",
     ]
     assert payload["redacted_database_urls"]["biometric_db"] == "postgresql://admin:***@localhost:5432/biometric_db"

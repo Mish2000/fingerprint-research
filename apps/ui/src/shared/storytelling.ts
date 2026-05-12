@@ -46,6 +46,8 @@ export function formatMethodLabel(value: string | null | undefined): string {
         case "classic_v2":
         case "classic_gftt_orb":
             return "Classic (ROI GFTT+ORB)";
+        case "minutiae":
+            return "Classic (Minutiae)";
         case "harris":
             return "Classic (Harris + ORB)";
         case "sift":

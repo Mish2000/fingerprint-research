@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from apps.api.main import app
 from apps.api.method_registry import METHODS_CONFIG_PATH, THRESHOLDS_CONFIG_PATH, load_api_method_registry
 
-DIRECT_RETRIEVAL_METHODS = ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"]
+DIRECT_RETRIEVAL_METHODS = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
 RERANK_ONLY_METHODS = ["dedicated"]
 DEDICATED_RETRIEVAL_UNAVAILABLE_REASON = "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
 DEDICATED_FUTURE_ADAPTER_HINT = (
@@ -18,6 +18,7 @@ DEDICATED_FUTURE_ADAPTER_HINT = (
 CLASSIC_RETRIEVAL_KINDS = {
     "classic_orb": "classic_orb_aggregated_descriptor_v1",
     "classic_gftt_orb": "classic_gftt_orb_aggregated_descriptor_v1",
+    "minutiae": "minutiae_aggregate_v1",
     "harris": "harris_orb_aggregated_descriptor_v1",
     "sift": "sift_aggregated_descriptor_v1",
 }
@@ -56,6 +57,7 @@ def _post_match(client: TestClient, method: str):
     [
         ("classic_orb", "Classic (ORB)", "classic_orb"),
         ("classic_gftt_orb", "Classic (ROI GFTT+ORB)", "classic_v2"),
+        ("minutiae", "Classic (Minutiae)", "minutiae"),
     ],
 )
 def test_match_supports_split_public_classic_methods(
@@ -130,7 +132,7 @@ def test_methods_endpoint_returns_structured_catalog(client: TestClient) -> None
     payload = response.json()
     entries = {entry["id"]: entry for entry in payload["methods"]}
 
-    assert set(entries) >= {"classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "dedicated", "vit"}
+    assert set(entries) >= {"classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "dedicated", "vit"}
     assert payload["direct_vector_retrieval_methods"] == DIRECT_RETRIEVAL_METHODS
     assert payload["rerank_only_methods"] == RERANK_ONLY_METHODS
     assert set(payload["method_capabilities"]) >= set(entries)
@@ -163,6 +165,24 @@ def test_methods_endpoint_returns_structured_catalog(client: TestClient) -> None
         == CLASSIC_RETRIEVAL_KINDS["classic_gftt_orb"]
     )
     assert classic_gftt_orb["retrieval_capability"]["retrieval_distance_metric"] == "cosine"
+
+    minutiae_entry = entries["minutiae"]
+    assert minutiae_entry["label"] == "Classic (Minutiae)"
+    assert minutiae_entry["benchmark_name"] == "minutiae"
+    assert minutiae_entry["family"] == "minutiae"
+    assert minutiae_entry["status"] == "active"
+    assert minutiae_entry["presentation_tier"] == "canonical"
+    assert minutiae_entry["showcase_eligible"] is True
+    assert minutiae_entry["benchmark_default"] is True
+    assert minutiae_entry["canonical_default"] is True
+    assert minutiae_entry["research_track"] is False
+    assert minutiae_entry["identification_roles"]["retrieval_capable"] is True
+    assert minutiae_entry["identification_roles"]["rerank_capable"] is True
+    assert minutiae_entry["identification_roles"]["retrieval_vector_dim"] == 512
+    assert minutiae_entry["identification_roles"]["retrieval_vector_kind"] == "minutiae_aggregate_v1"
+    assert minutiae_entry["identification_roles"]["retrieval_distance_metric"] == "cosine"
+    assert minutiae_entry["retrieval_capability"]["supports_direct_vector_retrieval"] is True
+    assert minutiae_entry["retrieval_capability"]["retrieval_vector_kind"] == "minutiae_aggregate_v1"
 
     dl_entry = entries["dl"]
     assert dl_entry["label"] == "Deep Learning (ResNet18)"
@@ -292,6 +312,7 @@ def test_threshold_registry_marks_dl_and_vit_benchmark_defaults_as_masked() -> N
     assert payload["classic_harris"]["benchmark_defaults"]["geometry_model"] == "homography"
     assert payload["classic_sift"]["benchmark_defaults"]["score_mode"] == "inliers_over_min_keypoints"
     assert payload["classic_sift"]["benchmark_defaults"]["geometry_model"] == "homography"
+    assert payload["minutiae"]["benchmark_defaults"]["method_semantics_epoch"] == "minutiae_crossing_number_aligned_v2"
 
 
 def test_active_method_registry_is_fingerprint_only() -> None:
@@ -304,6 +325,7 @@ def test_active_method_registry_is_fingerprint_only() -> None:
     assert set(registry.supported_method_names()) == {
         "classic_orb",
         "classic_gftt_orb",
+        "minutiae",
         "harris",
         "sift",
         "dl",
@@ -319,7 +341,7 @@ def test_active_method_registry_is_fingerprint_only() -> None:
     benchmark_runtime = set(methods_payload["namespaces"]["benchmark_runtime"])
     assert "fusion_balanced_v1" not in api_runtime
     assert "fusion_balanced_v1" in benchmark_runtime
-    assert registry.canonical_benchmark_methods() == ("classic_v2", "harris", "sift", "dl_quick", "vit")
+    assert registry.canonical_benchmark_methods() == ("classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit")
     assert "dedicated" not in registry.canonical_benchmark_methods()
     assert "dedicated" in registry.research_methods()
 

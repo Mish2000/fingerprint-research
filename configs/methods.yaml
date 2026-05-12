@@ -16,6 +16,7 @@ namespaces:
   api_runtime:
   - classic_orb
   - classic_gftt_orb
+  - minutiae
   - harris
   - sift
   - dl
@@ -23,6 +24,7 @@ namespaces:
   - vit
   benchmark_runtime:
   - classic_v2
+  - minutiae
   - harris
   - sift
   - dl_quick
@@ -33,6 +35,7 @@ identification:
   shortlist_retrieval_methods:
   - classic_orb
   - classic_gftt_orb
+  - minutiae
   - harris
   - sift
   - dl
@@ -40,6 +43,7 @@ identification:
   rerank_methods:
   - classic_orb
   - classic_gftt_orb
+  - minutiae
   - harris
   - sift
   - dedicated
@@ -61,8 +65,9 @@ identification:
   - The secure split identification store currently persists pgvector-backed shortlist
     columns only for methods that declare supports_direct_vector_retrieval=true.
   - classic_orb, classic_gftt_orb, harris, and sift use deterministic aggregated
-    descriptor vectors for fast 1:N shortlisting; pairwise geometric rerank remains
-    the authoritative final scoring step.
+    descriptor vectors for fast 1:N shortlisting; minutiae uses a deterministic
+    aggregate minutiae vector for shortlist only. Pairwise geometric or minutiae
+    alignment rerank remains the authoritative final scoring step.
   - dedicated remains a valid experimental research rerank method for 1:N
     identification, but it is intentionally excluded from direct vector retrieval
     until a global retrieval vector adapter is scientifically validated.
@@ -178,6 +183,110 @@ methods:
       with ORB descriptors, affine-partial RANSAC geometry, and score normalization by configured nfeatures.
     - Historical benchmark artifacts remain named classic_v2 on disk, but public presentation
       canonicalizes them to classic_gftt_orb.
+  minutiae:
+    api_name: minutiae
+    benchmark_name: minutiae
+    ui_label: Classic (Minutiae)
+    family: minutiae
+    identification:
+      supports_pairwise_rerank: true
+      supports_direct_vector_retrieval: true
+      retrieval_vector_dim: 512
+      retrieval_vector_kind: minutiae_aggregate_v1
+      retrieval_distance_metric: cosine
+      retrieval_unavailable_reason: null
+    status: active
+    presentation_tier: canonical
+    showcase_eligible: true
+    benchmark_default: true
+    canonical_default: true
+    research_track: false
+    promotion_required: false
+    current_sources:
+    - src/fpbench/matchers/minutiae_matcher.py
+    - apps/api/service.py
+    - pipelines/benchmark/eval_minutiae.py
+    - pipelines/benchmark/evaluate.py
+    planned_location: src/fpbench/matchers/minutiae_matcher.py
+    scoring:
+      output_score: quality_penalized_matched_minutiae_over_min_template_count_floor
+      decision_threshold_ref: decision.api.minutiae
+    api_runtime_defaults:
+      target_size: 512
+      clahe_clip: 2.0
+      clahe_grid:
+      - 8
+      - 8
+      blur_ksize: 3
+      preprocess: true
+      ridge_kernel_size: 15
+      min_ridge_response: 5.0
+      min_binary_component_area: 12
+      min_skeleton_component_area: 8
+      border_px: 16
+      suppress_top_ratio: 0.03
+      roi_border_px: 10
+      min_distance: 8.0
+      orientation_radius: 9
+      max_minutiae: 96
+      max_thinning_iterations: 80
+      candidate_quality_floor: 0.20
+      dense_bifurcation_radius: 5
+      max_dense_bifurcation_density: 0.24
+      bifurcation_suppression_scale: 1.35
+      spatial_tolerance: 14.0
+      angle_tolerance_deg: 30.0
+      anchor_limit: 28
+      min_required_minutiae: 12
+      allow_kind_mismatch: false
+      kind_mismatch_weight: 0.65
+      orientation_periodic_pi: true
+      max_tentative_return: 256
+    benchmark_defaults:
+      preprocess: runtime_square_512_clahe_blur
+      extraction: polarity_validated_ridge_enhancement_otsu_skeleton_crossing_number
+      skeletonization: zhang_suen_numpy
+      crossing_number:
+        ridge_ending: 1
+        bifurcation: 3
+      alignment: anchor_orientation_rotation_translation
+      score_mode: quality_penalized_matched_minutiae_over_min_template_count_floor
+      retrieval_vector_kind: minutiae_aggregate_v1
+      retrieval_vector_usage: shortlist_only
+      target_size: 512
+      max_minutiae: 96
+      candidate_quality_floor: 0.20
+      dense_bifurcation_radius: 5
+      max_dense_bifurcation_density: 0.24
+      bifurcation_suppression_scale: 1.35
+      spatial_tolerance: 14.0
+      angle_tolerance_deg: 30.0
+      min_required_minutiae: 12
+      method_semantics_epoch: minutiae_crossing_number_aligned_v2
+    notes:
+    - >-
+      Classical crossing-number minutiae baseline: grayscale preprocessing, ROI gating,
+      polarity-validated ridge enhancement, Otsu binarization, deterministic Zhang-Suen
+      skeletonization, crossing-number endings/bifurcations, ROI-border suppression,
+      dense-junction artifact rejection, and deterministic min-distance pruning.
+    - >-
+      Pairwise scoring is the authoritative verification/rerank score. It aligns
+      minutiae templates by candidate anchor correspondences, estimates rotation and
+      translation from minutia orientation and position, counts one-to-one matched
+      minutiae within spatial and angular tolerances, and applies deterministic
+      penalties for saturated or implausible extraction profiles and ambiguous
+      tentative-to-matched ratios.
+    - >-
+      The 512D minutiae_aggregate_v1 vector encodes aggregate minutiae statistics for
+      direct 1:N shortlist retrieval only; it is not the final match score.
+    - >-
+      decision.api.minutiae is an initial conservative API threshold, not a calibrated
+      FAR/FRR/EER operating point. Calibrate on real benchmark artifacts before making
+      accuracy or deployment claims.
+    - >-
+      Minutiae extraction and skeleton matching are more expensive than the ORB,
+      Harris, and SIFT retrieval-vector paths; use small --limit smoke runs in tests
+      and launch full benchmark runs manually.
   harris:
     api_name: harris
     benchmark_name: harris

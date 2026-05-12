@@ -38,6 +38,18 @@ export const METHOD_PROFILES: Record<Method, MethodProfile> = {
         captureHelp: "Capture values stay visible in the UI, but the ROI GFTT+ORB runtime path does not currently use capture metadata on the server.",
         overlayHelp: "Overlay is supported and helps explain the ROI GFTT+ORB decision path visually.",
     },
+    minutiae: {
+        value: "minutiae",
+        label: "Classic (Minutiae)",
+        hint: "Classical ridge skeleton minutiae matcher with alignment overlay support.",
+        defaultThreshold: 0.25,
+        supportsOverlay: true,
+        captureMode: "ignored",
+        recommendedWarmUp: false,
+        thresholdHelp: "Backend default threshold: 0.25.",
+        captureHelp: "Capture values stay visible in the UI, but the current minutiae matcher does not use them on the server.",
+        overlayHelp: "Overlay is supported and shows accepted aligned minutiae pairs.",
+    },
     harris: {
         value: "harris",
         label: "Classic (Harris + ORB)",

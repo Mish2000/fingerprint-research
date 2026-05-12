@@ -26,6 +26,7 @@ from pipelines.benchmark.benchmark_validation_utils import (
 )
 
 METHOD_SEMANTICS_EPOCHS = {
+    "minutiae": "minutiae_crossing_number_aligned_v2",
     "harris": "harris_runtime_aligned_v1",
     "sift": "sift_runtime_aligned_v1",
 }
@@ -411,7 +412,7 @@ def resolve_dedicated_ckpt_auto(root: Path) -> Optional[Path]:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Unified evaluation orchestrator (Week 5).")
     ap.add_argument("--method", type=str, default="dl_quick",
-                    choices=["classic_v2", "harris", "sift", "dl_quick", "dedicated", "vit", "fusion_balanced_v1"])
+                    choices=["classic_v2", "minutiae", "harris", "sift", "dl_quick", "dedicated", "vit", "fusion_balanced_v1"])
     ap.add_argument("--split", default="val", choices=["train", "val", "test"])
     ap.add_argument("--limit", type=int, default=0, help="If >0, evaluate only first N pairs (quick smoke tests).")
     ap.add_argument("--dataset", type=str, default="nist_sd300b",
@@ -426,6 +427,7 @@ def main() -> None:
     ap.add_argument("--summary_csv", type=str, default="",
                     help="Optional. If empty, defaults to artifacts/reports/benchmark/results_summary_<dataset>.csv")
     ap.add_argument("--script_classic", type=str, default="pipelines/benchmark/eval_classic.py")
+    ap.add_argument("--script_minutiae", type=str, default="pipelines/benchmark/eval_minutiae.py")
     ap.add_argument("--script_dl", type=str, default="pipelines/benchmark/eval_quick.py")
     ap.add_argument("--script_dedicated", type=str, default="pipelines/benchmark/eval_dedicated.py")
 
@@ -438,6 +440,18 @@ def main() -> None:
     ap.add_argument("--target_size", type=int, default=512)
     ap.add_argument("--ratio", type=float, default=0.75)
     ap.add_argument("--ransac_thresh", type=float, default=4.0)
+
+    # Minutiae options
+    ap.add_argument("--minutiae_target_size", type=int, default=512)
+    ap.add_argument("--minutiae_max_minutiae", type=int, default=96)
+    ap.add_argument("--minutiae_min_distance", type=float, default=8.0)
+    ap.add_argument("--minutiae_candidate_quality_floor", type=float, default=0.20)
+    ap.add_argument("--minutiae_dense_bifurcation_radius", type=int, default=5)
+    ap.add_argument("--minutiae_max_dense_bifurcation_density", type=float, default=0.24)
+    ap.add_argument("--minutiae_bifurcation_suppression_scale", type=float, default=1.35)
+    ap.add_argument("--minutiae_spatial_tolerance", type=float, default=14.0)
+    ap.add_argument("--minutiae_angle_tolerance_deg", type=float, default=30.0)
+    ap.add_argument("--minutiae_min_required_minutiae", type=int, default=12)
 
     # DL options
     ap.add_argument("--backbone", type=str, default="resnet18", choices=["resnet18", "resnet50", "vit_base"])
@@ -520,7 +534,30 @@ def main() -> None:
     resolved_target_size = args.target_size
     resolved_method_semantics_epoch = None
 
-    if args.method in ("classic_v2", "harris", "sift"):
+    if args.method == "minutiae":
+        script = parse_file_uri(args.script_minutiae)
+        resolved_method_semantics_epoch = METHOD_SEMANTICS_EPOCHS["minutiae"]
+        cmd = [
+            sys.executable, str(script),
+            to_file_uri(out_scores),
+            "--split", args.split,
+            "--pairs", str(pairs_path),
+            "--target_size", str(args.minutiae_target_size),
+            "--max_minutiae", str(args.minutiae_max_minutiae),
+            "--min_distance", str(args.minutiae_min_distance),
+            "--candidate_quality_floor", str(args.minutiae_candidate_quality_floor),
+            "--dense_bifurcation_radius", str(args.minutiae_dense_bifurcation_radius),
+            "--max_dense_bifurcation_density", str(args.minutiae_max_dense_bifurcation_density),
+            "--bifurcation_suppression_scale", str(args.minutiae_bifurcation_suppression_scale),
+            "--spatial_tolerance", str(args.minutiae_spatial_tolerance),
+            "--angle_tolerance_deg", str(args.minutiae_angle_tolerance_deg),
+            "--min_required_minutiae", str(args.minutiae_min_required_minutiae),
+            "--limit", str(args.limit),
+        ]
+        run_subprocess(cmd, cwd=root)
+        meta_path = out_scores.with_suffix(".meta.json")
+
+    elif args.method in ("classic_v2", "harris", "sift"):
         script = parse_file_uri(args.script_classic)
         if args.method == "classic_v2":
             resolved_detector = "gftt_orb"
@@ -729,6 +766,26 @@ def main() -> None:
         "pairs_path": str(pairs_path),
         "method_semantics_epoch": resolved_method_semantics_epoch,
         "classic": classic_config,
+        "minutiae": {
+            "script": str(args.script_minutiae),
+            "preprocess": "runtime_square_512_clahe_blur",
+            "extraction": "polarity_validated_ridge_enhancement_otsu_skeleton_crossing_number",
+            "skeletonization": "zhang_suen_numpy",
+            "crossing_number": {"ridge_ending": 1, "bifurcation": 3},
+            "alignment": "anchor_orientation_rotation_translation",
+            "score_mode": "quality_penalized_matched_minutiae_over_min_template_count_floor",
+            "method_semantics_epoch": METHOD_SEMANTICS_EPOCHS["minutiae"],
+            "target_size": args.minutiae_target_size,
+            "max_minutiae": args.minutiae_max_minutiae,
+            "min_distance": args.minutiae_min_distance,
+            "candidate_quality_floor": args.minutiae_candidate_quality_floor,
+            "dense_bifurcation_radius": args.minutiae_dense_bifurcation_radius,
+            "max_dense_bifurcation_density": args.minutiae_max_dense_bifurcation_density,
+            "bifurcation_suppression_scale": args.minutiae_bifurcation_suppression_scale,
+            "spatial_tolerance": args.minutiae_spatial_tolerance,
+            "angle_tolerance_deg": args.minutiae_angle_tolerance_deg,
+            "min_required_minutiae": args.minutiae_min_required_minutiae,
+        },
         "dl": {
             "script": str(args.script_dl),
             "backbone": args.backbone,

@@ -200,13 +200,17 @@ class _FakeMatchServiceForVectorizers:
         self.dl_vit = _FakeVectorModel(768)
 
     def ensure_method_available(self, method) -> None:
-        assert str(method) in {"classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"}
+        assert str(method) in {"classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"}
 
     def embed_classic_orb_path(self, path: str, capture: str | None = None) -> np.ndarray:
         del path, capture
         return np.ones(512, dtype=np.float32)
 
     def embed_classic_gftt_orb_path(self, path: str, capture: str | None = None) -> np.ndarray:
+        del path, capture
+        return np.ones(512, dtype=np.float32)
+
+    def embed_minutiae_path(self, path: str, capture: str | None = None) -> np.ndarray:
         del path, capture
         return np.ones(512, dtype=np.float32)
 
@@ -250,13 +254,14 @@ def test_identification_service_builds_vectorizers_from_registry_capability_cont
     )
 
     assert set(service.vectorizers) == set(service.method_registry.direct_vector_retrieval_methods())
-    assert set(service.vectorizers) == {"classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"}
+    assert set(service.vectorizers) == {"classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"}
 
 
 def test_default_enrollment_vector_methods_follow_direct_retrieval_registry() -> None:
     assert default_enrollment_vector_methods() == (
         "classic_orb",
         "classic_gftt_orb",
+        "minutiae",
         "harris",
         "sift",
         "dl",
@@ -604,7 +609,7 @@ def test_identification_pipeline_respects_indexed_hints(tmp_path: Path) -> None:
 
 
 
-@pytest.mark.parametrize("retrieval_method", ["classic_orb", "sift"])
+@pytest.mark.parametrize("retrieval_method", ["classic_orb", "minutiae", "sift"])
 def test_identification_classic_retrieval_methods_reach_vectorization_and_shortlist(
     tmp_path: Path,
     retrieval_method: str,
@@ -660,7 +665,7 @@ def test_identification_rejects_unsupported_shortlist_retrieval_method(tmp_path:
         )
     assert "does not have a validated fixed-size direct retrieval vector adapter yet" in str(excinfo.value)
     assert "dedicated_aggregated_patch_descriptor_v1" in str(excinfo.value)
-    assert "Supported retrieval methods: ['classic_orb', 'classic_gftt_orb', 'harris', 'sift', 'dl', 'vit']" in str(
+    assert "Supported retrieval methods: ['classic_orb', 'classic_gftt_orb', 'minutiae', 'harris', 'sift', 'dl', 'vit']" in str(
         excinfo.value
     )
 
@@ -699,7 +704,7 @@ def test_identify_search_api_rejects_dedicated_retrieval_method_with_capability_
         "Method 'dedicated' is currently an experimental rerank-only method and does not have a "
         "validated fixed-size direct retrieval vector adapter yet."
     ) in detail
-    assert "Supported retrieval methods: ['classic_orb', 'classic_gftt_orb', 'harris', 'sift', 'dl', 'vit']" in detail
+    assert "Supported retrieval methods: ['classic_orb', 'classic_gftt_orb', 'minutiae', 'harris', 'sift', 'dl', 'vit']" in detail
 
 
 def test_identification_accepts_valid_retrieval_and_rerank_combination(tmp_path: Path) -> None:

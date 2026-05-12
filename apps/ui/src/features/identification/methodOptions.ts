@@ -15,6 +15,7 @@ export const IDENTIFICATION_RERANK_OPTIONS: Array<{
     label: string;
 }> = [
     { value: "sift", label: formatMethodLabel("sift") },
+    { value: "minutiae", label: formatMethodLabel("minutiae") },
     { value: "harris", label: formatMethodLabel("harris") },
     { value: "classic_orb", label: formatMethodLabel("classic_orb") },
     { value: "classic_gftt_orb", label: formatMethodLabel("classic_gftt_orb") },

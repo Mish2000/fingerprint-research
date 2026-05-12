@@ -1,4 +1,4 @@
-export const METHOD_VALUES = ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit", "dedicated"] as const;
+export const METHOD_VALUES = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit", "dedicated"] as const;
 export type Method = (typeof METHOD_VALUES)[number];
 
 const METHOD_ALIAS_MAP = {
@@ -41,6 +41,7 @@ export type BenchmarkBestMetric = (typeof BENCHMARK_BEST_METRIC_VALUES)[number];
 export const IDENTIFICATION_RETRIEVAL_METHOD_VALUES = [
     "classic_orb",
     "classic_gftt_orb",
+    "minutiae",
     "harris",
     "sift",
     "dl",

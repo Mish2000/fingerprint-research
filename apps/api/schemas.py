@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class MatchMethod(str, Enum):
     classic_orb = "classic_orb"
     classic_gftt_orb = "classic_gftt_orb"
+    minutiae = "minutiae"
     harris = "harris"
     sift = "sift"
     dl = "dl"

@@ -479,19 +479,21 @@ def test_inspection_state_uses_read_only_connection_path(monkeypatch) -> None:
     assert payload["retrieval_methods_with_zero_coverage"] == [
         "classic_orb",
         "classic_gftt_orb",
+        "minutiae",
         "harris",
         "sift",
     ]
     assert payload["retrieval_methods_missing_vectors"] == [
         "classic_orb",
         "classic_gftt_orb",
+        "minutiae",
         "harris",
         "sift",
         "vit",
     ]
     assert "Reseed demo/browser stores" in payload["coverage_recommendation"]
     assert "source image path is known" in payload["coverage_recommendation"]
-    assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "harris", "sift", "dl", "vit"]
+    assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
     assert payload["rerank_only_methods"] == ["dedicated"]
     assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["vit"]["retrieval_vector_dim"] == 768
@@ -524,6 +526,7 @@ def test_inspection_state_uses_read_only_connection_path(monkeypatch) -> None:
         "classic_gftt_orb",
         "classic_orb",
         "harris",
+        "minutiae",
         "sift",
     ]
     assert payload["vector_storage_schema"]["configured_vector_specs"]["dl"]["preferred_storage"] == "dual"

@@ -106,7 +106,7 @@ def create_curated_benchmark_root(tmp_path: Path) -> Path:
         },
     )
 
-    for method in ("classic_v2", "harris", "sift", "dl_quick", "vit"):
+    for method in ("classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"):
         (run_dir / f"scores_{method}_test.csv").write_text("score\n0.9\n", encoding="utf-8")
 
     write_summary_csv(
@@ -128,6 +128,15 @@ def create_curated_benchmark_root(tmp_path: Path) -> Path:
                 wall_ms=5.0,
                 pairs_path="C:\\pairs_test.csv",
                 method_semantics_epoch="sift_runtime_aligned_v1",
+            ),
+            make_summary_row(
+                method="minutiae",
+                split="test",
+                auc=0.84,
+                eer=0.16,
+                wall_ms=8.0,
+                pairs_path="C:\\pairs_test.csv",
+                method_semantics_epoch="minutiae_crossing_number_aligned_v2",
             ),
             make_summary_row(
                 method="harris",
@@ -565,8 +574,8 @@ def test_benchmark_runs_has_curated_defaults_and_metadata(tmp_path: Path, monkey
     assert "validation_state" in first
     assert "artifact_count" in first
     assert "summary_note" in first
-    assert first["methods"] == ["classic_gftt_orb", "harris", "sift", "dl", "vit"]
-    assert first["benchmark_methods"] == ["classic_v2", "harris", "sift", "dl_quick", "vit"]
+    assert first["methods"] == ["classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
+    assert first["benchmark_methods"] == ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"]
 
 
 def test_showcase_summary_excludes_empty_or_noncanonical_entries(tmp_path: Path):
@@ -679,13 +688,17 @@ def test_comparison_endpoint_returns_canonical_nonempty_payload_for_valid_select
     assert rows_by_benchmark_method["classic_v2"]["provenance"]["canonical_method"] == "classic_gftt_orb"
     assert rows_by_benchmark_method["classic_v2"]["provenance"]["benchmark_method"] == "classic_v2"
     assert rows_by_benchmark_method["classic_v2"]["provenance"]["method_label"] == "Classic (ROI GFTT+ORB)"
+    assert rows_by_benchmark_method["minutiae"]["method"] == "minutiae"
+    assert rows_by_benchmark_method["minutiae"]["method_label"] == "Classic (Minutiae)"
+    assert rows_by_benchmark_method["minutiae"]["provenance"]["canonical_method"] == "minutiae"
+    assert rows_by_benchmark_method["minutiae"]["provenance"]["benchmark_method"] == "minutiae"
     assert rows_by_benchmark_method["dl_quick"]["method"] == "dl"
     assert rows_by_benchmark_method["dl_quick"]["method_label"] == "Deep Learning (ResNet18)"
     assert rows_by_benchmark_method["dl_quick"]["provenance"]["canonical_method"] == "dl"
     assert rows_by_benchmark_method["dl_quick"]["provenance"]["benchmark_method"] == "dl_quick"
     assert rows_by_benchmark_method["dl_quick"]["provenance"]["method_label"] == "Deep Learning (ResNet18)"
-    assert rows_by_benchmark_method["dl_quick"]["provenance"]["benchmark_methods_in_run"] == ["classic_v2", "harris", "sift", "dl_quick", "vit"]
-    assert rows_by_benchmark_method["dl_quick"]["provenance"]["methods_in_run"] == ["classic_gftt_orb", "harris", "sift", "dl", "vit"]
+    assert rows_by_benchmark_method["dl_quick"]["provenance"]["benchmark_methods_in_run"] == ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"]
+    assert rows_by_benchmark_method["dl_quick"]["provenance"]["methods_in_run"] == ["classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
 
 
 def test_best_method_endpoint_resolves_deterministic_winners(tmp_path: Path, monkeypatch):

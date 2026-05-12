@@ -134,6 +134,7 @@ _CAPTURE_ALIASES = {
 }
 
 BENCHMARK_METHOD_SEMANTICS_EPOCHS = {
+    "minutiae": "minutiae_crossing_number_aligned_v2",
     "harris": "harris_runtime_aligned_v1",
     "sift": "sift_runtime_aligned_v1",
 }

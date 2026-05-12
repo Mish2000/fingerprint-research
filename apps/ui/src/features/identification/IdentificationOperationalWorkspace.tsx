@@ -1020,6 +1020,10 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                         description="Upload the fingerprint that should be identified against the store."
                     />
 
+                    <InlineBanner variant="info">
+                        Vector retrieval uses embedding-based methods for fast shortlist generation; classic methods are applied during reranking.
+                    </InlineBanner>
+
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <FormField label="Capture">
                             <select
@@ -1259,9 +1263,9 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
                                                     {candidate.decision === true ? (
-                                                        <ShieldCheck className="mx-auto h-4 w-4 text-emerald-600" />
+                                                        <ShieldCheck className="mx-auto h-4 w-4 text-[var(--app-success-text)]" />
                                                     ) : candidate.decision === false ? (
-                                                        <ShieldAlert className="mx-auto h-4 w-4 text-amber-600" />
+                                                        <ShieldAlert className="mx-auto h-4 w-4 text-[var(--app-warning-text)]" />
                                                     ) : (
                                                         <span className="text-[var(--app-text-muted)]">-</span>
                                                     )}

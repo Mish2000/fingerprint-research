@@ -170,14 +170,18 @@ export function createVerifyStoryState({
     context: VerifyRunContext | null;
 }): VerifyStoryState {
     const result = resultState.status === "success" ? resultState.data : null;
-    const headline = result?.decision ? "Same finger" : "Different fingers";
+    const headline = result
+        ? result.decision
+            ? "Same finger"
+            : "Rejected by active threshold"
+        : "Verification pending";
 
     return {
         headline,
         meaning: result
             ? result.decision
                 ? "The score cleared the active threshold for this pair."
-                : "The score stayed below the active threshold for this pair."
+                : "The score stayed below the active threshold for this pair; this is a threshold rejection, not a proof that the fingers are different."
             : "Run verification to turn the selected pair into a narrated result.",
         contextLabel: context?.mode === "demo"
             ? "Demo verify result"

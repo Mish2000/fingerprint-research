@@ -33,6 +33,18 @@ export function formatMetric(value: number | null | undefined, digits = 4): stri
     return value.toFixed(digits);
 }
 
+export function formatOperatingPoint(value: number | null | undefined): string {
+    return formatMetric(value);
+}
+
+export function formatFarLabel(value: "1e-2" | "1e-3", compact = false): string {
+    return compact ? `TAR@${value}` : `TAR@FAR=${value}`;
+}
+
+export function formatApproxEqualEer(value: number | null | undefined): string {
+    return formatMetric(value);
+}
+
 export function formatLatency(value: number | null | undefined): string {
     if (typeof value !== "number" || Number.isNaN(value)) {
         return "N/A";

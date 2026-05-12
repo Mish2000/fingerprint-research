@@ -65,17 +65,19 @@ function StatusRow({
     const Icon = active ? CheckCircle2 : CircleDashed;
 
     return (
-        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+        <div className="flex items-center gap-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2">
             <div
                 className={`rounded-full p-1.5 ${
-                    active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                    active
+                        ? "bg-[var(--app-success-surface)] text-[var(--app-success-text)]"
+                        : "bg-[var(--app-surface-muted)] text-[var(--app-text-muted)]"
                 }`}
             >
                 <Icon className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</p>
-                <p className="truncate text-sm font-semibold text-slate-800">{value}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-muted)]">{label}</p>
+                <p className="truncate text-sm font-semibold text-[var(--app-text)]">{value}</p>
             </div>
         </div>
     );
@@ -89,15 +91,15 @@ function StatusBadge({
     tone: "direct" | "fallback" | "unavailable" | "capturing" | "failed";
 }) {
     const classes = {
-        direct: "border-emerald-200 bg-emerald-50 text-emerald-800",
-        fallback: "border-amber-200 bg-amber-50 text-amber-800",
-        unavailable: "border-slate-200 bg-slate-50 text-slate-600",
-        capturing: "border-brand-200 bg-brand-50 text-brand-900",
-        failed: "border-rose-200 bg-rose-50 text-rose-800",
+        direct: "status-pill--success",
+        fallback: "status-pill--warning",
+        unavailable: "",
+        capturing: "status-pill--brand",
+        failed: "status-pill--error",
     }[tone];
 
     return (
-        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${classes}`}>
+        <span className={`status-pill ${classes}`}>
             {label}
         </span>
     );
@@ -105,9 +107,9 @@ function StatusBadge({
 
 function MetadataItem({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-            <p className="text-xs font-semibold text-slate-500">{label}</p>
-            <p className="mt-1 truncate text-sm font-semibold text-slate-900" title={value}>{value}</p>
+        <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2">
+            <p className="text-xs font-semibold text-[var(--app-text-muted)]">{label}</p>
+            <p className="mt-1 truncate text-sm font-semibold text-[var(--app-text)]" title={value}>{value}</p>
         </div>
     );
 }
@@ -198,21 +200,21 @@ export default function ScannerCaptureCard({
     const result = scannerActionState.data;
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-900">
+                    <div className="status-pill status-pill--brand uppercase tracking-[0.14em]">
                         <Fingerprint className="h-3.5 w-3.5" />
                         {eyebrow}
                     </div>
-                    <h3 className="mt-3 text-xl font-semibold text-slate-900">{title}</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                    <h3 className="mt-3 text-xl font-semibold text-[var(--app-text)]">{title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-[var(--app-text-soft)]">
                         {description}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                    <div className="status-pill">
                         {formatCaptureLabel(capture)}
                     </div>
                 </div>
@@ -229,26 +231,26 @@ export default function ScannerCaptureCard({
                 />
 
                 <div className="space-y-4">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
                         <div className="flex items-center gap-3">
-                            <div className="rounded-lg bg-slate-900 p-2 text-white">
+                            <div className="rounded-lg bg-[var(--app-brand-surface)] p-2 text-[var(--app-brand-text)]">
                                 <ScanLine className="h-5 w-5" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-slate-900">Capture source</p>
-                                <p className="text-xs text-slate-500">Scanner capture, saved-file import, and manual upload share this image slot.</p>
+                                <p className="text-sm font-semibold text-[var(--app-text)]">Capture source</p>
+                                <p className="text-xs text-[var(--app-text-muted)]">Scanner capture, saved-file import, and manual upload share this image slot.</p>
                             </div>
                         </div>
-                        <div className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-3">
-                            <p className="text-sm font-semibold text-slate-900">{scannerAvailabilityMessage(scannerStatusState)}</p>
+                        <div className="mt-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-3">
+                            <p className="text-sm font-semibold text-[var(--app-text)]">{scannerAvailabilityMessage(scannerStatusState)}</p>
                             {directAvailable && scannerStatus?.device_name ? (
-                                <p className="mt-1 text-xs font-semibold text-slate-600">Source: {scannerStatus.device_name}</p>
+                                <p className="mt-1 text-xs font-semibold text-[var(--app-text-soft)]">Source: {scannerStatus.device_name}</p>
                             ) : null}
                             {scannerStatusState.status === "error" && scannerStatusState.error ? (
-                                <p className="mt-1 text-xs text-rose-700">{scannerStatusState.error}</p>
+                                <p className="mt-1 text-xs text-[var(--app-error-text)]">{scannerStatusState.error}</p>
                             ) : null}
                             {!directAvailable && scannerStatus?.last_error ? (
-                                <p className="mt-1 text-xs text-slate-500">{scannerStatus.last_error}</p>
+                                <p className="mt-1 text-xs text-[var(--app-text-muted)]">{scannerStatus.last_error}</p>
                             ) : null}
                         </div>
                         <div className="mt-4 space-y-2">
@@ -258,7 +260,7 @@ export default function ScannerCaptureCard({
                                 onClick={() => {
                                     void onCaptureFromScanner();
                                 }}
-                                className="inline-flex w-full items-center justify-center rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-55"
+                                className="app-button app-button--primary w-full justify-center"
                             >
                                 {scannerActionBusy && scannerActionState.action === "direct" ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -273,7 +275,7 @@ export default function ScannerCaptureCard({
                                 onClick={() => {
                                     void onImportLatestSavedScan();
                                 }}
-                                className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-55"
+                                className="app-button app-button--secondary w-full justify-center"
                             >
                                 {scannerActionBusy && scannerActionState.action === "import_latest" ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -288,7 +290,7 @@ export default function ScannerCaptureCard({
                                 onClick={() => {
                                     void onCaptureWithScannerUi();
                                 }}
-                                className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-55"
+                                className="app-button app-button--secondary w-full justify-center"
                             >
                                 {scannerActionBusy && scannerActionState.action === "scanner_ui" ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -325,15 +327,15 @@ export default function ScannerCaptureCard({
                             <StatusRow active={Boolean(file)} label="Submit" value={file ? "Ready for selected action" : "Waiting for image"} />
                         </div>
                         {scannerActionState.status === "success" && result ? (
-                            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                            <div className="mt-4 rounded-xl border border-[var(--app-success-border)] bg-[var(--app-success-surface)] p-3 text-[var(--app-success-text)]">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <p className="text-sm font-semibold text-emerald-950">{result.sourceLabel}</p>
-                                        <p className="mt-1 truncate text-xs text-emerald-800" title={result.fileName}>
+                                        <p className="text-sm font-semibold">{result.sourceLabel}</p>
+                                        <p className="mt-1 truncate text-xs" title={result.fileName}>
                                             {result.fileName}
                                         </p>
                                     </div>
-                                    <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+                                    <CheckCircle2 className="h-5 w-5 text-[var(--app-success-text)]" />
                                 </div>
                                 <div className="mt-3 grid gap-2">
                                     <MetadataItem label="mode_used" value={result.modeUsed} />

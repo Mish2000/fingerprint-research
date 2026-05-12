@@ -20,17 +20,17 @@ function EvidenceItem({
     detail: string;
 }) {
     return (
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <article className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm">
             <div className="flex items-center gap-3">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600">
+                <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-2 text-[var(--app-text-muted)]">
                     <Icon className="h-4 w-4" />
                 </div>
                 <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</p>
-                    <p className="text-sm font-semibold text-slate-900">{value}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-muted)]">{label}</p>
+                    <p className="text-sm font-semibold text-[var(--app-text)]">{value}</p>
                 </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-600">{detail}</p>
+            <p className="mt-3 text-sm leading-6 text-[var(--app-text-soft)]">{detail}</p>
         </article>
     );
 }

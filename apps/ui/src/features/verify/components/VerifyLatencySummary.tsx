@@ -7,22 +7,22 @@ interface VerifyLatencySummaryProps {
 export default function VerifyLatencySummary({ latency }: VerifyLatencySummaryProps) {
     if (!latency) {
         return (
-            <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Latency</p>
-                <p className="mt-2 text-sm text-slate-600">Latency will appear once the backend returns a completed result.</p>
+            <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-muted)]">Latency</p>
+                <p className="mt-2 text-sm text-[var(--app-text-soft)]">Latency will appear once the backend returns a completed result.</p>
             </section>
         );
     }
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Latency</p>
-            <p className="mt-2 text-base font-semibold text-slate-900">{latency.totalLabel}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{latency.summary}</p>
+        <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-muted)]">Latency</p>
+            <p className="mt-2 text-base font-semibold text-[var(--app-text)]">{latency.totalLabel}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{latency.summary}</p>
             {latency.breakdown.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                     {latency.breakdown.map((item) => (
-                        <span key={`${item.label}_${item.value}`} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
+                        <span key={`${item.label}_${item.value}`} className="status-pill">
                             {item.label}: {item.value}
                         </span>
                     ))}

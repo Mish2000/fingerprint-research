@@ -10,10 +10,10 @@ export default function VerifyDifficultySummary({ difficulty }: VerifyDifficulty
     }
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Difficulty</p>
-            <p className="mt-2 text-base font-semibold text-slate-900">{difficulty.label}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{difficulty.summary}</p>
+        <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-muted)]">Difficulty</p>
+            <p className="mt-2 text-base font-semibold text-[var(--app-text)]">{difficulty.label}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{difficulty.summary}</p>
         </section>
     );
 }

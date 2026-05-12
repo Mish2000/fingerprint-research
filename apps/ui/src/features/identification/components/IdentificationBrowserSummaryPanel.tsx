@@ -51,65 +51,71 @@ export default function IdentificationBrowserSummaryPanel({
     return (
         <div className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Dataset</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{dataset?.dataset_label ?? "Not selected"}</p>
+                <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-muted)]">Dataset</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">{dataset?.dataset_label ?? "Not selected"}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Gallery identities</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{selectedIdentities.length}</p>
+                <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-muted)]">Gallery identities</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">{selectedIdentities.length}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Probe asset</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{selectedProbeAsset?.asset_id ?? "Not selected"}</p>
+                <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-muted)]">Probe asset</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">{selectedProbeAsset?.asset_id ?? "Not selected"}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Methods</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">
+                <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-muted)]">Methods</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">
                         {formatMethodLabel(browserSearchForm.retrievalMethod)} / {formatMethodLabel(browserSearchForm.rerankMethod)}
                     </p>
                 </div>
             </div>
 
-            <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-4 text-sm leading-6 text-brand-900">
+            <InlineBanner variant="info">
                 Browser Mode still reaches <code>/api/identify/search</code>, but it first seeds the selected catalog identities into
                 the isolated browser store so the 1:N run uses a real seeded gallery instead of UI-only state.
-            </div>
+            </InlineBanner>
 
             <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-900">Selection summary</p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-slate-600">
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                    <p className="text-sm font-semibold text-[var(--app-text)]">Selection summary</p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-[var(--app-text-soft)]">
+                        <span className="status-pill">
                             Shortlist {browserSearchForm.shortlistSizeText}
                         </span>
                         {enrollmentCaptures.map((capture) => (
-                            <span key={`enroll-${capture}`} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                            <span key={`enroll-${capture}`} className="status-pill">
                                 Enroll {capture}
                             </span>
                         ))}
                         {probeCaptures.map((capture) => (
-                            <span key={`probe-${capture}`} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                            <span key={`probe-${capture}`} className="status-pill">
                                 Probe {capture}
                             </span>
                         ))}
                         {selectedProbeAsset?.modality ? (
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                            <span className="status-pill">
                                 {selectedProbeAsset.modality}
                             </span>
                         ) : null}
                     </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-900">Search controls</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                    <p className="text-sm font-semibold text-[var(--app-text)]">Search controls</p>
+                    <p className="mt-1 text-sm leading-6 text-[var(--app-text-soft)]">
                         Tune the browser-backed search context before seeding the gallery and running the official 1:N endpoint.
                     </p>
                 </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
+                <div className="md:col-span-3">
+                    <InlineBanner variant="info">
+                        Vector retrieval uses embedding-based methods for fast shortlist generation; classic methods are applied during reranking.
+                    </InlineBanner>
+                </div>
+
                 <FormField label="Retrieval method">
                     <select
                         className={INPUT_CLASS_NAME}
@@ -158,7 +164,7 @@ export default function IdentificationBrowserSummaryPanel({
                     onClick={() => {
                         onUpdate({ advancedVisible: !browserSearchForm.advancedVisible });
                     }}
-                    className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="app-button app-button--secondary"
                 >
                     <SlidersHorizontal className="mr-2 h-4 w-4" />
                     {browserSearchForm.advancedVisible ? "Hide advanced filters" : "Show advanced filters"}
@@ -169,7 +175,7 @@ export default function IdentificationBrowserSummaryPanel({
                         type="button"
                         onClick={() => void onRun()}
                         disabled={!canRun}
-                        className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="app-button app-button--primary"
                     >
                         <Play className="mr-2 h-4 w-4" />
                         {busy ? "Running..." : "Seed gallery and run"}
@@ -178,7 +184,7 @@ export default function IdentificationBrowserSummaryPanel({
                         type="button"
                         onClick={() => void onResetStore()}
                         disabled={busy}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="app-button app-button--secondary"
                     >
                         Reset browser store
                     </button>

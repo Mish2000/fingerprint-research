@@ -329,6 +329,22 @@ function LoadingSkeleton() {
     );
 }
 
+function CurrentBenchmarkFindingPanel() {
+    return (
+        <div className="inline-banner inline-banner--info">
+            <div className="inline-banner__body">
+                <p className="inline-banner__title">Current benchmark finding</p>
+                <p>
+                    SIFT is currently the strongest verified method on NIST SD300b/c. DL and ViT are retained as AI baselines
+                    and future fine-tuning directions; the current benchmark evidence does not show them as the strongest
+                    performers. PolyU Cross highlights domain-shift difficulty. Dedicated Patch AI is experimental/research-only
+                    and is not part of the canonical showcase.
+                </p>
+            </div>
+        </div>
+    );
+}
+
 function sourceLabelForRow(row: ComparisonRow | null | undefined): string {
     if (row?.provenance?.benchmark_source_label) {
         return row.provenance.benchmark_source_label;
@@ -618,6 +634,8 @@ export default function BenchmarkWorkspace() {
                                 {storyArtifactCount} artifacts
                             </StatusPill>
                         </div>
+
+                        <CurrentBenchmarkFindingPanel />
                     </section>
 
                     <section className="space-y-4">

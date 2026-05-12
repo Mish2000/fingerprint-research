@@ -145,6 +145,8 @@ function createRow({
     eer,
     latency,
     nPairs,
+    tarAtFar1e2 = null,
+    tarAtFar1e3 = null,
     aucRank,
     eerRank,
     latencyRank,
@@ -163,6 +165,8 @@ function createRow({
     eer: number;
     latency: number;
     nPairs: number;
+    tarAtFar1e2?: number | null;
+    tarAtFar1e3?: number | null;
     aucRank: number;
     eerRank: number;
     latencyRank: number;
@@ -186,8 +190,8 @@ function createRow({
         auc,
         eer,
         n_pairs: nPairs,
-        tar_at_far_1e_2: null,
-        tar_at_far_1e_3: null,
+        tar_at_far_1e_2: tarAtFar1e2,
+        tar_at_far_1e_3: tarAtFar1e3,
         latency_ms: latency,
         latency_source: "wall",
         auc_rank: aucRank,
@@ -241,6 +245,8 @@ const canonicalBTestRows = [
         eer: 0.3398,
         latency: 32.15,
         nPairs: 2800,
+        tarAtFar1e2: 0.1185,
+        tarAtFar1e3: 0.0462,
         aucRank: 1,
         eerRank: 1,
         latencyRank: 3,
@@ -321,6 +327,8 @@ const canonicalPolyuTestRows = [
         eer: 0.4798,
         latency: 0.27,
         nPairs: 1224,
+        tarAtFar1e2: 0.0327,
+        tarAtFar1e3: 0.0082,
         aucRank: 1,
         eerRank: 1,
         latencyRank: 2,
@@ -846,6 +854,8 @@ function installMultipleDedicatedBenchmarkFetchMock() {
         eer: 0.3479,
         latency: 31.84,
         nPairs: 2800,
+        tarAtFar1e2: 0.1124,
+        tarAtFar1e3: 0.0391,
         aucRank: 1,
         eerRank: 1,
         latencyRank: 1,
@@ -989,9 +999,20 @@ describe("Benchmark workspace showcase", () => {
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("Validated fingerprint matching benchmark");
             expect(normalizeText(container.textContent)).toContain("Benchmark Story");
+            expect(normalizeText(container.textContent)).toContain("Current benchmark finding");
+            expect(normalizeText(container.textContent)).toContain("SIFT is currently the strongest verified method on NIST SD300b/c");
+            expect(normalizeText(container.textContent)).toContain("DL and ViT are retained as AI baselines and future fine-tuning directions");
+            expect(normalizeText(container.textContent)).toContain("PolyU Cross highlights domain-shift difficulty");
+            expect(normalizeText(container.textContent)).toContain("Dedicated Patch AI is experimental/research-only and is not part of the canonical showcase");
             expect(normalizeText(container.textContent)).toContain("Classic (SIFT)");
             expect(normalizeText(container.textContent)).toContain("Trust & provenance");
             expect(normalizeText(container.textContent)).toContain("full_nist_sd300b_h6");
+            expect(normalizeText(container.textContent)).toContain("FAR≈FRR @ EER");
+            expect(normalizeText(container.textContent)).toContain("EER is the point where FAR and FRR are approximately equal");
+            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-20.1185");
+            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-30.0462");
+            expect(normalizeText(container.textContent)).toContain("Operating points");
+            expect(normalizeText(container.textContent)).toContain("TAR@1e-20.1185");
         });
 
         const viewField = getLabelField<HTMLSelectElement>(container, "View");
@@ -1085,6 +1106,8 @@ describe("Benchmark workspace showcase", () => {
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("ROC preview is not available for this row");
             expect(normalizeText(container.textContent)).toContain("Meta JSON unavailable");
+            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-2N/A");
+            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-3N/A");
         });
 
         await click(getButtonByText(container, "Open provenance details"));

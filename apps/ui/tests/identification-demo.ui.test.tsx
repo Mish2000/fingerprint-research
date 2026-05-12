@@ -167,14 +167,11 @@ function createStats(totalEnrolled: number, demoSeededCount: number, browserSeed
 }
 
 const retrievalMethodLabels = [
-    "Classic (ORB)",
-    "Classic (ROI GFTT+ORB)",
-    "Classic (Minutiae)",
-    "Harris",
-    "SIFT",
     "Deep Learning (ResNet18)",
     "Deep Learning (ViT)",
 ];
+
+const retrievalRerankExplanation = "Vector retrieval uses embedding-based methods for fast shortlist generation; classic methods are applied during reranking.";
 
 const identifyGalleryItems = [
     {
@@ -831,10 +828,10 @@ afterEach(() => {
 });
 
 describe("Identification demo gallery workspace", () => {
-    it("keeps dedicated out of direct retrieval options", () => {
+    it("limits direct retrieval options to embedding methods", () => {
         const directMethods = [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES];
 
-        expect(directMethods).toEqual(["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]);
+        expect(directMethods).toEqual(["dl", "vit"]);
         expect(directMethods).not.toContain("dedicated");
         expect(IDENTIFICATION_RETRIEVAL_OPTIONS.map((option) => option.value)).toEqual(directMethods);
     });
@@ -860,6 +857,7 @@ describe("Identification demo gallery workspace", () => {
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("Enroll identity");
             expect(normalizeText(container.textContent)).toContain("Search identity");
+            expect(normalizeText(container.textContent)).toContain(retrievalRerankExplanation);
         });
 
         await click(getButtonByText(container, "Demo Mode"));
@@ -894,6 +892,7 @@ describe("Identification demo gallery workspace", () => {
         const demoLabels = Array.from(demoRerankField.options).map((option) => normalizeText(option.textContent));
         expect(demoLabels).toContain("Classic (ORB)");
         expect(demoLabels).toContain("Classic (ROI GFTT+ORB)");
+        expect(demoLabels).toContain("Classic (SIFT)");
 
         await click(getButtonByText(container, "Operational Mode"));
         await waitFor(() => {
@@ -904,6 +903,7 @@ describe("Identification demo gallery workspace", () => {
         const operationalLabels = Array.from(operationalRerankField.options).map((option) => normalizeText(option.textContent));
         expect(operationalLabels).toContain("Classic (ORB)");
         expect(operationalLabels).toContain("Classic (ROI GFTT+ORB)");
+        expect(operationalLabels).toContain("Classic (SIFT)");
 
         await unmountWorkspace(root);
     });
@@ -944,6 +944,7 @@ describe("Identification demo gallery workspace", () => {
         await click(getButtonByText(rendered.container, "Browser Mode"));
         await waitFor(() => {
             expect(normalizeText(rendered.container.textContent)).toContain("Browser workspace");
+            expect(normalizeText(rendered.container.textContent)).toContain(retrievalRerankExplanation);
             expect(getButtonByText(rendered.container, "Identify Demo").getAttribute("aria-pressed")).toBe("true");
         });
 
@@ -1296,7 +1297,7 @@ describe("Identification demo gallery workspace", () => {
         for (const label of retrievalMethodLabels) {
             expect(getLabelField<HTMLInputElement>(container, label).checked).toBe(true);
         }
-        await toggleCheckbox(getLabelField<HTMLInputElement>(container, "Harris"));
+        await toggleCheckbox(getLabelField<HTMLInputElement>(container, "Deep Learning (ViT)"));
 
         const fileInputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
         await uploadFile(fileInputs[0], new File([new Blob(["manual-enroll"], { type: "image/png" })], "manual-enroll.png", { type: "image/png" }));
@@ -1308,7 +1309,7 @@ describe("Identification demo gallery workspace", () => {
             expect(controls.getSubmittedEnrollFormData()).not.toBeNull();
         });
         expect(controls.getSubmittedEnrollFormData()?.get("vector_methods")).toBe(
-            IDENTIFICATION_RETRIEVAL_METHOD_VALUES.filter((method) => method !== "harris").join(","),
+            IDENTIFICATION_RETRIEVAL_METHOD_VALUES.filter((method) => method !== "vit").join(","),
         );
 
         await unmountWorkspace(root);

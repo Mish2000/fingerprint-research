@@ -4,6 +4,8 @@ import {
     formatLatency,
     formatMethodLabel,
     formatMetric,
+    formatOperatingPoint,
+    formatFarLabel,
     highlightClassName,
     isChampionCandidateRow,
     isResearchRow,
@@ -80,6 +82,7 @@ export function BenchmarkComparisonTable({
                             <th className="px-5 py-4 font-medium">Method</th>
                             <th className="px-5 py-4 text-right font-medium">Accuracy / AUC</th>
                             <th className="px-5 py-4 text-right font-medium">Error / EER</th>
+                            <th className="px-5 py-4 text-right font-medium">Operating points</th>
                             <th className="px-5 py-4 text-right font-medium">Speed</th>
                             <th className="px-5 py-4 font-medium">Evidence</th>
                             <th className="px-5 py-4 font-medium">Status</th>
@@ -89,7 +92,7 @@ export function BenchmarkComparisonTable({
                         {groupedRows(rows).map((group) => (
                             <Fragment key={group.title}>
                                 <tr key={`${group.title}_header`} className="bg-[var(--app-surface-muted)]">
-                                    <td colSpan={6} className="px-5 py-2 text-[11px] font-semibold uppercase text-[var(--app-text-muted)]">
+                                    <td colSpan={7} className="px-5 py-2 text-[11px] font-semibold uppercase text-[var(--app-text-muted)]">
                                         {group.title}
                                     </td>
                                 </tr>
@@ -140,6 +143,18 @@ export function BenchmarkComparisonTable({
                                                 <div className="space-y-2">
                                                     <div className="font-semibold text-[var(--app-text)]">{formatMetric(row.eer)}</div>
                                                     {isChampionCandidateRow(row) && row.eer_rank === 1 ? <RankBadge>#1 EER</RankBadge> : null}
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 text-right">
+                                                <div className="space-y-1 text-xs text-[var(--app-text-soft)]">
+                                                    <div>
+                                                        <span className="text-[var(--app-text-muted)]">{formatFarLabel("1e-2", true)}</span>
+                                                        <span className="ml-2 font-semibold text-[var(--app-text)]">{formatOperatingPoint(row.tar_at_far_1e_2)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[var(--app-text-muted)]">{formatFarLabel("1e-3", true)}</span>
+                                                        <span className="ml-2 font-semibold text-[var(--app-text)]">{formatOperatingPoint(row.tar_at_far_1e_3)}</span>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-5 py-4 text-right">

@@ -53,7 +53,7 @@ function StatTile({
     value: string;
 }) {
     return (
-        <div className="rounded-2xl border border-white/70 bg-white/75 p-4">
+        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] opacity-65">
                 <Icon className="h-4 w-4" />
                 {label}
@@ -113,13 +113,13 @@ export default function LiveResultHero({
         <section
             className={`rounded-2xl border p-6 shadow-sm ${
                 isAccepted
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-950"
-                    : "border-amber-200 bg-amber-50 text-amber-950"
+                    ? "border-[var(--app-success-border)] bg-[var(--app-success-surface)] text-[var(--app-success-text)]"
+                    : "border-[var(--app-warning-border)] bg-[var(--app-warning-surface)] text-[var(--app-warning-text)]"
             }`}
         >
             <div className="flex flex-wrap items-start justify-between gap-5">
                 <div className="max-w-3xl">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-current/15 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em]">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-current/15 bg-[var(--app-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em]">
                         {isAccepted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
                         Result decision
                     </div>
@@ -143,7 +143,7 @@ export default function LiveResultHero({
                     </div>
                 </div>
 
-                <div className="min-w-40 rounded-2xl border border-current/15 bg-white/75 px-5 py-4 text-right">
+                <div className="min-w-40 rounded-2xl border border-current/15 bg-[var(--app-surface)] px-5 py-4 text-right">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-60">Score</p>
                     <p className="mt-2 text-4xl font-semibold">{formatNumber(score)}</p>
                 </div>
@@ -166,16 +166,16 @@ export default function LiveResultHero({
 
             {candidate ? (
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-white/70 bg-white/75 p-4">
+                    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-60">Identity</p>
                         <p className="mt-2 text-sm font-semibold">{candidate.random_id}</p>
                         <p className="mt-1 text-xs opacity-70">{candidate.national_id_masked}</p>
                     </div>
-                    <div className="rounded-2xl border border-white/70 bg-white/75 p-4">
+                    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-60">Capture</p>
                         <p className="mt-2 text-sm font-semibold">{formatCaptureLabel(candidate.capture)}</p>
                     </div>
-                    <div className="rounded-2xl border border-white/70 bg-white/75 p-4">
+                    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-60">Method</p>
                         <p className="mt-2 text-sm font-semibold">
                             {formatMethodLabel(result.retrieval_method)} + {formatMethodLabel(result.rerank_method)}

@@ -391,6 +391,33 @@ describe("Verify Workspace dual-mode UX", () => {
         await unmountWorkspace(root);
     });
 
+    it("describes rejected verify decisions as threshold rejections", async () => {
+        installFetchMock({
+            "/api/match": () => createJsonResponse({
+                ...createMatchResponse("sift"),
+                score: 0.12,
+                threshold: 0.5,
+                decision: false,
+            }),
+        });
+        const { container, root } = await renderWorkspace();
+
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("Easy genuine");
+        });
+
+        await click(getButtonByText(container, "Run Selected Case"));
+
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("Rejected by active threshold");
+            expect(text).toContain("this is a threshold rejection, not a proof that the fingers are different");
+            expect(text).not.toContain(["Different", "fingers"].join(" "));
+        });
+
+        await unmountWorkspace(root);
+    });
+
     it("switches between Demo Mode and Manual Upload without losing the demo selection", async () => {
         installFetchMock();
         const { container, root } = await renderWorkspace();

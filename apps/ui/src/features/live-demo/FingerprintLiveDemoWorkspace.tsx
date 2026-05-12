@@ -107,23 +107,23 @@ function ActionCard({
             }}
             className={`rounded-2xl border p-4 text-left shadow-sm transition ${
                 disabled
-                    ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                    ? "cursor-not-allowed border-[var(--app-border)] bg-[var(--app-surface-subtle)] text-[var(--app-text-muted)]"
                     : highlighted
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-100"
-                        : "border-brand-200 bg-brand-50 text-brand-950 ring-2 ring-brand-100"
+                        ? "border-[var(--app-success-border)] bg-[var(--app-success-surface)] text-[var(--app-success-text)] ring-2 ring-[var(--app-success-border)]"
+                        : "border-[var(--app-brand-border)] bg-[var(--app-brand-surface)] text-[var(--app-brand-text)] ring-2 ring-[var(--app-brand-border)]"
             }`}
         >
             <div className="flex items-start justify-between gap-3">
-                <div className={`rounded-lg p-2 ${disabled ? "bg-white text-slate-400" : "bg-white text-brand-700"}`}>
+                <div className={`rounded-lg border border-current/10 bg-[var(--app-surface)] p-2 ${disabled ? "text-[var(--app-text-muted)]" : ""}`}>
                     <Icon className="h-5 w-5" />
                 </div>
                 <span
-                    className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                    className={`status-pill ${
                         disabled
-                            ? "border-slate-200 bg-white text-slate-400"
+                            ? ""
                             : highlighted
-                                ? "border-emerald-200 bg-white text-emerald-800"
-                                : "border-brand-200 bg-white text-brand-800"
+                                ? "status-pill--success"
+                                : "status-pill--brand"
                     }`}
                 >
                     {status}
@@ -153,20 +153,22 @@ function StepSummaryCard({
     return (
         <article
             className={`rounded-2xl border p-4 shadow-sm ${
-                highlighted ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
+                highlighted
+                    ? "border-[var(--app-success-border)] bg-[var(--app-success-surface)]"
+                    : "border-[var(--app-border)] bg-[var(--app-surface)]"
             }`}
         >
             <div className="flex items-start justify-between gap-3">
-                <div className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700">
+                <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-2 text-[var(--app-text-muted)]">
                     <Icon className="h-5 w-5" />
                 </div>
-                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-600">
+                <span className="status-pill">
                     {status}
                 </span>
             </div>
-            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{step}</p>
-            <h3 className="mt-1 text-base font-semibold text-slate-900">{title}</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-600">{detail}</p>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-muted)]">{step}</p>
+            <h3 className="mt-1 text-base font-semibold text-[var(--app-text)]">{title}</h3>
+            <p className="mt-1 text-sm leading-6 text-[var(--app-text-soft)]">{detail}</p>
         </article>
     );
 }
@@ -200,21 +202,21 @@ function QualityStatusPanel({
     ];
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5 shadow-sm">
             <div className="flex items-center gap-3">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600">
+                <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-2 text-[var(--app-text-muted)]">
                     <Fingerprint className="h-5 w-5" />
                 </div>
                 <div>
-                    <h3 className="text-base font-semibold text-slate-900">Capture / preprocessing status</h3>
-                    <p className="text-sm text-slate-500">Preprocessing runs when you submit enrollment or identify requests.</p>
+                    <h3 className="text-base font-semibold text-[var(--app-text)]">Capture / preprocessing status</h3>
+                    <p className="text-sm text-[var(--app-text-muted)]">Preprocessing runs when you submit enrollment or identify requests.</p>
                 </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {statusItems.map((item) => (
-                    <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-800">{item.value}</p>
+                    <div key={item.label} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-subtle)] px-3 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-muted)]">{item.label}</p>
+                        <p className="mt-1 text-sm font-semibold text-[var(--app-text)]">{item.value}</p>
                     </div>
                 ))}
             </div>
@@ -326,19 +328,19 @@ function EnrollmentFormPanel({
     const result = enrollState.data;
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-900">
+                    <div className="status-pill status-pill--brand uppercase tracking-[0.14em]">
                         <UserPlus className="h-3.5 w-3.5" />
                         Enroll identity
                     </div>
-                    <h3 className="mt-3 text-xl font-semibold text-slate-900">Identity details</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                    <h3 className="mt-3 text-xl font-semibold text-[var(--app-text)]">Identity details</h3>
+                    <p className="mt-1 text-sm leading-6 text-[var(--app-text-soft)]">
                         Uses the enrollment fingerprint image and the shared {formatCaptureLabel(capture)} capture profile.
                     </p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                <div className="status-pill">
                     {fileReady ? "Fingerprint ready" : "Upload required"}
                 </div>
             </div>
@@ -377,7 +379,7 @@ function EnrollmentFormPanel({
                     </FormField>
                 </div>
 
-                <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--app-text-soft)]">
                     <input
                         type="checkbox"
                         className={CHECKBOX_CLASS_NAME}
@@ -399,37 +401,37 @@ function EnrollmentFormPanel({
                 ) : null}
 
                 {result ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+                    <div className="rounded-2xl border border-[var(--app-success-border)] bg-[var(--app-success-surface)] p-4 text-[var(--app-success-text)]">
                         <div className="flex flex-wrap items-start justify-between gap-4">
                             <div>
                                 <p className="text-sm font-semibold">Enrollment completed</p>
-                                <p className="mt-1 text-sm leading-6 text-emerald-800">
+                                <p className="mt-1 text-sm leading-6">
                                     Ready for Identify 1:N against the enrolled operational gallery.
                                 </p>
                             </div>
-                            <UserRoundSearch className="h-5 w-5 text-emerald-700" />
+                            <UserRoundSearch className="h-5 w-5 text-[var(--app-success-text)]" />
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                            <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Name</p>
+                            <div className="rounded-lg border border-[var(--app-success-border)] bg-[var(--app-surface)] px-3 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em]">Name</p>
                                 <p className="mt-1 text-sm font-semibold">{result.fullName}</p>
                             </div>
-                            <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">random_id</p>
+                            <div className="rounded-lg border border-[var(--app-success-border)] bg-[var(--app-surface)] px-3 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em]">random_id</p>
                                 <p className="mt-1 break-all text-sm font-semibold">{result.response.random_id}</p>
                             </div>
-                            <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Capture</p>
+                            <div className="rounded-lg border border-[var(--app-success-border)] bg-[var(--app-surface)] px-3 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em]">Capture</p>
                                 <p className="mt-1 text-sm font-semibold">{formatCaptureLabel(result.capture)}</p>
                             </div>
-                            <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Enrollment source file</p>
+                            <div className="rounded-lg border border-[var(--app-success-border)] bg-[var(--app-surface)] px-3 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em]">Enrollment source file</p>
                                 <p className="mt-1 truncate text-sm font-semibold" title={result.sourceFileName}>
                                     {result.sourceFileName}
                                 </p>
                             </div>
-                            <div className="rounded-lg border border-emerald-200 bg-white/75 px-3 py-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Vectors</p>
+                            <div className="rounded-lg border border-[var(--app-success-border)] bg-[var(--app-surface)] px-3 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em]">Vectors</p>
                                 <p className="mt-1 text-sm font-semibold">{formatVectorMethods(result.response.vector_methods ?? result.vectorMethods)}</p>
                             </div>
                         </div>
@@ -439,7 +441,7 @@ function EnrollmentFormPanel({
                 <button
                     type="submit"
                     disabled={!fileReady || disabled}
-                    className="inline-flex items-center rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-55"
+                    className="app-button app-button--primary"
                 >
                     <UserPlus className="mr-2 h-4 w-4" />
                     {isLoading ? "Enrolling..." : "Enroll identity"}
@@ -819,11 +821,11 @@ export default function FingerprintLiveDemoWorkspace() {
                 )}
             />
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Shared capture profile">
+            <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5 shadow-sm" aria-label="Shared capture profile">
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_18rem] md:items-end">
                     <div>
-                        <h3 className="text-base font-semibold text-slate-900">Shared capture profile</h3>
-                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                        <h3 className="text-base font-semibold text-[var(--app-text)]">Shared capture profile</h3>
+                        <p className="mt-1 text-sm leading-6 text-[var(--app-text-soft)]">
                             Used for both enrollment and probe in this demo.
                         </p>
                     </div>
@@ -890,8 +892,8 @@ export default function FingerprintLiveDemoWorkspace() {
             <div className="grid gap-5 xl:grid-cols-2">
                 <section className="space-y-5" aria-labelledby="enrollment-capture-heading">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Step 1</p>
-                        <h3 id="enrollment-capture-heading" className="mt-1 text-xl font-semibold text-slate-900">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-muted)]">Step 1</p>
+                        <h3 id="enrollment-capture-heading" className="mt-1 text-xl font-semibold text-[var(--app-text)]">
                             Enrollment capture
                         </h3>
                     </div>
@@ -926,8 +928,8 @@ export default function FingerprintLiveDemoWorkspace() {
 
                 <section className="space-y-5" aria-labelledby="probe-capture-heading">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Step 2</p>
-                        <h3 id="probe-capture-heading" className="mt-1 text-xl font-semibold text-slate-900">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-muted)]">Step 2</p>
+                        <h3 id="probe-capture-heading" className="mt-1 text-xl font-semibold text-[var(--app-text)]">
                             Probe capture
                         </h3>
                     </div>
@@ -948,11 +950,11 @@ export default function FingerprintLiveDemoWorkspace() {
                         onImportLatestSavedScan={() => importLatestScannerCapture("probe")}
                     />
 
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <p className="text-sm font-semibold text-slate-900">Quick smoke test</p>
-                                <p className="text-sm leading-6 text-slate-600">
+                                <p className="text-sm font-semibold text-[var(--app-text)]">Quick smoke test</p>
+                                <p className="text-sm leading-6 text-[var(--app-text-soft)]">
                                     Use this only when you need a same-image API smoke check; the recommended demo uses a separate probe image.
                                 </p>
                             </div>
@@ -960,7 +962,7 @@ export default function FingerprintLiveDemoWorkspace() {
                                 type="button"
                                 disabled={!enrollmentFile || isBusy}
                                 onClick={useEnrollmentImageAsProbe}
-                                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-55"
+                                className="app-button app-button--secondary"
                             >
                                 Use enrollment image as probe
                             </button>
@@ -974,18 +976,18 @@ export default function FingerprintLiveDemoWorkspace() {
             <section className="space-y-4" aria-labelledby="identify-result-heading">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Step 3</p>
-                        <h3 id="identify-result-heading" className="mt-1 text-xl font-semibold text-slate-900">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-text-muted)]">Step 3</p>
+                        <h3 id="identify-result-heading" className="mt-1 text-xl font-semibold text-[var(--app-text)]">
                             Identify 1:N result
                         </h3>
                     </div>
                     {!latestEnrollment && probeFile ? (
-                        <p className="max-w-xl text-sm leading-6 text-slate-600">{SEEDED_GALLERY_HINT}</p>
+                        <p className="max-w-xl text-sm leading-6 text-[var(--app-text-soft)]">{SEEDED_GALLERY_HINT}</p>
                     ) : null}
                 </div>
 
                 <section className="space-y-3">
-                    <h3 className="text-base font-semibold text-slate-900">Choose action</h3>
+                    <h3 className="text-base font-semibold text-[var(--app-text)]">Choose action</h3>
                     <div className="grid gap-3 lg:grid-cols-3">
                         <ActionCard
                             title="Enroll"

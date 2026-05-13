@@ -1,0 +1,1061 @@
+{
+  "dataset": "polyu_3d",
+  "dataset_label": "PolyU 3D",
+  "generated_at": "2026-04-29T16:27:49Z",
+  "generator_version": "1.0.0",
+  "selection_policy": "dataset_canonical_policy[polyu_3d:canonical_surface_only]:group_by=split,session;round_robin:max_items=240",
+  "deterministic_render_source_suffixes": [
+    ".bmp",
+    ".jpeg",
+    ".jpg",
+    ".mat",
+    ".npy",
+    ".npz",
+    ".png",
+    ".tif",
+    ".tiff"
+  ],
+  "source_records_checked": 9643,
+  "canonical_records_considered": 9643,
+  "selected_records": 240,
+  "canonical_render_attempts": 240,
+  "canonical_render_failures": 0,
+  "generated_items": 240,
+  "excluded_records": 6431,
+  "policy_excluded_records": 6431,
+  "non_renderable_canonical_records": 0,
+  "rendered_items_by_strategy": {
+    "deterministic_numeric_artifact": 240
+  },
+  "missing_source_files": 0,
+  "unreadable_source_files": 0,
+  "missing_critical_metadata": 0,
+  "duplicates_skipped": 0,
+  "manifest_path": "data/manifests/polyu_3d/manifest.csv",
+  "split_path": "data/manifests/polyu_3d/split.json",
+  "stats_path": "data/manifests/polyu_3d/stats.json",
+  "protocol_note_path": null,
+  "canonical_ui_policy": {
+    "name": "canonical_surface_only",
+    "description": "Keep only contactless_3d_surface assets, render deterministic previews from canonical surface artifacts, and fail closed if those renders do not succeed.",
+    "grouping_fields": [
+      "split",
+      "session"
+    ],
+    "allowed_captures": null,
+    "allowed_modalities": [
+      "contactless_3d_surface"
+    ],
+    "require_renderable_sources": false,
+    "fail_closed": true
+  },
+  "exclusions": [
+    {
+      "row_number": 2,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102326_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 3,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102326_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 4,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102330_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 5,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102330_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 6,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102401_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 7,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102401_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 8,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102403_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 9,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102404_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 10,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102420_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 11,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102420_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 12,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102430_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 13,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p001/P0912102430_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 20,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512144956_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 21,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512144956_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 22,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145026_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 23,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145027_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 24,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145037_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 25,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145037_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 26,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145047_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 27,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145047_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 28,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145051_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 29,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145052_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 30,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145204_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 31,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p001/P0512145204_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 38,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200110_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 39,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200110_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 40,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200124_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 41,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200124_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 42,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200126_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 43,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200126_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 44,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200135_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 45,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200135_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 46,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200156_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 47,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200156_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 48,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200211_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 49,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p002/P0911200211_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 56,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145253_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 57,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145254_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 58,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145301_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 59,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145301_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 60,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145319_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 61,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145319_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 62,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145345_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 63,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145345_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 64,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145400_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 65,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145401_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 66,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145427_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 67,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p002/P0512145428_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 74,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111536_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 75,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111537_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 76,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111546_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 77,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111547_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 78,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111552_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 79,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111552_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 80,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111600_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 81,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111600_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 82,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111606_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 83,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111606_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 84,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111618_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 85,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p003/P0912111619_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 92,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145518_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 93,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145519_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 94,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145521_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 95,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145521_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 96,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145529_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 97,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145530_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 98,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145546_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 99,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145546_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 100,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145602_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 101,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145603_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 102,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145629_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 103,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p003/P0512145630_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 110,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111852_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 111,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111852_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 112,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111857_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 113,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111857_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 114,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111912_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 115,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111912_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 116,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111923_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 117,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912111923_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 118,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912120313_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 119,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912120313_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 120,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912134057_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 121,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p004/P0912134057_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 128,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145820_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 129,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145820_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 130,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145848_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 131,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145848_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 132,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145850_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 133,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145850_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 134,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145909_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 135,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145909_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 136,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145917_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 137,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145917_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 138,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145930_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 139,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p004/P0512145931_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 146,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912172322_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 147,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912172323_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 148,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175409_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 149,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175409_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 150,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175428_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 151,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175428_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 152,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175435_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 153,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175435_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 154,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175443_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 155,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175444_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 156,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175445_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 157,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p005/P0912175446_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 164,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165323_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 165,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165324_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 166,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165348_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 167,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165348_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 168,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165400_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 169,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165400_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 170,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165412_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 171,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165412_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 172,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165419_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 173,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165419_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 174,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165421_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 175,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p005/P0512165422_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 182,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154403_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 183,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154404_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 184,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154413_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 185,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154413_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 186,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154424_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 187,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154425_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 188,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154450_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 189,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154450_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 190,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154459_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 191,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154459_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 192,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154519_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 193,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p006/P0912154519_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 200,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165058_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 201,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165059_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 202,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165118_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 203,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165118_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 204,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165135_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 205,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165136_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 206,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165143_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 207,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165143_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 208,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165200_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 209,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165200_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 210,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165212_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 211,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p006/P0512165212_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 218,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150452_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 219,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150452_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 220,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150517_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 221,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150517_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 222,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150539_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 223,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150540_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 224,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150553_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 225,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912150553_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 226,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912152514_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 227,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912152514_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 228,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912152521_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 229,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p007/P0912152522_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 236,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512164912_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 237,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512164912_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 238,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512164935_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 239,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512164936_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 240,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512164946_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 241,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512164946_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 242,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512165005_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 243,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512165005_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 244,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512165011_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 245,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512165012_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 246,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512165015_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 247,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p007/P0512165016_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 254,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140655_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 255,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140655_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 256,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140708_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 257,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140709_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 258,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140712_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 259,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140712_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 260,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140716_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 261,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140716_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 262,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140739_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 263,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912140740_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 264,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912144645_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 265,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p008/P0912144645_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 272,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164637_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 273,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164637_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 274,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164640_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 275,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164640_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 276,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164659_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 277,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164659_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 278,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164701_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 279,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164702_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 280,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164730_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 281,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164731_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 282,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164745_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 283,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/second_session/p008/P0512164745_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 290,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181838_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 291,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181839_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 292,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181846_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 293,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181846_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 294,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181907_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 295,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181907_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 296,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181911_0.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    },
+    {
+      "row_number": 297,
+      "source_path": "data/raw/PolyU Hong Kong/3D_Fingerprint_Images_Database_V2/3D_fingerprint_image/first_session/p009/P0912181911_1.bmp",
+      "reason": "excluded by canonical UI policy canonical_surface_only: modality contactless_2d_photometric_raw is non-canonical"
+    }
+  ],
+  "thumbnail_files_verified": 240,
+  "preview_files_verified": 240,
+  "missing_thumbnail_files": [],
+  "missing_preview_files": [],
+  "validation_status": "pass",
+  "browser_preview_enabled": true,
+  "browser_preview_exclusion_reason": null
+}

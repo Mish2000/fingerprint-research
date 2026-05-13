@@ -1,0 +1,61 @@
+{
+  "dataset": "nist_sd300c",
+  "dataset_label": "NIST SD300C",
+  "generated_at": "2026-04-29T16:26:12Z",
+  "generator_version": "1.0.0",
+  "selection_policy": "dataset_canonical_policy[nist_sd300c:canonical_plain_roll_only]:group_by=split,capture;round_robin:max_items=240",
+  "deterministic_render_source_suffixes": [
+    ".bmp",
+    ".jpeg",
+    ".jpg",
+    ".mat",
+    ".npy",
+    ".npz",
+    ".png",
+    ".tif",
+    ".tiff"
+  ],
+  "source_records_checked": 15909,
+  "canonical_records_considered": 15909,
+  "selected_records": 240,
+  "canonical_render_attempts": 240,
+  "canonical_render_failures": 0,
+  "generated_items": 240,
+  "excluded_records": 0,
+  "policy_excluded_records": 0,
+  "non_renderable_canonical_records": 0,
+  "rendered_items_by_strategy": {
+    "deterministic_raster_source": 240
+  },
+  "missing_source_files": 0,
+  "unreadable_source_files": 0,
+  "missing_critical_metadata": 0,
+  "duplicates_skipped": 0,
+  "manifest_path": "data/manifests/nist_sd300c/manifest.csv",
+  "split_path": "data/manifests/nist_sd300c/split.json",
+  "stats_path": "data/manifests/nist_sd300c/stats.json",
+  "protocol_note_path": null,
+  "canonical_ui_policy": {
+    "name": "canonical_plain_roll_only",
+    "description": "Keep only canonical plain and roll captures for browser previews.",
+    "grouping_fields": [
+      "split",
+      "capture"
+    ],
+    "allowed_captures": [
+      "plain",
+      "roll"
+    ],
+    "allowed_modalities": null,
+    "require_renderable_sources": false,
+    "fail_closed": false
+  },
+  "exclusions": [],
+  "thumbnail_files_verified": 240,
+  "preview_files_verified": 240,
+  "missing_thumbnail_files": [],
+  "missing_preview_files": [],
+  "validation_status": "pass",
+  "browser_preview_enabled": true,
+  "browser_preview_exclusion_reason": null
+}

@@ -1,0 +1,78 @@
+{
+  "schema_version": "v2_benchmark_run_meta",
+  "row": {
+    "timestamp_utc": "2026-05-06T16:49:01Z",
+    "method": "harris",
+    "split": "val",
+    "n_pairs": 1632,
+    "auc": 0.5408797097270281,
+    "eer": 0.4771241830065359,
+    "tar_at_far_1e_2": 0.029411764705882353,
+    "tar_at_far_1e_3": 0.0,
+    "avg_ms_pair_reported": null,
+    "avg_ms_pair_wall": 113.10671167630775,
+    "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\_regen_h5_tmp_20260506_182726\\full_polyu_cross_h5\\scores_harris_val.csv",
+    "meta_json": null,
+    "config_json": "{\"schema_version\": \"v2_benchmark_eval_config\", \"method\": \"harris\", \"split\": \"val\", \"limit\": 0, \"dataset\": \"polyu_cross\", \"resolved_data_dir\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\polyu_cross\", \"manifest_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\polyu_cross\\\\manifest.csv\", \"pairs_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\polyu_cross\\\\pairs_val.csv\", \"method_semantics_epoch\": \"harris_runtime_aligned_v1\", \"classic\": {\"script\": \"pipelines/benchmark/eval_classic.py\", \"detector\": \"harris_orb\", \"score_mode\": \"inliers_over_min_keypoints\", \"nfeatures\": 1500, \"ratio\": 0.75, \"ransac_thresh\": 3.0, \"target_size\": 512, \"preprocess\": \"runtime_square_512_clahe_blur\", \"mask_mode\": \"none\", \"geometry_model\": \"homography\", \"normalization\": \"min_detected_keypoints\", \"method_semantics_epoch\": \"harris_runtime_aligned_v1\"}, \"dl\": {\"script\": \"pipelines/benchmark/eval_quick.py\", \"backbone\": \"resnet50\", \"no_mask\": false}, \"dedicated\": {\"script\": \"pipelines/benchmark/eval_dedicated.py\", \"patch\": 48, \"max_kpts\": 800, \"mask_cov_thr\": 0.7, \"max_matches\": 200, \"ransac_thresh\": 4.0, \"ckpt\": \"auto\"}, \"fusion\": {\"source_dir\": \"C:\\\\fingerprint-research\\\\artifacts\\\\reports\\\\benchmark\\\\_regen_h5_tmp_20260506_182726\\\\full_polyu_cross_h5\", \"fit_split\": \"val\", \"weights\": {\"sift\": 0.91, \"dl_quick\": 0.05, \"vit\": 0.04}, \"source_methods\": [\"sift\", \"dl_quick\", \"vit\"]}}"
+  },
+  "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\_regen_h5_tmp_20260506_182726\\full_polyu_cross_h5\\scores_harris_val.csv",
+  "roc_png": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\_regen_h5_tmp_20260506_182726\\full_polyu_cross_h5\\roc_harris_val.png",
+  "summary_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\_regen_h5_tmp_20260506_182726\\full_polyu_cross_h5\\results_summary.csv",
+  "method_meta_json": null,
+  "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\polyu_cross",
+  "manifest_path": "C:\\fingerprint-research\\data\\manifests\\polyu_cross\\manifest.csv",
+  "pairs_path": "C:\\fingerprint-research\\data\\manifests\\polyu_cross\\pairs_val.csv",
+  "config": {
+    "schema_version": "v2_benchmark_eval_config",
+    "method": "harris",
+    "split": "val",
+    "limit": 0,
+    "dataset": "polyu_cross",
+    "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\polyu_cross",
+    "manifest_path": "C:\\fingerprint-research\\data\\manifests\\polyu_cross\\manifest.csv",
+    "pairs_path": "C:\\fingerprint-research\\data\\manifests\\polyu_cross\\pairs_val.csv",
+    "method_semantics_epoch": "harris_runtime_aligned_v1",
+    "classic": {
+      "script": "pipelines/benchmark/eval_classic.py",
+      "detector": "harris_orb",
+      "score_mode": "inliers_over_min_keypoints",
+      "nfeatures": 1500,
+      "ratio": 0.75,
+      "ransac_thresh": 3.0,
+      "target_size": 512,
+      "preprocess": "runtime_square_512_clahe_blur",
+      "mask_mode": "none",
+      "geometry_model": "homography",
+      "normalization": "min_detected_keypoints",
+      "method_semantics_epoch": "harris_runtime_aligned_v1"
+    },
+    "dl": {
+      "script": "pipelines/benchmark/eval_quick.py",
+      "backbone": "resnet50",
+      "no_mask": false
+    },
+    "dedicated": {
+      "script": "pipelines/benchmark/eval_dedicated.py",
+      "patch": 48,
+      "max_kpts": 800,
+      "mask_cov_thr": 0.7,
+      "max_matches": 200,
+      "ransac_thresh": 4.0,
+      "ckpt": "auto"
+    },
+    "fusion": {
+      "source_dir": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\_regen_h5_tmp_20260506_182726\\full_polyu_cross_h5",
+      "fit_split": "val",
+      "weights": {
+        "sift": 0.91,
+        "dl_quick": 0.05,
+        "vit": 0.04
+      },
+      "source_methods": [
+        "sift",
+        "dl_quick",
+        "vit"
+      ]
+    }
+  }
+}

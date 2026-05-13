@@ -1,0 +1,36 @@
+{
+  "split": "val",
+  "pairs_csv": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\pairs_val.csv",
+  "N": 300,
+  "AUC": 0.5642222222222222,
+  "EER": 0.45666666666666667,
+  "total_ms": 268.5076999987359,
+  "avg_ms_pair": 0.8041869997881198,
+  "model_cfg": {
+    "dl_cfg": {
+      "backbone": "resnet50",
+      "input_size": 224,
+      "use_mask": true,
+      "roi_min_frac": 0.02,
+      "roi_max_frac": 0.85,
+      "gate_top_plain": 0.18,
+      "gate_top_roll": 0.05,
+      "gate_border": 12
+    },
+    "prep_cfg": {
+      "target_size": 512,
+      "clahe_clip": 2.0,
+      "clahe_grid": [
+        8,
+        8
+      ],
+      "blur_ksize": 3
+    },
+    "device": "cuda",
+    "embed_dim": 2048
+  },
+  "root": "C:\\fingerprint-research",
+  "disk_cache_dir": "C:\\fingerprint-research\\artifacts\\cache\\embeddings",
+  "disk_cache_hits": 413,
+  "disk_cache_misses": 0
+}

@@ -1,0 +1,1062 @@
+{
+  "dataset": "unsw_2d3d",
+  "dataset_label": "UNSW 2D/3D",
+  "generated_at": "2026-04-29T16:28:25Z",
+  "generator_version": "1.0.0",
+  "selection_policy": "dataset_canonical_policy[unsw_2d3d:canonical_optical2d_reconstructed3d_only]:group_by=split,modality;round_robin:max_items=240",
+  "deterministic_render_source_suffixes": [
+    ".bmp",
+    ".jpeg",
+    ".jpg",
+    ".mat",
+    ".npy",
+    ".npz",
+    ".png",
+    ".tif",
+    ".tiff"
+  ],
+  "source_records_checked": 43590,
+  "canonical_records_considered": 43590,
+  "selected_records": 240,
+  "canonical_render_attempts": 240,
+  "canonical_render_failures": 0,
+  "generated_items": 240,
+  "excluded_records": 34481,
+  "policy_excluded_records": 34481,
+  "non_renderable_canonical_records": 0,
+  "rendered_items_by_strategy": {
+    "deterministic_raster_source": 240
+  },
+  "missing_source_files": 0,
+  "unreadable_source_files": 0,
+  "missing_critical_metadata": 0,
+  "duplicates_skipped": 0,
+  "manifest_path": "data/manifests/unsw_2d3d/manifest.csv",
+  "split_path": "data/manifests/unsw_2d3d/split.json",
+  "stats_path": "data/manifests/unsw_2d3d/stats.json",
+  "protocol_note_path": null,
+  "canonical_ui_policy": {
+    "name": "canonical_optical2d_reconstructed3d_only",
+    "description": "Keep only optical_2d and reconstructed_3d assets; exclude auxiliary derived and intermediate rows.",
+    "grouping_fields": [
+      "split",
+      "modality"
+    ],
+    "allowed_captures": null,
+    "allowed_modalities": [
+      "optical_2d",
+      "reconstructed_3d"
+    ],
+    "require_renderable_sources": false,
+    "fail_closed": true
+  },
+  "exclusions": [
+    {
+      "row_number": 2,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 3,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 4,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 5,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 6,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 7,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 8,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 9,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 10,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 11,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_1_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 18,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 19,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 20,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 21,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 22,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 23,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 24,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 25,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 26,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 27,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 28,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 29,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_1_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 30,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 31,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 32,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 33,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 34,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 35,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 36,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 37,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 38,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 39,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_2_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 46,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 47,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 48,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 49,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 50,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 51,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 52,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 53,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 54,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 55,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 56,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 57,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_2_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 58,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 59,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 60,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 61,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 62,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 63,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 64,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 65,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 66,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 67,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_3_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 74,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 75,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 76,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 77,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 78,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 79,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 80,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 81,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 82,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 83,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 84,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 85,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_3_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 86,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 87,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 88,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 89,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 90,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 91,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 92,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 93,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 94,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 95,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_4_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 102,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 103,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 104,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 105,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 106,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 107,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 108,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 109,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 110,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 111,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 112,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 113,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_4_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 114,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 115,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 116,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 117,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 118,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 119,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 120,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 121,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 122,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 123,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_5_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 130,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 131,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 132,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 133,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 134,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 135,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 136,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 137,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 138,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 139,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 140,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 141,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_5_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 142,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 143,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 144,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 145,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 146,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 147,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 148,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 149,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 150,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 151,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_6_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 158,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 159,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 160,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 161,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 162,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 163,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 164,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 165,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 166,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 167,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 168,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 169,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_6_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 170,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 171,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 172,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 173,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 174,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 175,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 176,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 177,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 178,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 179,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_7_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 186,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 187,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 188,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 189,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 190,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 191,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 192,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 193,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 194,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 195,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 196,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 197,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_7_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 198,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 199,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 200,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 201,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 202,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 203,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 204,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 205,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 206,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 207,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_8_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 214,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 215,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 216,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 217,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 218,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 219,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 220,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 221,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 222,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 223,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 224,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 225,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_8_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 226,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 227,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 228,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_1_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 229,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_1_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 230,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_1_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 231,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_2_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 232,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_2_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 233,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_2_HT4.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 234,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_2_HT6.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 235,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_9_2_R414.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 242,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_1_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 243,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_1_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 244,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_1_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 245,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_1_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 246,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_1_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 247,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_1_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 248,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_2_0.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 249,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_2_1.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 250,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_2_2.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 251,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_2_3.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 252,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_2_4.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 253,
+      "source_path": "data/raw/UNSW 3D/DS1/1/raw/1_9_2_5.jpg",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality reconstruction_intermediate is non-canonical"
+    },
+    {
+      "row_number": 254,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_10_1_HT1.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    },
+    {
+      "row_number": 255,
+      "source_path": "data/raw/UNSW 3D/DS1/1/SIRE-1_10_1_HT2.bmp",
+      "reason": "excluded by canonical UI policy canonical_optical2d_reconstructed3d_only: modality derived_3d_variant is non-canonical"
+    }
+  ],
+  "thumbnail_files_verified": 240,
+  "preview_files_verified": 240,
+  "missing_thumbnail_files": [],
+  "missing_preview_files": [],
+  "validation_status": "pass",
+  "browser_preview_enabled": true,
+  "browser_preview_exclusion_reason": null
+}

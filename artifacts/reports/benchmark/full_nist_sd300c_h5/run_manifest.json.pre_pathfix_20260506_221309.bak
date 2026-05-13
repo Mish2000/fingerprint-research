@@ -1,0 +1,92 @@
+{
+  "timestamp_utc": "2026-05-06T16:03:11.092423+00:00",
+  "mode": "batch",
+  "repo_root": "C:\\fingerprint-research",
+  "outdir": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\_regen_h5_tmp_20260506_182726\\full_nist_sd300c_h5",
+  "dataset": {
+    "name": "nist_sd300c",
+    "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\nist_sd300c"
+  },
+  "methods": [
+    "classic_v2",
+    "harris",
+    "sift",
+    "dl_quick",
+    "vit"
+  ],
+  "splits": [
+    "val",
+    "test"
+  ],
+  "limit": 0,
+  "ensure_pairs": false,
+  "dedicated_ckpt": "auto",
+  "emb_cache_dir": "C:\\fingerprint-research\\artifacts\\cache\\embeddings",
+  "cache_write": true,
+  "cache_strip_prefix": "",
+  "fusion": {
+    "fit_split": "val",
+    "weights": {
+      "sift": 0.91,
+      "dl_quick": 0.05,
+      "vit": 0.04
+    }
+  },
+  "python": {
+    "version": "3.11.15 | packaged by conda-forge | (main, Mar  5 2026, 16:36:00) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\sirak\\miniconda3\\envs\\fingerprint_research\\python.exe"
+  },
+  "platform": "Windows-10-10.0.26200-SP0",
+  "git": {
+    "commit": "8191c9e4811c02fe914f7ea6f575453c1e30502f",
+    "is_dirty": true,
+    "branch": "main",
+    "error": null
+  },
+  "packages": {
+    "numpy": "2.4.3",
+    "opencv-python": "4.13.0.92",
+    "torch": "2.5.1",
+    "torchvision": "0.20.1",
+    "pandas": "3.0.2",
+    "fastapi": "0.135.2",
+    "uvicorn": "0.42.0"
+  },
+  "input_hashes": {
+    "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\split.json": "7f7be3bf78416e6cc69c2fef68d7106155107f2e778ab4449491c7ae8b3833f3",
+    "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\stats.json": "51a0758978062e28a55c88ecb217f76cbf16c272cb84bc5e64291733cffb3df5",
+    "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\pairs_split_build.meta.json": "d6621c0c8bda654a6a4a83a496c183bd4703ff8bd6a0add342c2ef640064a9a4"
+  },
+  "argv": [
+    ".\\pipelines\\benchmark\\run_benchmark_matrix.py",
+    "--dataset",
+    "nist_sd300c",
+    "--data_dir",
+    ".\\data\\manifests\\nist_sd300c",
+    "--outdir",
+    "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\_regen_h5_tmp_20260506_182726\\full_nist_sd300c_h5",
+    "--methods",
+    "classic_v2,harris,sift,dl_quick,vit",
+    "--splits",
+    "val,test",
+    "--emb_cache_dir",
+    "C:\\fingerprint-research\\artifacts\\cache\\embeddings",
+    "--cache_write",
+    "--limit",
+    "0"
+  ],
+  "package_versions": {
+    "numpy": "2.4.3",
+    "opencv-python": "4.13.0.92",
+    "torch": "2.5.1",
+    "torchvision": "0.20.1",
+    "pandas": "3.0.2",
+    "fastapi": "0.135.2",
+    "uvicorn": "0.42.0"
+  },
+  "file_hashes_sha256": {
+    "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\split.json": "7f7be3bf78416e6cc69c2fef68d7106155107f2e778ab4449491c7ae8b3833f3",
+    "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\stats.json": "51a0758978062e28a55c88ecb217f76cbf16c272cb84bc5e64291733cffb3df5",
+    "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\pairs_split_build.meta.json": "d6621c0c8bda654a6a4a83a496c183bd4703ff8bd6a0add342c2ef640064a9a4"
+  }
+}

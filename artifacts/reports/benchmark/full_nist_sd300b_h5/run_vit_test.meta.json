@@ -1,0 +1,72 @@
+{
+  "schema_version": "v2_benchmark_run_meta",
+  "row": {
+    "timestamp_utc": "2026-05-06T16:03:10Z",
+    "method": "vit",
+    "split": "test",
+    "n_pairs": "2844",
+    "auc": "0.5632571808754401",
+    "eer": "0.4610876699484294",
+    "tar_at_far_1e_2": "0.01828410689170183",
+    "tar_at_far_1e_3": "0.004219409282700422",
+    "avg_ms_pair_reported": "22.37121097044656",
+    "avg_ms_pair_wall": "25.16954718092155",
+    "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300b_h5\\scores_vit_test.csv",
+    "meta_json": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300b_h5\\scores_vit_test.meta.json",
+    "config_json": "{\"classic\": {\"detector\": \"gftt_orb\", \"nfeatures\": 1500, \"ransac_thresh\": 4.0, \"ratio\": 0.75, \"score_mode\": \"inliers_over_k\", \"script\": \"pipelines/benchmark/eval_classic.py\"}, \"dataset\": \"nist_sd300b\", \"dedicated\": {\"ckpt\": \"auto\", \"mask_cov_thr\": 0.7, \"max_kpts\": 800, \"max_matches\": 200, \"patch\": 48, \"ransac_thresh\": 4.0, \"script\": \"pipelines/benchmark/eval_dedicated.py\"}, \"dl\": {\"backbone\": \"vit_base\", \"no_mask\": false, \"script\": \"pipelines/benchmark/eval_quick.py\"}, \"fusion\": {\"fit_split\": \"val\", \"source_dir\": \"C:\\\\fingerprint-research\\\\artifacts\\\\reports\\\\benchmark\\\\full_nist_sd300b_h5\", \"source_methods\": [\"sift\", \"dl_quick\", \"vit\"], \"weights\": {\"dl_quick\": 0.05, \"sift\": 0.91, \"vit\": 0.04}}, \"limit\": 0, \"manifest_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300b\\\\manifest.csv\", \"method\": \"vit\", \"method_semantics_epoch\": null, \"pairs_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300b\\\\pairs_test.csv\", \"resolved_data_dir\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300b\", \"schema_version\": \"v2_benchmark_eval_config\", \"split\": \"test\"}"
+  },
+  "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300b_h5\\scores_vit_test.csv",
+  "roc_png": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300b_h5\\roc_vit_test.png",
+  "summary_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300b_h5\\results_summary.csv",
+  "method_meta_json": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300b_h5\\scores_vit_test.meta.json",
+  "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b",
+  "manifest_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\manifest.csv",
+  "pairs_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\pairs_test.csv",
+  "config": {
+    "classic": {
+      "detector": "gftt_orb",
+      "nfeatures": 1500,
+      "ransac_thresh": 4.0,
+      "ratio": 0.75,
+      "score_mode": "inliers_over_k",
+      "script": "pipelines/benchmark/eval_classic.py"
+    },
+    "dataset": "nist_sd300b",
+    "dedicated": {
+      "ckpt": "auto",
+      "mask_cov_thr": 0.7,
+      "max_kpts": 800,
+      "max_matches": 200,
+      "patch": 48,
+      "ransac_thresh": 4.0,
+      "script": "pipelines/benchmark/eval_dedicated.py"
+    },
+    "dl": {
+      "backbone": "vit_base",
+      "no_mask": false,
+      "script": "pipelines/benchmark/eval_quick.py"
+    },
+    "fusion": {
+      "fit_split": "val",
+      "source_dir": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300b_h5",
+      "source_methods": [
+        "sift",
+        "dl_quick",
+        "vit"
+      ],
+      "weights": {
+        "dl_quick": 0.05,
+        "sift": 0.91,
+        "vit": 0.04
+      }
+    },
+    "limit": 0,
+    "manifest_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\manifest.csv",
+    "method": "vit",
+    "method_semantics_epoch": null,
+    "pairs_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\pairs_test.csv",
+    "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b",
+    "schema_version": "v2_benchmark_eval_config",
+    "split": "test"
+  }
+}

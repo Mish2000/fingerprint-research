@@ -1,0 +1,36 @@
+{
+  "split": "val",
+  "pairs_csv": "C:\\fingerprint-research\\data\\manifests\\polyu_cross\\pairs_val.csv",
+  "N": 1632,
+  "AUC": 0.5412741894143278,
+  "EER": 0.4701797385620915,
+  "total_ms": 12374.487200002477,
+  "avg_ms_pair": 7.501348774622766,
+  "model_cfg": {
+    "dl_cfg": {
+      "backbone": "vit_base",
+      "input_size": 224,
+      "use_mask": true,
+      "roi_min_frac": 0.02,
+      "roi_max_frac": 0.85,
+      "gate_top_plain": 0.18,
+      "gate_top_roll": 0.05,
+      "gate_border": 12
+    },
+    "prep_cfg": {
+      "target_size": 512,
+      "clahe_clip": 2.0,
+      "clahe_grid": [
+        8,
+        8
+      ],
+      "blur_ksize": 3
+    },
+    "device": "cuda",
+    "embed_dim": 768
+  },
+  "root": "C:\\fingerprint-research",
+  "disk_cache_dir": "C:\\fingerprint-research\\artifacts\\cache\\embeddings",
+  "disk_cache_hits": 0,
+  "disk_cache_misses": 357
+}

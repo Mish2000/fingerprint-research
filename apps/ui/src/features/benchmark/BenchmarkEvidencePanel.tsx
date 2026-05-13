@@ -7,7 +7,7 @@ import {
     formatMethodLabel,
     formatMetric,
     formatOperatingPoint,
-    formatFarLabel,
+    formatTarAtFarLabel,
     formatApproxEqualEer,
     formatPairs,
     methodStatusBadges,
@@ -245,8 +245,8 @@ export default function BenchmarkEvidencePanel({
                 <MetricTile label="AUC" value={formatMetric(row.auc)} tone="success" />
                 <MetricTile label="EER" value={formatMetric(row.eer)} />
                 <MetricTile label="FAR≈FRR @ EER" value={formatApproxEqualEer(row.eer)} detail="EER operating point" tone="info" />
-                <MetricTile label={formatFarLabel("1e-2")} value={formatOperatingPoint(row.tar_at_far_1e_2)} />
-                <MetricTile label={formatFarLabel("1e-3")} value={formatOperatingPoint(row.tar_at_far_1e_3)} />
+                <MetricTile label={formatTarAtFarLabel("1e-2")} value={formatOperatingPoint(row.tar_at_far_1e_2)} />
+                <MetricTile label={formatTarAtFarLabel("1e-3")} value={formatOperatingPoint(row.tar_at_far_1e_3)} />
                 <MetricTile label="Latency" value={formatLatency(row.latency_ms)} tone="warning" />
                 <MetricTile label="Pairs" value={formatPairs(row.n_pairs)} />
             </div>
@@ -254,11 +254,13 @@ export default function BenchmarkEvidencePanel({
             <div className="mt-5 inline-banner inline-banner--info">
                 <div className="inline-banner__body">
                     <p>
-                        EER is the point where FAR and FRR are approximately equal. TAR@FAR shows how many genuine matches
-                        remain accepted under stricter false-accept limits.
+                        EER is the point where FAR and FRR are approximately equal. TAR @ FAR 1% and TAR @ FAR 0.1%
+                        are target operating points that show how many genuine matches remain accepted when the ROC
+                        threshold is selected to cap false accepts at those rates.
                     </p>
                     <p className="mt-1 text-sm">
-                        These are benchmark operating points; the benchmark API does not expose an explicit production threshold for this row.
+                        The exact raw score thresholds are not exported by the current benchmark bundle, and no
+                        production threshold is claimed here.
                     </p>
                 </div>
             </div>

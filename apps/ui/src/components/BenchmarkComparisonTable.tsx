@@ -5,7 +5,7 @@ import {
     formatMethodLabel,
     formatMetric,
     formatOperatingPoint,
-    formatFarLabel,
+    formatTarAtFarLabel,
     highlightClassName,
     isChampionCandidateRow,
     isResearchRow,
@@ -148,11 +148,11 @@ export function BenchmarkComparisonTable({
                                             <td className="px-5 py-4 text-right">
                                                 <div className="space-y-1 text-xs text-[var(--app-text-soft)]">
                                                     <div>
-                                                        <span className="text-[var(--app-text-muted)]">{formatFarLabel("1e-2", true)}</span>
+                                                        <span className="text-[var(--app-text-muted)]">{formatTarAtFarLabel("1e-2")}</span>
                                                         <span className="ml-2 font-semibold text-[var(--app-text)]">{formatOperatingPoint(row.tar_at_far_1e_2)}</span>
                                                     </div>
                                                     <div>
-                                                        <span className="text-[var(--app-text-muted)]">{formatFarLabel("1e-3", true)}</span>
+                                                        <span className="text-[var(--app-text-muted)]">{formatTarAtFarLabel("1e-3")}</span>
                                                         <span className="ml-2 font-semibold text-[var(--app-text)]">{formatOperatingPoint(row.tar_at_far_1e_3)}</span>
                                                     </div>
                                                 </div>

@@ -1009,10 +1009,16 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("full_nist_sd300b_h6");
             expect(normalizeText(container.textContent)).toContain("FAR≈FRR @ EER");
             expect(normalizeText(container.textContent)).toContain("EER is the point where FAR and FRR are approximately equal");
-            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-20.1185");
-            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-30.0462");
+            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 1% (1e-2)");
+            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 0.1% (1e-3)");
+            expect(normalizeText(container.textContent)).toContain("target operating points");
+            expect(normalizeText(container.textContent)).toContain("exact raw score thresholds are not exported");
+            expect(normalizeText(container.textContent)).toContain("no production threshold is claimed");
+            expect(normalizeText(container.textContent)).not.toContain("TAR@FAR=1e-2");
+            expect(normalizeText(container.textContent)).not.toContain("TAR@FAR=1e-3");
+            expect(normalizeText(container.textContent)).not.toContain("TAR@1e-2");
+            expect(normalizeText(container.textContent)).not.toContain("TAR@1e-3");
             expect(normalizeText(container.textContent)).toContain("Operating points");
-            expect(normalizeText(container.textContent)).toContain("TAR@1e-20.1185");
         });
 
         const viewField = getLabelField<HTMLSelectElement>(container, "View");
@@ -1106,8 +1112,9 @@ describe("Benchmark workspace showcase", () => {
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("ROC preview is not available for this row");
             expect(normalizeText(container.textContent)).toContain("Meta JSON unavailable");
-            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-2N/A");
-            expect(normalizeText(container.textContent)).toContain("TAR@FAR=1e-3N/A");
+            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 1% (1e-2)");
+            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 0.1% (1e-3)");
+            expect(normalizeText(container.textContent)).toContain("N/A");
         });
 
         await click(getButtonByText(container, "Open provenance details"));

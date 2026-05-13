@@ -37,8 +37,19 @@ export function formatOperatingPoint(value: number | null | undefined): string {
     return formatMetric(value);
 }
 
-export function formatFarLabel(value: "1e-2" | "1e-3", compact = false): string {
-    return compact ? `TAR@${value}` : `TAR@FAR=${value}`;
+type FarTarget = "1e-2" | "1e-3";
+
+const FAR_TARGET_PERCENT_LABELS: Record<FarTarget, string> = {
+    "1e-2": "1%",
+    "1e-3": "0.1%",
+};
+
+export function formatFarTargetLabel(value: FarTarget): string {
+    return `FAR ${FAR_TARGET_PERCENT_LABELS[value]} (${value})`;
+}
+
+export function formatTarAtFarLabel(value: FarTarget): string {
+    return `TAR @ ${formatFarTargetLabel(value)}`;
 }
 
 export function formatApproxEqualEer(value: number | null | undefined): string {

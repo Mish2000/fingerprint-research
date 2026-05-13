@@ -1,0 +1,302 @@
+{
+  "validation_status": "pass",
+  "schema_errors_count": 0,
+  "validation_errors_count": 0,
+  "validation_warnings_count": 0,
+  "errors": [],
+  "warnings": [],
+  "checks": {
+    "unique_case_ids": true,
+    "unique_identity_ids": true,
+    "verify_case_count": 7,
+    "identity_count": 6,
+    "browser_seed_count": 36,
+    "materialized_asset_count": 55,
+    "all_curated_assets_available": true,
+    "all_curated_asset_paths_exist": true,
+    "all_curated_asset_thumbnails_exist": true,
+    "present_case_types": [
+      "cross_modality_genuine",
+      "cross_modality_impostor",
+      "easy_genuine",
+      "hard_genuine",
+      "hard_impostor"
+    ],
+    "present_scenario_types": [
+      "difficult_identification",
+      "no_match",
+      "positive_identification"
+    ]
+  },
+  "selection_diagnostics": {
+    "catalog_build_health": {
+      "status": "healthy",
+      "total_verify_cases_planned": 7,
+      "total_verify_cases_built": 7,
+      "case_selection_driver_counts": {
+        "benchmark_driven": 7
+      },
+      "datasets_with_missing_benchmark_evidence": [],
+      "datasets_with_degraded_selection": [],
+      "degraded_case_ids": [],
+      "notes": []
+    },
+    "case_selection": [
+      {
+        "case_id": "easy_genuine_nist_1000",
+        "dataset": "nist_sd300b",
+        "split": "val",
+        "selector": "benchmark_top",
+        "selection_driver": "benchmark_driven",
+        "benchmark_discovery_outcome": "benchmark_best_resolved",
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_selection_status": "benchmark_score_used",
+        "fallback_reason": null,
+        "fallback_category": null,
+        "chosen_run": "smoke_nist_sd300b_h5",
+        "chosen_raw_benchmark_method": "sift",
+        "chosen_canonical_method": "sift",
+        "score_artifact_path_used": "artifacts/reports/benchmark/smoke_nist_sd300b_h5/scores_sift_val.csv",
+        "benchmark_score": 0.0579613590939373,
+        "benchmark_pair_match_signature_depth": 4,
+        "benchmark_backed_selection": true,
+        "heuristic_fallback_used": false
+      },
+      {
+        "case_id": "hard_genuine_nist_1000",
+        "dataset": "nist_sd300b",
+        "split": "val",
+        "selector": "benchmark_bottom",
+        "selection_driver": "benchmark_driven",
+        "benchmark_discovery_outcome": "benchmark_best_resolved",
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_selection_status": "benchmark_score_used",
+        "fallback_reason": null,
+        "fallback_category": null,
+        "chosen_run": "smoke_nist_sd300b_h5",
+        "chosen_raw_benchmark_method": "sift",
+        "chosen_canonical_method": "sift",
+        "score_artifact_path_used": "artifacts/reports/benchmark/smoke_nist_sd300b_h5/scores_sift_val.csv",
+        "benchmark_score": 0.0,
+        "benchmark_pair_match_signature_depth": 4,
+        "benchmark_backed_selection": true,
+        "heuristic_fallback_used": false
+      },
+      {
+        "case_id": "hard_impostor_nist_1000",
+        "dataset": "nist_sd300b",
+        "split": "val",
+        "selector": "benchmark_top",
+        "selection_driver": "benchmark_driven",
+        "benchmark_discovery_outcome": "benchmark_best_resolved",
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_selection_status": "benchmark_score_used",
+        "fallback_reason": null,
+        "fallback_category": null,
+        "chosen_run": "smoke_nist_sd300b_h5",
+        "chosen_raw_benchmark_method": "sift",
+        "chosen_canonical_method": "sift",
+        "score_artifact_path_used": "artifacts/reports/benchmark/smoke_nist_sd300b_h5/scores_sift_val.csv",
+        "benchmark_score": 0.0053333333333333,
+        "benchmark_pair_match_signature_depth": 4,
+        "benchmark_backed_selection": true,
+        "heuristic_fallback_used": false
+      },
+      {
+        "case_id": "easy_genuine_nist_2000",
+        "dataset": "nist_sd300c",
+        "split": "test",
+        "selector": "benchmark_top",
+        "selection_driver": "benchmark_driven",
+        "benchmark_discovery_outcome": "benchmark_best_resolved",
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_selection_status": "benchmark_score_used",
+        "fallback_reason": null,
+        "fallback_category": null,
+        "chosen_run": "full_nist_sd300c_h5",
+        "chosen_raw_benchmark_method": "sift",
+        "chosen_canonical_method": "sift",
+        "score_artifact_path_used": "artifacts/reports/benchmark/full_nist_sd300c_h5/scores_sift_test.csv",
+        "benchmark_score": 0.0799467021985343,
+        "benchmark_pair_match_signature_depth": 4,
+        "benchmark_backed_selection": true,
+        "heuristic_fallback_used": false
+      },
+      {
+        "case_id": "hard_impostor_nist_2000",
+        "dataset": "nist_sd300c",
+        "split": "test",
+        "selector": "benchmark_top",
+        "selection_driver": "benchmark_driven",
+        "benchmark_discovery_outcome": "benchmark_best_resolved",
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_selection_status": "benchmark_score_used",
+        "fallback_reason": null,
+        "fallback_category": null,
+        "chosen_run": "full_nist_sd300c_h5",
+        "chosen_raw_benchmark_method": "sift",
+        "chosen_canonical_method": "sift",
+        "score_artifact_path_used": "artifacts/reports/benchmark/full_nist_sd300c_h5/scores_sift_test.csv",
+        "benchmark_score": 0.0273333333333333,
+        "benchmark_pair_match_signature_depth": 4,
+        "benchmark_backed_selection": true,
+        "heuristic_fallback_used": false
+      },
+      {
+        "case_id": "cross_modality_genuine_crossfingerprint",
+        "dataset": "polyu_cross",
+        "split": "val",
+        "selector": "benchmark_top",
+        "selection_driver": "benchmark_driven",
+        "benchmark_discovery_outcome": "benchmark_best_resolved",
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_selection_status": "benchmark_score_used",
+        "fallback_reason": null,
+        "fallback_category": null,
+        "chosen_run": "smoke_polyu_cross_h5",
+        "chosen_raw_benchmark_method": "vit",
+        "chosen_canonical_method": "vit",
+        "score_artifact_path_used": "artifacts/reports/benchmark/smoke_polyu_cross_h5/scores_vit_val.csv",
+        "benchmark_score": 0.6357727646827698,
+        "benchmark_pair_match_signature_depth": 4,
+        "benchmark_backed_selection": true,
+        "heuristic_fallback_used": false
+      },
+      {
+        "case_id": "cross_modality_impostor_crossfingerprint",
+        "dataset": "polyu_cross",
+        "split": "val",
+        "selector": "benchmark_top",
+        "selection_driver": "benchmark_driven",
+        "benchmark_discovery_outcome": "benchmark_best_resolved",
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_selection_status": "benchmark_score_used",
+        "fallback_reason": null,
+        "fallback_category": null,
+        "chosen_run": "smoke_polyu_cross_h5",
+        "chosen_raw_benchmark_method": "vit",
+        "chosen_canonical_method": "vit",
+        "score_artifact_path_used": "artifacts/reports/benchmark/smoke_polyu_cross_h5/scores_vit_val.csv",
+        "benchmark_score": 0.5081771612167358,
+        "benchmark_pair_match_signature_depth": 4,
+        "benchmark_backed_selection": true,
+        "heuristic_fallback_used": false
+      }
+    ],
+    "dataset_verify_selection": [
+      {
+        "dataset": "nist_sd300b",
+        "split": "val",
+        "planned_case_ids": [
+          "easy_genuine_nist_1000",
+          "hard_genuine_nist_1000",
+          "hard_impostor_nist_1000"
+        ],
+        "built_case_ids": [
+          "easy_genuine_nist_1000",
+          "hard_genuine_nist_1000",
+          "hard_impostor_nist_1000"
+        ],
+        "planned_curated_cases": 3,
+        "curated_cases_built_successfully": 3,
+        "benchmark_best_available": true,
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_best_run": "smoke_nist_sd300b_h5",
+        "benchmark_best_raw_benchmark_method": "sift",
+        "benchmark_best_canonical_method": "sift",
+        "benchmark_resolution_complete": true,
+        "benchmark_backed_selection_succeeded": true,
+        "heuristic_fallback_used": false,
+        "score_files_missing": false,
+        "score_files_unparsable": false,
+        "score_files_missing_columns": false,
+        "score_files_no_pair_overlap": false,
+        "selection_driver_counts": {
+          "benchmark_driven": 3
+        },
+        "fallback_category_counts": {},
+        "benchmark_selection_status_counts": {
+          "benchmark_score_used": 3
+        },
+        "notes": [
+          "Benchmark-best evidence was resolved from results_summary_scan.",
+          "Benchmark-backed selection succeeded for 3 curated case(s)."
+        ]
+      },
+      {
+        "dataset": "nist_sd300c",
+        "split": "test",
+        "planned_case_ids": [
+          "easy_genuine_nist_2000",
+          "hard_impostor_nist_2000"
+        ],
+        "built_case_ids": [
+          "easy_genuine_nist_2000",
+          "hard_impostor_nist_2000"
+        ],
+        "planned_curated_cases": 2,
+        "curated_cases_built_successfully": 2,
+        "benchmark_best_available": true,
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_best_run": "full_nist_sd300c_h5",
+        "benchmark_best_raw_benchmark_method": "sift",
+        "benchmark_best_canonical_method": "sift",
+        "benchmark_resolution_complete": true,
+        "benchmark_backed_selection_succeeded": true,
+        "heuristic_fallback_used": false,
+        "score_files_missing": false,
+        "score_files_unparsable": false,
+        "score_files_missing_columns": false,
+        "score_files_no_pair_overlap": false,
+        "selection_driver_counts": {
+          "benchmark_driven": 2
+        },
+        "fallback_category_counts": {},
+        "benchmark_selection_status_counts": {
+          "benchmark_score_used": 2
+        },
+        "notes": [
+          "Benchmark-best evidence was resolved from results_summary_scan.",
+          "Benchmark-backed selection succeeded for 2 curated case(s)."
+        ]
+      },
+      {
+        "dataset": "polyu_cross",
+        "split": "val",
+        "planned_case_ids": [
+          "cross_modality_genuine_crossfingerprint",
+          "cross_modality_impostor_crossfingerprint"
+        ],
+        "built_case_ids": [
+          "cross_modality_genuine_crossfingerprint",
+          "cross_modality_impostor_crossfingerprint"
+        ],
+        "planned_curated_cases": 2,
+        "curated_cases_built_successfully": 2,
+        "benchmark_best_available": true,
+        "benchmark_best_source": "results_summary_scan",
+        "benchmark_best_run": "smoke_polyu_cross_h5",
+        "benchmark_best_raw_benchmark_method": "vit",
+        "benchmark_best_canonical_method": "vit",
+        "benchmark_resolution_complete": true,
+        "benchmark_backed_selection_succeeded": true,
+        "heuristic_fallback_used": false,
+        "score_files_missing": false,
+        "score_files_unparsable": false,
+        "score_files_missing_columns": false,
+        "score_files_no_pair_overlap": false,
+        "selection_driver_counts": {
+          "benchmark_driven": 2
+        },
+        "fallback_category_counts": {},
+        "benchmark_selection_status_counts": {
+          "benchmark_score_used": 2
+        },
+        "notes": [
+          "Benchmark-best evidence was resolved from results_summary_scan.",
+          "Benchmark-backed selection succeeded for 2 curated case(s)."
+        ]
+      }
+    ]
+  }
+}

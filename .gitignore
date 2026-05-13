@@ -1,4 +1,4 @@
-# ---------- Python ----------
+﻿# ---------- Python ----------
 __pycache__/
 *.py[cod]
 *.pyd
@@ -8,6 +8,7 @@ __pycache__/
 .coverage
 htmlcov/
 *.log
+*.bak
 
 # ---------- Environments ----------
 .env
@@ -23,36 +24,53 @@ build/
 .ipynb_checkpoints/
 
 # ---------- Generated data / experiment outputs ----------
-data/processed/*
-!data/processed/README_ui_assets.md
-!data/processed/ui_assets_registry.json
-!data/processed/nist_sd300b/
-data/processed/nist_sd300b/*
-!data/processed/nist_sd300b/ui_assets/
-data/processed/nist_sd300b/ui_assets/*
-!data/processed/nist_sd300b/ui_assets/index.json
-!data/processed/nist_sd300b/ui_assets/validation_report.json
-!data/processed/nist_sd300b/ui_assets/thumbnails/
-!data/processed/nist_sd300b/ui_assets/previews/
-data/processed/nist_sd300b/ui_assets/thumbnails/*
-data/processed/nist_sd300b/ui_assets/previews/*
-!data/processed/nist_sd300b/ui_assets/thumbnails/*.png
-!data/processed/nist_sd300b/ui_assets/previews/*.png
-data/raw/
-data/visual_samples/
-artifacts/cache/
-artifacts/logs/
-artifacts/reports/
-artifacts/edge-cdp/
-artifacts/backups/
 
-# Model checkpoints (never commit)
+# Ignore all local/generated data by default.
+# Then explicitly allow the curated UI/demo assets that are required
+# for a cloned repo to show Verify / Identification examples and dataset browser previews.
+data/**
+!data/
+!data/processed/
+!data/processed/ui_assets_registry.json
+!data/processed/*/
+!data/processed/*/ui_assets/
+!data/processed/*/ui_assets/**
+!data/samples/
+!data/samples/catalog.json
+!data/samples/catalog.schema.json
+!data/samples/catalog.validation_report.json
+!data/samples/README_catalog.md
+!data/samples/assets/
+!data/samples/assets/**
+
+# ---------- Artifacts / benchmark evidence ----------
+
+# Ignore all generated artifacts by default.
+# Then explicitly allow only the curated benchmark bundles required by the Benchmark UI.
+artifacts/**
+!artifacts/
+!artifacts/reports/
+!artifacts/reports/benchmark/
+!artifacts/reports/benchmark/full_nist_sd300b_h5/
+!artifacts/reports/benchmark/full_nist_sd300b_h5/**
+!artifacts/reports/benchmark/full_nist_sd300c_h5/
+!artifacts/reports/benchmark/full_nist_sd300c_h5/**
+!artifacts/reports/benchmark/full_polyu_cross_h5/
+!artifacts/reports/benchmark/full_polyu_cross_h5/**
+!artifacts/reports/benchmark/smoke_nist_sd300b_h5/
+!artifacts/reports/benchmark/smoke_nist_sd300b_h5/**
+!artifacts/reports/benchmark/smoke_nist_sd300c_h5/
+!artifacts/reports/benchmark/smoke_nist_sd300c_h5/**
+!artifacts/reports/benchmark/smoke_polyu_cross_h5/
+!artifacts/reports/benchmark/smoke_polyu_cross_h5/**
+
+# Model checkpoints / exported models (never commit)
 **/*.pth
 **/*.pt
 **/*.ckpt
 **/*.onnx
 
-# ---------- API temp files (if any) ----------
+# ---------- API temp files ----------
 tmp/
 apps/api/tmp/
 
@@ -68,7 +86,6 @@ apps/api/*.db*
 # ---------- Temporary capture artifacts ----------
 captures/
 tmp_captures/
-data/scanner_captures/
 apps/api/captures/
 apps/api/tmp_captures/
 *_capture_tmp*
@@ -102,10 +119,6 @@ reports/
 # ---------- Local research history / generated notes ----------
 research_history/
 
-# ---------- Local datasets ----------
-data/
-
-# ---------- Local artifacts / checkpoints ----------
-artifacts/
+# ---------- Archives / object files ----------
 archive/
 *.obj

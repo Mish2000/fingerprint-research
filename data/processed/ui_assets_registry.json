@@ -1,0 +1,198 @@
+{
+  "generated_at": "2026-04-29T16:28:25Z",
+  "generator_version": "1.0.0",
+  "datasets": [
+    {
+      "dataset": "l3_sf_v2",
+      "index_path": "data/processed/l3_sf_v2/ui_assets/index.json",
+      "validation_report_path": "data/processed/l3_sf_v2/ui_assets/validation_report.json",
+      "item_count": 240,
+      "validation_status": "pass",
+      "selection_policy": "dataset_canonical_policy[l3_sf_v2:canonical_synthetic_only]:group_by=split,modality;round_robin:max_items=240",
+      "browser_preview_enabled": true,
+      "browser_preview_exclusion_reason": null,
+      "summary": {
+        "source_records_checked": 7400,
+        "items_generated": 240,
+        "unique_subjects_selected": 24,
+        "items_by_split": {
+          "test": 80,
+          "train": 80,
+          "val": 80
+        },
+        "items_by_capture": {
+          "contact_based": 240
+        },
+        "items_by_modality": {
+          "synthetic_level3": 240
+        },
+        "items_by_render_strategy": {
+          "deterministic_raster_source": 240
+        },
+        "selection_policy": "dataset_canonical_policy[l3_sf_v2:canonical_synthetic_only]:group_by=split,modality;round_robin:max_items=240",
+        "validation_status": "pass"
+      }
+    },
+    {
+      "dataset": "nist_sd300b",
+      "index_path": "data/processed/nist_sd300b/ui_assets/index.json",
+      "validation_report_path": "data/processed/nist_sd300b/ui_assets/validation_report.json",
+      "item_count": 240,
+      "validation_status": "pass",
+      "selection_policy": "dataset_canonical_policy[nist_sd300b:canonical_plain_roll_only]:group_by=split,capture;round_robin:max_items=240",
+      "browser_preview_enabled": true,
+      "browser_preview_exclusion_reason": null,
+      "summary": {
+        "source_records_checked": 15909,
+        "items_generated": 240,
+        "unique_subjects_selected": 16,
+        "items_by_split": {
+          "test": 80,
+          "train": 80,
+          "val": 80
+        },
+        "items_by_capture": {
+          "plain": 120,
+          "roll": 120
+        },
+        "items_by_modality": {
+          "unknown": 240
+        },
+        "items_by_render_strategy": {
+          "deterministic_raster_source": 240
+        },
+        "selection_policy": "dataset_canonical_policy[nist_sd300b:canonical_plain_roll_only]:group_by=split,capture;round_robin:max_items=240",
+        "validation_status": "pass"
+      }
+    },
+    {
+      "dataset": "nist_sd300c",
+      "index_path": "data/processed/nist_sd300c/ui_assets/index.json",
+      "validation_report_path": "data/processed/nist_sd300c/ui_assets/validation_report.json",
+      "item_count": 240,
+      "validation_status": "pass",
+      "selection_policy": "dataset_canonical_policy[nist_sd300c:canonical_plain_roll_only]:group_by=split,capture;round_robin:max_items=240",
+      "browser_preview_enabled": true,
+      "browser_preview_exclusion_reason": null,
+      "summary": {
+        "source_records_checked": 15909,
+        "items_generated": 240,
+        "unique_subjects_selected": 16,
+        "items_by_split": {
+          "test": 80,
+          "train": 80,
+          "val": 80
+        },
+        "items_by_capture": {
+          "plain": 120,
+          "roll": 120
+        },
+        "items_by_modality": {
+          "unknown": 240
+        },
+        "items_by_render_strategy": {
+          "deterministic_raster_source": 240
+        },
+        "selection_policy": "dataset_canonical_policy[nist_sd300c:canonical_plain_roll_only]:group_by=split,capture;round_robin:max_items=240",
+        "validation_status": "pass"
+      }
+    },
+    {
+      "dataset": "polyu_3d",
+      "index_path": "data/processed/polyu_3d/ui_assets/index.json",
+      "validation_report_path": "data/processed/polyu_3d/ui_assets/validation_report.json",
+      "item_count": 240,
+      "validation_status": "pass",
+      "selection_policy": "dataset_canonical_policy[polyu_3d:canonical_surface_only]:group_by=split,session;round_robin:max_items=240",
+      "browser_preview_enabled": true,
+      "browser_preview_exclusion_reason": null,
+      "summary": {
+        "source_records_checked": 9643,
+        "items_generated": 240,
+        "unique_subjects_selected": 21,
+        "items_by_split": {
+          "test": 80,
+          "train": 80,
+          "val": 80
+        },
+        "items_by_capture": {
+          "contactless": 240
+        },
+        "items_by_modality": {
+          "contactless_3d_surface": 240
+        },
+        "items_by_render_strategy": {
+          "deterministic_numeric_artifact": 240
+        },
+        "selection_policy": "dataset_canonical_policy[polyu_3d:canonical_surface_only]:group_by=split,session;round_robin:max_items=240",
+        "validation_status": "pass"
+      }
+    },
+    {
+      "dataset": "polyu_cross",
+      "index_path": "data/processed/polyu_cross/ui_assets/index.json",
+      "validation_report_path": "data/processed/polyu_cross/ui_assets/validation_report.json",
+      "item_count": 240,
+      "validation_status": "pass",
+      "selection_policy": "dataset_canonical_policy[polyu_cross:canonical_contactless_contactbased_only]:group_by=split,capture;round_robin:max_items=240",
+      "browser_preview_enabled": true,
+      "browser_preview_exclusion_reason": null,
+      "summary": {
+        "source_records_checked": 5952,
+        "items_generated": 240,
+        "unique_subjects_selected": 14,
+        "items_by_split": {
+          "test": 80,
+          "train": 80,
+          "val": 80
+        },
+        "items_by_capture": {
+          "contact_based": 120,
+          "contactless": 120
+        },
+        "items_by_modality": {
+          "contact_based": 120,
+          "contactless": 120
+        },
+        "items_by_render_strategy": {
+          "deterministic_raster_source": 240
+        },
+        "selection_policy": "dataset_canonical_policy[polyu_cross:canonical_contactless_contactbased_only]:group_by=split,capture;round_robin:max_items=240",
+        "validation_status": "pass"
+      }
+    },
+    {
+      "dataset": "unsw_2d3d",
+      "index_path": "data/processed/unsw_2d3d/ui_assets/index.json",
+      "validation_report_path": "data/processed/unsw_2d3d/ui_assets/validation_report.json",
+      "item_count": 240,
+      "validation_status": "pass",
+      "selection_policy": "dataset_canonical_policy[unsw_2d3d:canonical_optical2d_reconstructed3d_only]:group_by=split,modality;round_robin:max_items=240",
+      "browser_preview_enabled": true,
+      "browser_preview_exclusion_reason": null,
+      "summary": {
+        "source_records_checked": 43590,
+        "items_generated": 240,
+        "unique_subjects_selected": 6,
+        "items_by_split": {
+          "test": 80,
+          "train": 80,
+          "val": 80
+        },
+        "items_by_capture": {
+          "contact_based": 120,
+          "contactless": 120
+        },
+        "items_by_modality": {
+          "optical_2d": 120,
+          "reconstructed_3d": 120
+        },
+        "items_by_render_strategy": {
+          "deterministic_raster_source": 240
+        },
+        "selection_policy": "dataset_canonical_policy[unsw_2d3d:canonical_optical2d_reconstructed3d_only]:group_by=split,modality;round_robin:max_items=240",
+        "validation_status": "pass"
+      }
+    }
+  ]
+}

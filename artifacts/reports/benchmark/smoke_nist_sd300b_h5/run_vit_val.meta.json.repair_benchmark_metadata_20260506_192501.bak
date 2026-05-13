@@ -1,0 +1,72 @@
+{
+  "schema_version": "v2_benchmark_run_meta",
+  "row": {
+    "timestamp_utc": "2026-05-06T16:59:03Z",
+    "method": "vit",
+    "split": "val",
+    "n_pairs": 300,
+    "auc": 0.5598666666666666,
+    "eer": 0.45333333333333337,
+    "tar_at_far_1e_2": 0.02666666666666667,
+    "tar_at_far_1e_3": 0.013333333333333334,
+    "avg_ms_pair_reported": 0.7389816668486068,
+    "avg_ms_pair_wall": 25.031096935272217,
+    "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\smoke_nist_sd300b_h5\\scores_vit_val.csv",
+    "meta_json": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\smoke_nist_sd300b_h5\\scores_vit_val.meta.json",
+    "config_json": "{\"schema_version\": \"v2_benchmark_eval_config\", \"method\": \"vit\", \"split\": \"val\", \"limit\": 300, \"dataset\": \"nist_sd300b\", \"resolved_data_dir\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300b\", \"manifest_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300b\\\\manifest.csv\", \"pairs_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300b\\\\pairs_val.csv\", \"method_semantics_epoch\": null, \"classic\": {\"script\": \"pipelines/benchmark/eval_classic.py\", \"detector\": \"gftt_orb\", \"score_mode\": \"inliers_over_k\", \"nfeatures\": 1500, \"ratio\": 0.75, \"ransac_thresh\": 4.0}, \"dl\": {\"script\": \"pipelines/benchmark/eval_quick.py\", \"backbone\": \"vit_base\", \"no_mask\": false}, \"dedicated\": {\"script\": \"pipelines/benchmark/eval_dedicated.py\", \"patch\": 48, \"max_kpts\": 800, \"mask_cov_thr\": 0.7, \"max_matches\": 200, \"ransac_thresh\": 4.0, \"ckpt\": \"auto\"}, \"fusion\": {\"source_dir\": \"C:\\\\fingerprint-research\\\\artifacts\\\\reports\\\\benchmark\\\\_regen_h5_tmp_20260506_182726\\\\smoke_nist_sd300b_h5\", \"fit_split\": \"val\", \"weights\": {\"sift\": 0.91, \"dl_quick\": 0.05, \"vit\": 0.04}, \"source_methods\": [\"sift\", \"dl_quick\", \"vit\"]}}"
+  },
+  "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\smoke_nist_sd300b_h5\\scores_vit_val.csv",
+  "roc_png": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\smoke_nist_sd300b_h5\\roc_vit_val.png",
+  "summary_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\smoke_nist_sd300b_h5\\results_summary.csv",
+  "method_meta_json": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\smoke_nist_sd300b_h5\\scores_vit_val.meta.json",
+  "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b",
+  "manifest_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\manifest.csv",
+  "pairs_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\pairs_val.csv",
+  "config": {
+    "schema_version": "v2_benchmark_eval_config",
+    "method": "vit",
+    "split": "val",
+    "limit": 300,
+    "dataset": "nist_sd300b",
+    "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b",
+    "manifest_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\manifest.csv",
+    "pairs_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300b\\pairs_val.csv",
+    "method_semantics_epoch": null,
+    "classic": {
+      "script": "pipelines/benchmark/eval_classic.py",
+      "detector": "gftt_orb",
+      "score_mode": "inliers_over_k",
+      "nfeatures": 1500,
+      "ratio": 0.75,
+      "ransac_thresh": 4.0
+    },
+    "dl": {
+      "script": "pipelines/benchmark/eval_quick.py",
+      "backbone": "vit_base",
+      "no_mask": false
+    },
+    "dedicated": {
+      "script": "pipelines/benchmark/eval_dedicated.py",
+      "patch": 48,
+      "max_kpts": 800,
+      "mask_cov_thr": 0.7,
+      "max_matches": 200,
+      "ransac_thresh": 4.0,
+      "ckpt": "auto"
+    },
+    "fusion": {
+      "source_dir": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\smoke_nist_sd300b_h5",
+      "fit_split": "val",
+      "weights": {
+        "sift": 0.91,
+        "dl_quick": 0.05,
+        "vit": 0.04
+      },
+      "source_methods": [
+        "sift",
+        "dl_quick",
+        "vit"
+      ]
+    }
+  }
+}

@@ -1,0 +1,997 @@
+{
+  "$defs": {
+    "AvailabilityDetail": {
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "missing"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "local_exists": {
+          "title": "Local Exists",
+          "type": "boolean"
+        },
+        "traceable_to_manifest": {
+          "title": "Traceable To Manifest",
+          "type": "boolean"
+        },
+        "relative_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relative Path"
+        },
+        "resolved_local_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Local Path"
+        },
+        "source_relative_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Relative Path"
+        },
+        "source_resolved_local_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Resolved Local Path"
+        },
+        "source_local_exists": {
+          "default": false,
+          "title": "Source Local Exists",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "status",
+        "local_exists",
+        "traceable_to_manifest"
+      ],
+      "title": "AvailabilityDetail",
+      "type": "object"
+    },
+    "BrowserSeedEntry": {
+      "properties": {
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/CatalogAsset"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "selection_policy": {
+          "title": "Selection Policy",
+          "type": "string"
+        },
+        "coverage_summary": {
+          "additionalProperties": true,
+          "title": "Coverage Summary",
+          "type": "object"
+        }
+      },
+      "required": [
+        "dataset",
+        "selection_policy"
+      ],
+      "title": "BrowserSeedEntry",
+      "type": "object"
+    },
+    "CatalogAsset": {
+      "properties": {
+        "asset_id": {
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "relative_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relative Path"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "source_relative_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Relative Path"
+        },
+        "signature": {
+          "title": "Signature",
+          "type": "string"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "integer"
+        },
+        "capture": {
+          "title": "Capture",
+          "type": "string"
+        },
+        "finger": {
+          "title": "Finger",
+          "type": "string"
+        },
+        "split": {
+          "title": "Split",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "impression": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Impression"
+        },
+        "source_modality": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Modality"
+        },
+        "availability_status": {
+          "enum": [
+            "available",
+            "missing"
+          ],
+          "title": "Availability Status",
+          "type": "string"
+        },
+        "availability_detail": {
+          "$ref": "#/$defs/AvailabilityDetail"
+        },
+        "materialized_asset_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Materialized Asset Kind"
+        },
+        "thumbnail_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thumbnail Path"
+        },
+        "content_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Type"
+        },
+        "dimensions": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dimensions"
+        },
+        "thumbnail_dimensions": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thumbnail Dimensions"
+        },
+        "traceability": {
+          "additionalProperties": true,
+          "title": "Traceability",
+          "type": "object"
+        },
+        "thumbnail_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thumbnail Hint"
+        },
+        "quality_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quality Hint"
+        },
+        "recommended_usage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommended Usage"
+        }
+      },
+      "required": [
+        "asset_id",
+        "dataset",
+        "path",
+        "signature",
+        "subject_id",
+        "capture",
+        "finger",
+        "split",
+        "availability_status",
+        "availability_detail"
+      ],
+      "title": "CatalogAsset",
+      "type": "object"
+    },
+    "IdentificationScenario": {
+      "properties": {
+        "scenario_id": {
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_type": {
+          "enum": [
+            "positive_identification",
+            "difficult_identification",
+            "no_match"
+          ],
+          "title": "Scenario Type",
+          "type": "string"
+        },
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "enrollment_identity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Enrollment Identity Ids",
+          "type": "array"
+        },
+        "probe_asset": {
+          "$ref": "#/$defs/CatalogAsset"
+        },
+        "expected_identity_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Identity Id"
+        },
+        "difficulty": {
+          "enum": [
+            "easy",
+            "medium",
+            "hard",
+            "challenging"
+          ],
+          "title": "Difficulty",
+          "type": "string"
+        },
+        "recommended_method": {
+          "$ref": "#/$defs/MatchMethod"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "is_demo_safe": {
+          "title": "Is Demo Safe",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "scenario_type",
+        "dataset",
+        "title",
+        "description",
+        "probe_asset",
+        "difficulty",
+        "recommended_method",
+        "is_demo_safe"
+      ],
+      "title": "IdentificationScenario",
+      "type": "object"
+    },
+    "IdentifyGallery": {
+      "properties": {
+        "identities": {
+          "items": {
+            "$ref": "#/$defs/IdentityRecord"
+          },
+          "title": "Identities",
+          "type": "array"
+        },
+        "demo_scenarios": {
+          "items": {
+            "$ref": "#/$defs/IdentificationScenario"
+          },
+          "title": "Demo Scenarios",
+          "type": "array"
+        }
+      },
+      "title": "IdentifyGallery",
+      "type": "object"
+    },
+    "IdentityRecord": {
+      "properties": {
+        "identity_id": {
+          "title": "Identity Id",
+          "type": "string"
+        },
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "display_name": {
+          "title": "Display Name",
+          "type": "string"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "integer"
+        },
+        "gallery_role": {
+          "title": "Gallery Role",
+          "type": "string"
+        },
+        "enrollment_candidates": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Enrollment Candidates",
+          "type": "array"
+        },
+        "probe_candidates": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Probe Candidates",
+          "type": "array"
+        },
+        "recommended_enrollment_asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommended Enrollment Asset Id"
+        },
+        "recommended_probe_asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommended Probe Asset Id"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "is_demo_safe": {
+          "title": "Is Demo Safe",
+          "type": "boolean"
+        },
+        "exemplars": {
+          "items": {
+            "$ref": "#/$defs/CatalogAsset"
+          },
+          "title": "Exemplars",
+          "type": "array"
+        }
+      },
+      "required": [
+        "identity_id",
+        "dataset",
+        "display_name",
+        "subject_id",
+        "gallery_role",
+        "enrollment_candidates",
+        "probe_candidates",
+        "is_demo_safe"
+      ],
+      "title": "IdentityRecord",
+      "type": "object"
+    },
+    "MatchMethod": {
+      "enum": [
+        "classic_orb",
+        "classic_gftt_orb",
+        "minutiae",
+        "harris",
+        "sift",
+        "dl",
+        "dedicated",
+        "vit"
+      ],
+      "title": "MatchMethod",
+      "type": "string"
+    },
+    "Metadata": {
+      "properties": {
+        "catalog_version": {
+          "title": "Catalog Version",
+          "type": "string"
+        },
+        "generation_policy_version": {
+          "title": "Generation Policy Version",
+          "type": "string"
+        },
+        "total_verify_cases": {
+          "title": "Total Verify Cases",
+          "type": "integer"
+        },
+        "total_identity_records": {
+          "title": "Total Identity Records",
+          "type": "integer"
+        },
+        "total_browser_seed_items": {
+          "title": "Total Browser Seed Items",
+          "type": "integer"
+        },
+        "included_datasets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Included Datasets",
+          "type": "array"
+        },
+        "excluded_datasets": {
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Excluded Datasets",
+          "type": "array"
+        },
+        "validation_status": {
+          "title": "Validation Status",
+          "type": "string"
+        },
+        "validation_errors_count": {
+          "title": "Validation Errors Count",
+          "type": "integer"
+        },
+        "validation_warnings_count": {
+          "title": "Validation Warnings Count",
+          "type": "integer"
+        },
+        "materialized_asset_root": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Materialized Asset Root"
+        },
+        "materialized_asset_count": {
+          "default": 0,
+          "title": "Materialized Asset Count",
+          "type": "integer"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "catalog_build_health": {
+          "additionalProperties": true,
+          "title": "Catalog Build Health",
+          "type": "object"
+        }
+      },
+      "required": [
+        "catalog_version",
+        "generation_policy_version",
+        "total_verify_cases",
+        "total_identity_records",
+        "total_browser_seed_items",
+        "included_datasets",
+        "validation_status",
+        "validation_errors_count",
+        "validation_warnings_count"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "SourceDataset": {
+      "properties": {
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "dataset_label": {
+          "title": "Dataset Label",
+          "type": "string"
+        },
+        "manifest_path": {
+          "title": "Manifest Path",
+          "type": "string"
+        },
+        "pair_files": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Pair Files",
+          "type": "object"
+        },
+        "stats_path": {
+          "title": "Stats Path",
+          "type": "string"
+        },
+        "split_path": {
+          "title": "Split Path",
+          "type": "string"
+        },
+        "protocol_note_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protocol Note Path"
+        },
+        "benchmark_runs": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Benchmark Runs",
+          "type": "array"
+        },
+        "manifest_rows": {
+          "title": "Manifest Rows",
+          "type": "integer"
+        },
+        "unique_subjects": {
+          "title": "Unique Subjects",
+          "type": "integer"
+        },
+        "included_in_catalog": {
+          "title": "Included In Catalog",
+          "type": "boolean"
+        },
+        "exclusion_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclusion Reason"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "verify_selection_diagnostics": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Verify Selection Diagnostics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dataset",
+        "dataset_label",
+        "manifest_path",
+        "pair_files",
+        "stats_path",
+        "split_path",
+        "manifest_rows",
+        "unique_subjects",
+        "included_in_catalog"
+      ],
+      "title": "SourceDataset",
+      "type": "object"
+    },
+    "VerifyCase": {
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "split": {
+          "title": "Split",
+          "type": "string"
+        },
+        "case_type": {
+          "title": "Case Type",
+          "type": "string"
+        },
+        "difficulty": {
+          "enum": [
+            "easy",
+            "medium",
+            "hard",
+            "challenging"
+          ],
+          "title": "Difficulty",
+          "type": "string"
+        },
+        "ground_truth": {
+          "enum": [
+            "match",
+            "non_match"
+          ],
+          "title": "Ground Truth",
+          "type": "string"
+        },
+        "image_a": {
+          "$ref": "#/$defs/CatalogAsset"
+        },
+        "image_b": {
+          "$ref": "#/$defs/CatalogAsset"
+        },
+        "subject_a": {
+          "title": "Subject A",
+          "type": "integer"
+        },
+        "subject_b": {
+          "title": "Subject B",
+          "type": "integer"
+        },
+        "finger_a": {
+          "title": "Finger A",
+          "type": "string"
+        },
+        "finger_b": {
+          "title": "Finger B",
+          "type": "string"
+        },
+        "capture_a": {
+          "title": "Capture A",
+          "type": "string"
+        },
+        "capture_b": {
+          "title": "Capture B",
+          "type": "string"
+        },
+        "modality_relation": {
+          "enum": [
+            "same_modality",
+            "cross_modality",
+            "unknown"
+          ],
+          "title": "Modality Relation",
+          "type": "string"
+        },
+        "source_pair_file": {
+          "title": "Source Pair File",
+          "type": "string"
+        },
+        "source_pair_row_id": {
+          "title": "Source Pair Row Id",
+          "type": "string"
+        },
+        "recommended_method": {
+          "$ref": "#/$defs/MatchMethod"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "is_demo_safe": {
+          "title": "Is Demo Safe",
+          "type": "boolean"
+        },
+        "availability_status": {
+          "enum": [
+            "available",
+            "traceable_only",
+            "missing"
+          ],
+          "title": "Availability Status",
+          "type": "string"
+        },
+        "availability_detail": {
+          "additionalProperties": true,
+          "title": "Availability Detail",
+          "type": "object"
+        },
+        "selection_reason": {
+          "title": "Selection Reason",
+          "type": "string"
+        },
+        "selection_policy": {
+          "title": "Selection Policy",
+          "type": "string"
+        },
+        "benchmark_context": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Benchmark Context"
+        },
+        "selection_diagnostics": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selection Diagnostics"
+        }
+      },
+      "required": [
+        "case_id",
+        "title",
+        "description",
+        "dataset",
+        "split",
+        "case_type",
+        "difficulty",
+        "ground_truth",
+        "image_a",
+        "image_b",
+        "subject_a",
+        "subject_b",
+        "finger_a",
+        "finger_b",
+        "capture_a",
+        "capture_b",
+        "modality_relation",
+        "source_pair_file",
+        "source_pair_row_id",
+        "recommended_method",
+        "is_demo_safe",
+        "availability_status",
+        "selection_reason",
+        "selection_policy"
+      ],
+      "title": "VerifyCase",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "catalog_version": {
+      "title": "Catalog Version",
+      "type": "string"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "source_datasets": {
+      "items": {
+        "$ref": "#/$defs/SourceDataset"
+      },
+      "title": "Source Datasets",
+      "type": "array"
+    },
+    "verify_cases": {
+      "items": {
+        "$ref": "#/$defs/VerifyCase"
+      },
+      "title": "Verify Cases",
+      "type": "array"
+    },
+    "identify_gallery": {
+      "$ref": "#/$defs/IdentifyGallery"
+    },
+    "dataset_browser_seed": {
+      "items": {
+        "$ref": "#/$defs/BrowserSeedEntry"
+      },
+      "title": "Dataset Browser Seed",
+      "type": "array"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    }
+  },
+  "required": [
+    "catalog_version",
+    "generated_at",
+    "source_datasets",
+    "verify_cases",
+    "identify_gallery",
+    "dataset_browser_seed",
+    "metadata"
+  ],
+  "title": "CatalogModel",
+  "type": "object"
+}

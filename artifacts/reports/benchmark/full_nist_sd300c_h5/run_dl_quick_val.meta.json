@@ -1,0 +1,72 @@
+{
+  "schema_version": "v2_benchmark_run_meta",
+  "row": {
+    "timestamp_utc": "2026-05-06T16:22:31Z",
+    "method": "dl_quick",
+    "split": "val",
+    "n_pairs": "2812",
+    "auc": "0.57485058615552",
+    "eer": "0.4473684210526315",
+    "tar_at_far_1e_2": "0.01991465149359886",
+    "tar_at_far_1e_3": "0.001422475106685633",
+    "avg_ms_pair_reported": "33.67083029873875",
+    "avg_ms_pair_wall": "36.277835094403066",
+    "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300c_h5\\scores_dl_quick_val.csv",
+    "meta_json": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300c_h5\\scores_dl_quick_val.meta.json",
+    "config_json": "{\"classic\": {\"detector\": \"gftt_orb\", \"nfeatures\": 1500, \"ransac_thresh\": 4.0, \"ratio\": 0.75, \"score_mode\": \"inliers_over_k\", \"script\": \"pipelines/benchmark/eval_classic.py\"}, \"dataset\": \"nist_sd300c\", \"dedicated\": {\"ckpt\": \"auto\", \"mask_cov_thr\": 0.7, \"max_kpts\": 800, \"max_matches\": 200, \"patch\": 48, \"ransac_thresh\": 4.0, \"script\": \"pipelines/benchmark/eval_dedicated.py\"}, \"dl\": {\"backbone\": \"resnet50\", \"no_mask\": false, \"script\": \"pipelines/benchmark/eval_quick.py\"}, \"fusion\": {\"fit_split\": \"val\", \"source_dir\": \"C:\\\\fingerprint-research\\\\artifacts\\\\reports\\\\benchmark\\\\full_nist_sd300c_h5\", \"source_methods\": [\"sift\", \"dl_quick\", \"vit\"], \"weights\": {\"dl_quick\": 0.05, \"sift\": 0.91, \"vit\": 0.04}}, \"limit\": 0, \"manifest_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300c\\\\manifest.csv\", \"method\": \"dl_quick\", \"method_semantics_epoch\": null, \"pairs_path\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300c\\\\pairs_val.csv\", \"resolved_data_dir\": \"C:\\\\fingerprint-research\\\\data\\\\manifests\\\\nist_sd300c\", \"schema_version\": \"v2_benchmark_eval_config\", \"split\": \"val\"}"
+  },
+  "scores_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300c_h5\\scores_dl_quick_val.csv",
+  "roc_png": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300c_h5\\roc_dl_quick_val.png",
+  "summary_csv": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300c_h5\\results_summary.csv",
+  "method_meta_json": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300c_h5\\scores_dl_quick_val.meta.json",
+  "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\nist_sd300c",
+  "manifest_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\manifest.csv",
+  "pairs_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\pairs_val.csv",
+  "config": {
+    "classic": {
+      "detector": "gftt_orb",
+      "nfeatures": 1500,
+      "ransac_thresh": 4.0,
+      "ratio": 0.75,
+      "score_mode": "inliers_over_k",
+      "script": "pipelines/benchmark/eval_classic.py"
+    },
+    "dataset": "nist_sd300c",
+    "dedicated": {
+      "ckpt": "auto",
+      "mask_cov_thr": 0.7,
+      "max_kpts": 800,
+      "max_matches": 200,
+      "patch": 48,
+      "ransac_thresh": 4.0,
+      "script": "pipelines/benchmark/eval_dedicated.py"
+    },
+    "dl": {
+      "backbone": "resnet50",
+      "no_mask": false,
+      "script": "pipelines/benchmark/eval_quick.py"
+    },
+    "fusion": {
+      "fit_split": "val",
+      "source_dir": "C:\\fingerprint-research\\artifacts\\reports\\benchmark\\full_nist_sd300c_h5",
+      "source_methods": [
+        "sift",
+        "dl_quick",
+        "vit"
+      ],
+      "weights": {
+        "dl_quick": 0.05,
+        "sift": 0.91,
+        "vit": 0.04
+      }
+    },
+    "limit": 0,
+    "manifest_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\manifest.csv",
+    "method": "dl_quick",
+    "method_semantics_epoch": null,
+    "pairs_path": "C:\\fingerprint-research\\data\\manifests\\nist_sd300c\\pairs_val.csv",
+    "resolved_data_dir": "C:\\fingerprint-research\\data\\manifests\\nist_sd300c",
+    "schema_version": "v2_benchmark_eval_config",
+    "split": "val"
+  }
+}

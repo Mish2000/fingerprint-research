@@ -1,0 +1,178 @@
+=== Canonical batch benchmark run ===
+Repo root : C:\fingerprint-research
+Dataset   : polyu_cross
+Data dir  : C:\fingerprint-research\data\manifests\polyu_cross
+Outdir    : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5
+Methods   : ['classic_v2', 'harris', 'sift', 'dl_quick', 'vit']
+Splits    : ['val', 'test']
+Emb cache : C:\fingerprint-research\artifacts\cache\embeddings
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method classic_v2 --split val --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_classic_v2_val.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_classic_v2_val.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_classic_v2_val.meta.json --detector gftt_orb --score_mode inliers_over_k --nfeatures 1500 --long_edge 512 --ratio 0.75 --ransac_thresh 4.0
+Split=val | N=1632 | AUC=0.5056 | EER~0.4943
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_classic_v2_val.csv
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_classic.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_classic_v2_val.csv --split val --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv --detector gftt_orb --score_mode inliers_over_k --nfeatures 1500 --long_edge 512 --target_size 512 --ratio 0.75 --ransac_thresh 4.0 --limit 0
+
+[OK] Unified metrics:
+  N=1632 | AUC=0.5056 | EER~0.4943 | TAR@1e-2=0.0123 | TAR@1e-3=0.0000
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_classic_v2_val.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_classic_v2_val.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_classic_v2_val.meta.json
+[DONE] method=classic_v2 split=val exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method harris --split val --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_harris_val.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_harris_val.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_harris_val.meta.json --detector harris_orb --score_mode inliers_over_min_keypoints --nfeatures 1500 --target_size 512 --ratio 0.75 --ransac_thresh 3.0
+Split=val | N=1632 | AUC=0.5409 | EER~0.4771
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_harris_val.csv
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_classic.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_harris_val.csv --split val --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv --detector harris_orb --score_mode inliers_over_min_keypoints --nfeatures 1500 --long_edge 512 --target_size 512 --ratio 0.75 --ransac_thresh 3.0 --limit 0
+
+[OK] Unified metrics:
+  N=1632 | AUC=0.5409 | EER~0.4771 | TAR@1e-2=0.0294 | TAR@1e-3=0.0000
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_harris_val.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_harris_val.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_harris_val.meta.json
+[DONE] method=harris split=val exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method sift --split val --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_sift_val.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_sift_val.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_sift_val.meta.json --detector sift --score_mode inliers_over_min_keypoints --nfeatures 1500 --target_size 512 --ratio 0.75 --ransac_thresh 3.0
+Split=val | N=1632 | AUC=0.5000 | EER~0.5000
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_sift_val.csv
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_classic.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_sift_val.csv --split val --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv --detector sift --score_mode inliers_over_min_keypoints --nfeatures 1500 --long_edge 512 --target_size 512 --ratio 0.75 --ransac_thresh 3.0 --limit 0
+
+[OK] Unified metrics:
+  N=1632 | AUC=0.5000 | EER~0.5000 | TAR@1e-2=0.0000 | TAR@1e-3=0.0000
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_sift_val.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_sift_val.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_sift_val.meta.json
+[DONE] method=sift split=val exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method dl_quick --split val --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_val.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_dl_quick_val.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_dl_quick_val.meta.json --backbone resnet50 --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+Split=val | N=1632 | AUC=0.5860 | EER~0.4306
+Avg pair time: 5.31 ms (cached embeddings help as N grows)
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_val.csv
+Meta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_val.meta.json
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_quick.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_dl_quick_val.csv --split val --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv --limit 0 --backbone resnet50 --dataset polyu_cross --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+
+[OK] Unified metrics:
+  N=1632 | AUC=0.5860 | EER~0.4306 | TAR@1e-2=0.0221 | TAR@1e-3=0.0000
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_val.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_dl_quick_val.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_dl_quick_val.meta.json
+[DONE] method=dl_quick split=val exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method vit --split val --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_val.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_vit_val.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_vit_val.meta.json --backbone vit_base --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+Split=val | N=1632 | AUC=0.5413 | EER~0.4702
+Avg pair time: 7.50 ms (cached embeddings help as N grows)
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_val.csv
+Meta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_val.meta.json
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_quick.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_vit_val.csv --split val --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv --limit 0 --backbone vit_base --dataset polyu_cross --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+
+[OK] Unified metrics:
+  N=1632 | AUC=0.5413 | EER~0.4702 | TAR@1e-2=0.0319 | TAR@1e-3=0.0123
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_val.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_val.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_vit_val.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_vit_val.meta.json
+[DONE] method=vit split=val exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method classic_v2 --split test --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_classic_v2_test.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_classic_v2_test.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_classic_v2_test.meta.json --detector gftt_orb --score_mode inliers_over_k --nfeatures 1500 --long_edge 512 --ratio 0.75 --ransac_thresh 4.0
+Split=test | N=1584 | AUC=0.5041 | EER~0.4958
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_classic_v2_test.csv
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_classic.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_classic_v2_test.csv --split test --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv --detector gftt_orb --score_mode inliers_over_k --nfeatures 1500 --long_edge 512 --target_size 512 --ratio 0.75 --ransac_thresh 4.0 --limit 0
+
+[OK] Unified metrics:
+  N=1584 | AUC=0.5041 | EER~0.4958 | TAR@1e-2=0.0101 | TAR@1e-3=0.0000
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_classic_v2_test.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_classic_v2_test.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_classic_v2_test.meta.json
+[DONE] method=classic_v2 split=test exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method harris --split test --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_harris_test.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_harris_test.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_harris_test.meta.json --detector harris_orb --score_mode inliers_over_min_keypoints --nfeatures 1500 --target_size 512 --ratio 0.75 --ransac_thresh 3.0
+Split=test | N=1584 | AUC=0.5167 | EER~0.4949
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_harris_test.csv
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_classic.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_harris_test.csv --split test --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv --detector harris_orb --score_mode inliers_over_min_keypoints --nfeatures 1500 --long_edge 512 --target_size 512 --ratio 0.75 --ransac_thresh 3.0 --limit 0
+
+[OK] Unified metrics:
+  N=1584 | AUC=0.5167 | EER~0.4949 | TAR@1e-2=0.0126 | TAR@1e-3=0.0025
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_harris_test.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_harris_test.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_harris_test.meta.json
+[DONE] method=harris split=test exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method sift --split test --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_sift_test.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_sift_test.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_sift_test.meta.json --detector sift --score_mode inliers_over_min_keypoints --nfeatures 1500 --target_size 512 --ratio 0.75 --ransac_thresh 3.0
+Split=test | N=1584 | AUC=0.5000 | EER~0.5000
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_sift_test.csv
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_classic.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_sift_test.csv --split test --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv --detector sift --score_mode inliers_over_min_keypoints --nfeatures 1500 --long_edge 512 --target_size 512 --ratio 0.75 --ransac_thresh 3.0 --limit 0
+
+[OK] Unified metrics:
+  N=1584 | AUC=0.5000 | EER~0.5000 | TAR@1e-2=0.0000 | TAR@1e-3=0.0000
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_sift_test.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_sift_test.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_sift_test.meta.json
+[DONE] method=sift split=test exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method dl_quick --split test --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_test.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_dl_quick_test.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_dl_quick_test.meta.json --backbone resnet50 --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+Split=test | N=1584 | AUC=0.5458 | EER~0.4718
+Avg pair time: 5.27 ms (cached embeddings help as N grows)
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_test.csv
+Meta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_test.meta.json
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_quick.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_dl_quick_test.csv --split test --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv --limit 0 --backbone resnet50 --dataset polyu_cross --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+
+[OK] Unified metrics:
+  N=1584 | AUC=0.5458 | EER~0.4718 | TAR@1e-2=0.0328 | TAR@1e-3=0.0101
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_dl_quick_test.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_dl_quick_test.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_dl_quick_test.meta.json
+[DONE] method=dl_quick split=test exit_code=0
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\evaluate.py --method vit --split test --limit 0 --dataset polyu_cross --data_dir C:\fingerprint-research\data\manifests\polyu_cross --summary_csv C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv --out_scores C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_test.csv --out_roc C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_vit_test.png --out_run_meta C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_vit_test.meta.json --backbone vit_base --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+Split=test | N=1584 | AUC=0.5361 | EER~0.4718
+Avg pair time: 7.37 ms (cached embeddings help as N grows)
+Saved: C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_test.csv
+Meta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_test.meta.json
+
+[RUN] C:\Users\sirak\miniconda3\envs\fingerprint_research\python.exe C:\fingerprint-research\pipelines\benchmark\eval_quick.py file:/C:/fingerprint-research/artifacts/reports/benchmark/_regen_h5_tmp_20260506_182726/full_polyu_cross_h5/scores_vit_test.csv --split test --pairs C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv --limit 0 --backbone vit_base --dataset polyu_cross --emb_cache_dir C:\fingerprint-research\artifacts\cache\embeddings --cache_write
+
+[OK] Unified metrics:
+  N=1584 | AUC=0.5361 | EER~0.4718 | TAR@1e-2=0.0126 | TAR@1e-3=0.0000
+  DataDir : C:\fingerprint-research\data\manifests\polyu_cross
+  Manifest: C:\fingerprint-research\data\manifests\polyu_cross\manifest.csv
+  Pairs   : C:\fingerprint-research\data\manifests\polyu_cross\pairs_test.csv
+  Scores  : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\scores_vit_test.csv
+  ROC     : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\roc_vit_test.png
+  Summary : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.csv
+  RunMeta : C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\run_vit_test.meta.json
+[DONE] method=vit split=test exit_code=0
+OK: Wrote C:\fingerprint-research\artifacts\reports\benchmark\_regen_h5_tmp_20260506_182726\full_polyu_cross_h5\results_summary.md
+Done.

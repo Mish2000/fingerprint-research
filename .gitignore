@@ -122,3 +122,16 @@ research_history/
 # ---------- Archives / object files ----------
 archive/
 *.obj
+
+# ---------- Local cleanup inspection outputs ----------
+cleanup_path_references.txt
+tracked_files.txt
+untracked_not_ignored.txt
+ignored_untracked.txt
+dirty_core_diff.txt
+
+# ---------- Transient files inside curated benchmark bundles ----------
+artifacts/reports/benchmark/**/*.bak
+artifacts/reports/benchmark/**/*.log
+artifacts/reports/benchmark/**/_regen*/
+artifacts/reports/benchmark/**/repair_*.py

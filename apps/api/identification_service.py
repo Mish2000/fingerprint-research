@@ -128,6 +128,7 @@ def _mask_national_id(raw: str) -> str:
 @dataclass(frozen=True)
 class IdentifyCandidateResult:
     rank: int
+    retrieval_rank: int
     random_id: str
     full_name: str
     national_id_masked: str
@@ -340,6 +341,8 @@ class IdentificationService:
         shortlist_size: int = 25,
         threshold: float | None = None,
         hints: IdentifyHints | None = None,
+        skip_rerank: bool = False,
+        rerank_limit: int | None = None,
     ) -> IdentifyRunResult:
         hints = hints or IdentifyHints()
         resolved_retrieval = self._resolve_retrieval_method(retrieval_method)
@@ -359,6 +362,11 @@ class IdentificationService:
         threshold = float(threshold) if threshold is not None else float(resolved_rerank.decision_threshold)
         capture_norm = _safe_capture(capture)
         shortlist_size = max(1, int(shortlist_size))
+        rerank_limit_value = None if rerank_limit is None else int(rerank_limit)
+        skip_rerank = bool(skip_rerank) or (
+            rerank_limit_value is not None and rerank_limit_value <= 0
+        )
+        controlled_rerank_policy = skip_rerank or rerank_limit_value is not None
 
         total_t0 = time.perf_counter()
         t0 = time.perf_counter()
@@ -449,32 +457,49 @@ class IdentificationService:
             )
 
         t2 = time.perf_counter()
+        controlled_rerank_ms = 0.0
         candidates: List[IdentifyCandidateResult] = []
         for retrieval_rank, (random_id, retrieval_score) in enumerate(shortlist, start=1):
             person = person_map.get(random_id) or self.store.get_person(random_id)
-            raw = self.store.load_raw_fingerprint(random_id)
             if person is None:
                 continue
 
-            rerank_attempt = (
-                self._rerank_probe_against_record(
-                    probe_path=str(probe_path),
-                    probe_capture=capture_norm,
-                    rerank_method=rerank_method_enum,
-                    raw=raw,
-                )
-                if raw is not None
-                else RerankAttemptResult(
-                    score=None,
-                    rerank_status=RERANK_SKIPPED_NO_CANDIDATE_SOURCE,
-                    candidate_source_status=CANDIDATE_SOURCE_NO_RAW_METADATA,
-                )
+            should_rerank = (
+                not skip_rerank
+                and (rerank_limit_value is None or retrieval_rank <= rerank_limit_value)
             )
+            if should_rerank:
+                rerank_item_t0 = time.perf_counter() if controlled_rerank_policy else None
+                raw = self.store.load_raw_fingerprint(random_id)
+                rerank_attempt = (
+                    self._rerank_probe_against_record(
+                        probe_path=str(probe_path),
+                        probe_capture=capture_norm,
+                        rerank_method=rerank_method_enum,
+                        raw=raw,
+                    )
+                    if raw is not None
+                    else RerankAttemptResult(
+                        score=None,
+                        rerank_status=RERANK_SKIPPED_NO_CANDIDATE_SOURCE,
+                        candidate_source_status=CANDIDATE_SOURCE_NO_RAW_METADATA,
+                    )
+                )
+                if rerank_item_t0 is not None:
+                    controlled_rerank_ms += (time.perf_counter() - rerank_item_t0) * 1000.0
+            else:
+                raw = None
+                rerank_attempt = RerankAttemptResult(
+                    score=None,
+                    rerank_status=RERANK_SKIPPED_VECTOR_ONLY_MODE,
+                    candidate_source_status=RERANK_SKIPPED_VECTOR_ONLY_MODE,
+                )
             rerank_score = rerank_attempt.score
             decision = bool(rerank_score >= threshold) if rerank_score is not None else None
             candidates.append(
                 IdentifyCandidateResult(
                     rank=retrieval_rank,
+                    retrieval_rank=retrieval_rank,
                     random_id=random_id,
                     full_name=person.full_name,
                     national_id_masked=_mask_national_id(person.national_id),
@@ -488,7 +513,11 @@ class IdentificationService:
                     decision=decision,
                 )
             )
-        rerank_ms = (time.perf_counter() - t2) * 1000.0
+        rerank_ms = (
+            controlled_rerank_ms
+            if controlled_rerank_policy
+            else (time.perf_counter() - t2) * 1000.0
+        )
 
         candidates.sort(
             key=lambda item: (

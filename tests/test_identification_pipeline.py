@@ -770,3 +770,86 @@ def test_identification_normalizes_aliases_for_retrieval_and_rerank(tmp_path: Pa
     assert result.retrieval_method_metadata["canonical_method"] == "dl"
     assert result.rerank_method_metadata["requested_method"] == "classic_v2"
     assert result.rerank_method_metadata["canonical_method"] == "classic_gftt_orb"
+
+
+@pytest.mark.parametrize(
+    ("identify_kwargs", "expected_rerank_calls", "expected_skipped_count"),
+    [
+        ({"skip_rerank": True}, 0, 3),
+        ({"rerank_limit": 0}, 0, 3),
+        ({"rerank_limit": 1}, 1, 2),
+        ({}, 3, 0),
+    ],
+)
+def test_identification_service_rerank_policy_controls_pairwise_call_count(
+    tmp_path: Path,
+    identify_kwargs: dict[str, object],
+    expected_rerank_calls: int,
+    expected_skipped_count: int,
+) -> None:
+    resolver = CandidateSourceResolver()
+    calls: list[str] = []
+
+    def _counting_rerank(
+        method: MatchMethod,
+        probe_path: str,
+        candidate_path: str,
+        probe_capture: str,
+        candidate_capture: str,
+    ) -> float:
+        del method, probe_path, probe_capture, candidate_capture
+        calls.append(Path(candidate_path).name)
+        return 0.95 if Path(candidate_path).read_bytes()[:1] == b"A" else 0.05
+
+    service = IdentificationService(
+        store=InMemoryStore(),
+        vectorizers={"dl": _fake_vectorizer},
+        rerank_callable=_counting_rerank,
+        candidate_source_resolver=resolver,
+    )
+
+    alice = _write_probe(tmp_path / "alice_policy.bin", b"A")
+    bob = _write_probe(tmp_path / "bob_policy.bin", b"B")
+    casey = _write_probe(tmp_path / "casey_policy.bin", b"C")
+    probe = _write_probe(tmp_path / "probe_policy.bin", b"A")
+
+    alice_receipt = service.enroll_from_path(
+        path=str(alice),
+        full_name="Alice Levi",
+        national_id="111111111",
+        capture="plain",
+        vector_methods=("dl",),
+    )
+    bob_receipt = service.enroll_from_path(
+        path=str(bob),
+        full_name="Bob Cohen",
+        national_id="222222222",
+        capture="plain",
+        vector_methods=("dl",),
+    )
+    casey_receipt = service.enroll_from_path(
+        path=str(casey),
+        full_name="Casey Dan",
+        national_id="333333333",
+        capture="plain",
+        vector_methods=("dl",),
+    )
+    resolver.register_test_source(alice_receipt.random_id, alice, capture="plain")
+    resolver.register_test_source(bob_receipt.random_id, bob, capture="plain")
+    resolver.register_test_source(casey_receipt.random_id, casey, capture="plain")
+
+    result = service.identify_from_path(
+        path=str(probe),
+        capture="plain",
+        retrieval_method="dl",
+        rerank_method=MatchMethod.sift,
+        shortlist_size=3,
+        **identify_kwargs,
+    )
+
+    assert len(calls) == expected_rerank_calls
+    assert result.rerank_summary["performed_count"] == expected_rerank_calls
+    assert result.rerank_summary["skipped_count"] == expected_skipped_count
+    assert [candidate.retrieval_rank for candidate in result.candidates] == [candidate.rank for candidate in result.candidates]
+    if expected_rerank_calls == 0:
+        assert all(candidate.rerank_status == "skipped_vector_only_mode" for candidate in result.candidates)

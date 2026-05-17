@@ -24,6 +24,135 @@ def _write_dataset_dir(root: Path) -> Path:
     return data_dir
 
 
+def _metrics(
+    auc: float = 0.99,
+    eer: float = 0.01,
+    eer_threshold: float = 0.5,
+    far_at_eer: float = 0.01,
+    frr_at_eer: float = 0.01,
+) -> evaluate.AucEerMetrics:
+    return evaluate.AucEerMetrics(
+        auc=auc,
+        eer=eer,
+        eer_threshold=eer_threshold,
+        far_at_eer=far_at_eer,
+        frr_at_eer=frr_at_eer,
+    )
+
+
+def test_compute_auc_eer_exposes_far_frr_details() -> None:
+    y_true = np.array([1, 1, 0, 0])
+    scores = np.array([0.9, 0.7, 0.4, 0.2])
+
+    metrics = evaluate.compute_auc_eer(y_true, scores)
+
+    assert metrics.auc == pytest.approx(1.0)
+    assert metrics.eer == pytest.approx(0.0)
+    assert np.isfinite(metrics.far_at_eer)
+    assert np.isfinite(metrics.frr_at_eer)
+
+
+def test_append_summary_row_writes_far_frr_columns(tmp_path: Path) -> None:
+    summary_csv = tmp_path / "results_summary.csv"
+    row = evaluate.EvalRow(
+        timestamp_utc="2026-05-09T00:00:00Z",
+        method="dl_quick",
+        split="val",
+        n_pairs=2,
+        auc=1.0,
+        eer=0.0,
+        eer_threshold=0.7,
+        far_at_eer=0.0,
+        frr_at_eer=0.0,
+        tar_at_far_1e_2=1.0,
+        frr_at_far_1e_2=0.0,
+        tar_at_far_1e_3=1.0,
+        frr_at_far_1e_3=0.0,
+        avg_ms_pair_reported=None,
+        avg_ms_pair_wall=1.0,
+        scores_csv="scores.csv",
+        meta_json=None,
+        config_json="{}",
+    )
+
+    evaluate.append_summary_row(summary_csv, row)
+
+    df = pd.read_csv(summary_csv)
+    assert {
+        "eer_threshold",
+        "far_at_eer",
+        "frr_at_eer",
+        "frr_at_far_1e_2",
+        "frr_at_far_1e_3",
+    }.issubset(df.columns)
+
+
+def test_append_summary_row_upgrades_existing_summary_header(tmp_path: Path) -> None:
+    summary_csv = tmp_path / "results_summary.csv"
+    old_columns = [
+        "timestamp_utc",
+        "method",
+        "split",
+        "n_pairs",
+        "auc",
+        "eer",
+        "tar_at_far_1e_2",
+        "tar_at_far_1e_3",
+        "avg_ms_pair_reported",
+        "avg_ms_pair_wall",
+        "scores_csv",
+        "meta_json",
+        "config_json",
+    ]
+    pd.DataFrame(
+        [
+            {
+                "timestamp_utc": "2026-05-08T00:00:00Z",
+                "method": "classic_v2",
+                "split": "val",
+                "n_pairs": 2,
+                "auc": 0.5,
+                "eer": 0.5,
+                "tar_at_far_1e_2": 0.1,
+                "tar_at_far_1e_3": 0.0,
+                "avg_ms_pair_reported": "",
+                "avg_ms_pair_wall": 1.0,
+                "scores_csv": "old_scores.csv",
+                "meta_json": "",
+                "config_json": "{}",
+            }
+        ],
+        columns=old_columns,
+    ).to_csv(summary_csv, index=False)
+    row = evaluate.EvalRow(
+        timestamp_utc="2026-05-09T00:00:00Z",
+        method="dl_quick",
+        split="val",
+        n_pairs=2,
+        auc=1.0,
+        eer=0.0,
+        eer_threshold=0.7,
+        far_at_eer=0.0,
+        frr_at_eer=0.0,
+        tar_at_far_1e_2=1.0,
+        frr_at_far_1e_2=0.0,
+        tar_at_far_1e_3=1.0,
+        frr_at_far_1e_3=0.0,
+        avg_ms_pair_reported=None,
+        avg_ms_pair_wall=1.0,
+        scores_csv="scores.csv",
+        meta_json=None,
+        config_json="{}",
+    )
+
+    evaluate.append_summary_row(summary_csv, row)
+
+    df = pd.read_csv(summary_csv)
+    assert len(df) == 2
+    assert list(df.columns[: len(evaluate.SUMMARY_HEADER)]) == evaluate.SUMMARY_HEADER
+    assert df.loc[1, "far_at_eer"] == pytest.approx(0.0)
+
+
 @pytest.mark.parametrize(
     ("method", "expected_detector", "expected_score_mode", "expected_ransac_thresh", "expected_semantics_epoch"),
     [
@@ -56,7 +185,7 @@ def test_evaluate_classic_branch_uses_runtime_truthful_forwarding(
     monkeypatch.chdir(repo_root)
     monkeypatch.setattr(evaluate, "run_subprocess", fake_run_subprocess)
     monkeypatch.setattr(evaluate, "read_scores", lambda _path: (np.array([1, 0]), np.array([0.9, 0.1])))
-    monkeypatch.setattr(evaluate, "compute_auc_eer", lambda _y, _s: (0.99, 0.01))
+    monkeypatch.setattr(evaluate, "compute_auc_eer", lambda _y, _s: _metrics())
     monkeypatch.setattr(evaluate, "tar_at_far", lambda _y, _s, _far: 0.95)
     monkeypatch.setattr(evaluate, "save_roc_png", fake_save_roc_png)
     monkeypatch.setattr(
@@ -141,7 +270,7 @@ def test_evaluate_dl_branch_forwards_explicit_no_mask_ablation(
     monkeypatch.chdir(repo_root)
     monkeypatch.setattr(evaluate, "run_subprocess", fake_run_subprocess)
     monkeypatch.setattr(evaluate, "read_scores", lambda _path: (np.array([1, 0]), np.array([0.9, 0.1])))
-    monkeypatch.setattr(evaluate, "compute_auc_eer", lambda _y, _s: (0.99, 0.01))
+    monkeypatch.setattr(evaluate, "compute_auc_eer", lambda _y, _s: _metrics())
     monkeypatch.setattr(evaluate, "tar_at_far", lambda _y, _s, _far: 0.95)
     monkeypatch.setattr(evaluate, "save_roc_png", fake_save_roc_png)
     monkeypatch.setattr(evaluate, "append_summary_row", lambda _summary_csv, _row: None)
@@ -203,7 +332,7 @@ def test_evaluate_minutiae_branch_forwards_dedicated_script_and_metadata(
     monkeypatch.chdir(repo_root)
     monkeypatch.setattr(evaluate, "run_subprocess", fake_run_subprocess)
     monkeypatch.setattr(evaluate, "read_scores", lambda _path: (np.array([1, 0]), np.array([0.9, 0.1])))
-    monkeypatch.setattr(evaluate, "compute_auc_eer", lambda _y, _s: (0.99, 0.01))
+    monkeypatch.setattr(evaluate, "compute_auc_eer", lambda _y, _s: _metrics())
     monkeypatch.setattr(evaluate, "tar_at_far", lambda _y, _s, _far: 0.95)
     monkeypatch.setattr(evaluate, "save_roc_png", fake_save_roc_png)
     monkeypatch.setattr(

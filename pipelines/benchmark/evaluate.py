@@ -8,7 +8,7 @@ import sys
 import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, Dict, Any, List, NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -120,37 +120,61 @@ def resolve_pairs_path(data_dir: Path, split: str) -> Path:
 # -----------------------------
 # Metrics
 # -----------------------------
-def compute_auc_eer(y_true: np.ndarray, scores: np.ndarray) -> Tuple[float, float]:
+class AucEerMetrics(NamedTuple):
+    auc: float
+    eer: float
+    eer_threshold: float
+    far_at_eer: float
+    frr_at_eer: float
+
+
+def _auc_eer_nan(auc: float = float("nan")) -> AucEerMetrics:
+    return AucEerMetrics(
+        auc=float(auc),
+        eer=float("nan"),
+        eer_threshold=float("nan"),
+        far_at_eer=float("nan"),
+        frr_at_eer=float("nan"),
+    )
+
+
+def compute_auc_eer(y_true: np.ndarray, scores: np.ndarray) -> AucEerMetrics:
     y_true = np.asarray(y_true)
     scores = np.asarray(scores, dtype=float)
 
     if y_true.size == 0 or scores.size == 0:
-        return float("nan"), float("nan")
+        return _auc_eer_nan()
 
     valid = np.isfinite(scores)
     if not np.any(valid):
-        return float("nan"), float("nan")
+        return _auc_eer_nan()
 
     y_true = y_true[valid]
     scores = scores[valid]
 
     if np.unique(y_true).size < 2:
-        return float("nan"), float("nan")
+        return _auc_eer_nan()
 
     try:
         auc = float(roc_auc_score(y_true, scores))
-        fpr, tpr, _ = roc_curve(y_true, scores)
+        fpr, tpr, thresholds = roc_curve(y_true, scores)
     except ValueError:
-        return float("nan"), float("nan")
+        return _auc_eer_nan()
 
     fnr = 1.0 - tpr
     delta = np.abs(fpr - fnr)
     if delta.size == 0 or np.isnan(delta).all():
-        return auc, float("nan")
+        return _auc_eer_nan(auc)
 
     i = int(np.nanargmin(delta))
     eer = float((fpr[i] + fnr[i]) / 2.0)
-    return auc, eer
+    return AucEerMetrics(
+        auc=auc,
+        eer=eer,
+        eer_threshold=float(thresholds[i]),
+        far_at_eer=float(fpr[i]),
+        frr_at_eer=float(fnr[i]),
+    )
 
 
 def tar_at_far(y_true: np.ndarray, scores: np.ndarray, far: float) -> float:
@@ -217,8 +241,13 @@ class EvalRow:
     n_pairs: int
     auc: float
     eer: float
+    eer_threshold: float
+    far_at_eer: float
+    frr_at_eer: float
     tar_at_far_1e_2: float
+    frr_at_far_1e_2: float
     tar_at_far_1e_3: float
+    frr_at_far_1e_3: float
     avg_ms_pair_reported: Optional[float]  # from method meta if available
     avg_ms_pair_wall: float  # wall clock / N (includes overhead)
     scores_csv: str
@@ -233,8 +262,13 @@ SUMMARY_HEADER = [
     "n_pairs",
     "auc",
     "eer",
+    "eer_threshold",
+    "far_at_eer",
+    "frr_at_eer",
     "tar_at_far_1e_2",
+    "frr_at_far_1e_2",
     "tar_at_far_1e_3",
+    "frr_at_far_1e_3",
     "avg_ms_pair_reported",
     "avg_ms_pair_wall",
     "scores_csv",
@@ -378,9 +412,25 @@ def maybe_load_meta(meta_path: Path) -> Dict[str, Any]:
 
 def append_summary_row(summary_csv: Path, row: EvalRow) -> None:
     ensure_parent(summary_csv)
-    write_header = not summary_csv.exists()
+    write_header = not summary_csv.exists() or summary_csv.stat().st_size == 0
+    fieldnames = list(SUMMARY_HEADER)
+    if summary_csv.exists() and not write_header:
+        with summary_csv.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            existing_fieldnames = reader.fieldnames or []
+            existing_rows = list(reader)
+        missing = [field for field in SUMMARY_HEADER if field not in existing_fieldnames]
+        extra_fieldnames = [field for field in existing_fieldnames if field not in SUMMARY_HEADER]
+        if missing:
+            fieldnames = [*SUMMARY_HEADER, *extra_fieldnames]
+            with summary_csv.open("w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=fieldnames)
+                w.writeheader()
+                w.writerows(existing_rows)
+        elif existing_fieldnames:
+            fieldnames = existing_fieldnames
     with summary_csv.open("a", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=SUMMARY_HEADER)
+        w = csv.DictWriter(f, fieldnames=fieldnames)
         if write_header:
             w.writeheader()
         w.writerow(asdict(row))
@@ -704,9 +754,11 @@ def main() -> None:
     n = int(len(y))
     wall_ms_pair = float((t1 - t0) * 1000.0 / max(n, 1))
 
-    auc, eer = compute_auc_eer(y, s)
+    metrics = compute_auc_eer(y, s)
     tar_1e2 = tar_at_far(y, s, 1e-2)
     tar_1e3 = tar_at_far(y, s, 1e-3)
+    frr_1e2 = 1.0 - tar_1e2
+    frr_1e3 = 1.0 - tar_1e3
 
     # Load reported latency from meta if exists
     reported_avg = None
@@ -721,7 +773,7 @@ def main() -> None:
                 reported_avg = None
 
     # Save ROC png
-    save_roc_png(y, s, out_roc, title=f"{args.method} | split={args.split} | AUC={auc:.4f} | EER~{eer:.4f}")
+    save_roc_png(y, s, out_roc, title=f"{args.method} | split={args.split} | AUC={metrics.auc:.4f} | EER~{metrics.eer:.4f}")
 
     # Create and append standardized row
     classic_config = {
@@ -818,10 +870,15 @@ def main() -> None:
         method=args.method,
         split=args.split,
         n_pairs=n,
-        auc=float(auc),
-        eer=float(eer),
+        auc=float(metrics.auc),
+        eer=float(metrics.eer),
+        eer_threshold=float(metrics.eer_threshold),
+        far_at_eer=float(metrics.far_at_eer),
+        frr_at_eer=float(metrics.frr_at_eer),
         tar_at_far_1e_2=float(tar_1e2),
+        frr_at_far_1e_2=float(frr_1e2),
         tar_at_far_1e_3=float(tar_1e3),
+        frr_at_far_1e_3=float(frr_1e3),
         avg_ms_pair_reported=reported_avg,
         avg_ms_pair_wall=float(wall_ms_pair),
         scores_csv=str(out_scores),
@@ -846,7 +903,7 @@ def main() -> None:
     out_run_meta.write_text(json.dumps(run_meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print("\n[OK] Unified metrics:")
-    print(f"  N={n} | AUC={auc:.4f} | EER~{eer:.4f} | TAR@1e-2={tar_1e2:.4f} | TAR@1e-3={tar_1e3:.4f}")
+    print(f"  N={n} | AUC={metrics.auc:.4f} | EER~{metrics.eer:.4f} | TAR@1e-2={tar_1e2:.4f} | TAR@1e-3={tar_1e3:.4f}")
     print("  DataDir :", data_dir)
     print("  Manifest:", manifest_path)
     print("  Pairs   :", pairs_path)

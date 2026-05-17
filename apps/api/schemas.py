@@ -590,6 +590,7 @@ class EnrollFingerprintResponse(BaseModel):
 
 class IdentifyCandidate(BaseModel):
     rank: int
+    retrieval_rank: Optional[int] = None
     random_id: str
     full_name: str
     national_id_masked: str

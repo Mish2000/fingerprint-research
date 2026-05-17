@@ -414,8 +414,13 @@ def render_results_md(summary_csv: Path, summary_md: Path) -> None:
         "n_pairs",
         "auc",
         "eer",
+        "eer_threshold",
+        "far_at_eer",
+        "frr_at_eer",
         "tar_at_far_1e_2",
+        "frr_at_far_1e_2",
         "tar_at_far_1e_3",
+        "frr_at_far_1e_3",
         "avg_ms_pair_reported",
         "avg_ms_pair_wall",
     ]

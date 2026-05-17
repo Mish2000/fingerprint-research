@@ -135,3 +135,6 @@ artifacts/reports/benchmark/**/*.bak
 artifacts/reports/benchmark/**/*.log
 artifacts/reports/benchmark/**/_regen*/
 artifacts/reports/benchmark/**/repair_*.py
+
+# Local cleanup audit outputs
+cleanup_stage*.txt

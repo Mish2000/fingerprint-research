@@ -1,4 +1,4 @@
-# Fingerprint Research Platform
+﻿# Fingerprint Research Platform
 
 > A full-stack biometric research system for fingerprint verification, 1:N identification, benchmark comparison, and live scanner-backed demos.
 
@@ -80,7 +80,7 @@ Available modes:
 
 The benchmark workspace presents validated evidence rather than only raw metric tables. It separates canonical showcase methods from research/experimental rows, exposes artifact provenance, and supports best-accuracy, lowest-error, and latency-oriented views.
 
-Current curated benchmark artifacts include `results_summary.csv`, `results_summary.md`, `run_manifest.json`, and `validation.ok` under `artifacts/reports/benchmark/current/`.
+Curated benchmark evidence is kept under `artifacts/reports/benchmark/`. The current showcase bundles are the validated `full_*_h5` and `smoke_*_h5` runs, which include `results_summary.csv`, `results_summary.md`, `run_manifest.json`, score CSVs, ROC plots, and `validation.ok` where applicable. Ad-hoc folders such as `current/`, regeneration logs, `.bak` files, and run logs are treated as local/generated outputs rather than required repository content.
 
 ### Live Demo
 
@@ -179,7 +179,7 @@ src/fpbench/
 tests/                         Backend, storage, identification, registry, benchmark tests
 ```
 
-Large local datasets, generated benchmark outputs, caches, checkpoints, scanner captures, and archive folders are intentionally excluded from normal Git tracking.
+Large raw datasets, transient generated outputs, caches, checkpoints, scanner captures, and legacy archive folders are intentionally excluded from normal Git tracking. In the cleaned local layout, raw datasets live outside the repository root, typically under `C:\fingerprint-datasets\raw`, and are exposed back to the project through the local `data\raw` junction.
 
 ## Running locally
 
@@ -255,7 +255,7 @@ npm run build
 Backend tests:
 
 ```bash
-python -m pytest tests/test_method_registry_api.py tests/test_identification_pipeline.py tests/test_identification_admin_api.py tests/test_benchmark_api_stage3.py -q
+python -m pytest tests/test_method_registry_api.py tests/test_identification_pipeline.py tests/test_identification_admin_api.py tests/test_benchmark_api.py -q
 ```
 
 Storage and migration tests:
@@ -280,12 +280,14 @@ The repository is designed to work with local datasets and generated artifacts w
 Typical local paths:
 
 ```text
-data/raw/                         Original datasets, local only
+data/raw/                         Local junction/dataset mount, usually pointing to C:\fingerprint-datasets\raw
 data/manifests/<dataset>/          Manifest and pair protocol files
-data/processed/<dataset>/          Normalized processed assets, local only
-artifacts/reports/benchmark/       Benchmark summaries, scores, ROC plots, manifests
+data/processed/<dataset>/ui_assets/ Curated UI previews/thumbnails used by the demo/catalog browser
+data/scanner_captures/             Local scanner runtime workspace, not tracked
+artifacts/reports/benchmark/       Curated benchmark summaries, scores, ROC plots, manifests
+artifacts/reports/identification/  Local research run outputs, not tracked
 artifacts/cache/embeddings/        Embedding cache, local only
-artifacts/checkpoints/             Model checkpoints, local only
+artifacts/checkpoints/             Model checkpoints, local only; do not keep zero-byte placeholder checkpoints
 ```
 
 The dataset registry currently includes active and optional research datasets such as NIST SD300B/SD300C, PolyU cross-modality, PolyU 3D, UNSW 2D/3D, and L3-SF V2. Dataset files must be obtained and prepared separately according to their original terms and the project ingest pipeline.
@@ -318,3 +320,4 @@ Project development, system architecture, implementation, benchmarking, and UI/A
 
 **Academic Advisor:** Prof. Menachem Domb
 Research guidance and academic supervision.
+

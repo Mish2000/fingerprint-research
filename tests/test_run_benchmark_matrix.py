@@ -198,16 +198,81 @@ def test_render_results_md_orders_fusion_after_source_methods(tmp_path: Path) ->
         "n_pairs",
         "auc",
         "eer",
+        "eer_threshold",
+        "far_at_eer",
+        "frr_at_eer",
         "tar_at_far_1e_2",
+        "frr_at_far_1e_2",
         "tar_at_far_1e_3",
+        "frr_at_far_1e_3",
         "avg_ms_pair_reported",
         "avg_ms_pair_wall",
     ]
     rows = [
-        {"method": matrix.FUSION_METHOD, "split": "val", "n_pairs": 1, "auc": 0.7, "eer": 0.2, "tar_at_far_1e_2": 0.5, "tar_at_far_1e_3": 0.4, "avg_ms_pair_reported": 1.0, "avg_ms_pair_wall": 2.0},
-        {"method": "vit", "split": "val", "n_pairs": 1, "auc": 0.7, "eer": 0.2, "tar_at_far_1e_2": 0.5, "tar_at_far_1e_3": 0.4, "avg_ms_pair_reported": 1.0, "avg_ms_pair_wall": 2.0},
-        {"method": "dl_quick", "split": "val", "n_pairs": 1, "auc": 0.7, "eer": 0.2, "tar_at_far_1e_2": 0.5, "tar_at_far_1e_3": 0.4, "avg_ms_pair_reported": 1.0, "avg_ms_pair_wall": 2.0},
-        {"method": "sift", "split": "val", "n_pairs": 1, "auc": 0.7, "eer": 0.2, "tar_at_far_1e_2": 0.5, "tar_at_far_1e_3": 0.4, "avg_ms_pair_reported": 1.0, "avg_ms_pair_wall": 2.0},
+        {
+            "method": matrix.FUSION_METHOD,
+            "split": "val",
+            "n_pairs": 1,
+            "auc": 0.7,
+            "eer": 0.2,
+            "eer_threshold": 0.55,
+            "far_at_eer": 0.2,
+            "frr_at_eer": 0.2,
+            "tar_at_far_1e_2": 0.5,
+            "frr_at_far_1e_2": 0.5,
+            "tar_at_far_1e_3": 0.4,
+            "frr_at_far_1e_3": 0.6,
+            "avg_ms_pair_reported": 1.0,
+            "avg_ms_pair_wall": 2.0,
+        },
+        {
+            "method": "vit",
+            "split": "val",
+            "n_pairs": 1,
+            "auc": 0.7,
+            "eer": 0.2,
+            "eer_threshold": 0.55,
+            "far_at_eer": 0.2,
+            "frr_at_eer": 0.2,
+            "tar_at_far_1e_2": 0.5,
+            "frr_at_far_1e_2": 0.5,
+            "tar_at_far_1e_3": 0.4,
+            "frr_at_far_1e_3": 0.6,
+            "avg_ms_pair_reported": 1.0,
+            "avg_ms_pair_wall": 2.0,
+        },
+        {
+            "method": "dl_quick",
+            "split": "val",
+            "n_pairs": 1,
+            "auc": 0.7,
+            "eer": 0.2,
+            "eer_threshold": 0.55,
+            "far_at_eer": 0.2,
+            "frr_at_eer": 0.2,
+            "tar_at_far_1e_2": 0.5,
+            "frr_at_far_1e_2": 0.5,
+            "tar_at_far_1e_3": 0.4,
+            "frr_at_far_1e_3": 0.6,
+            "avg_ms_pair_reported": 1.0,
+            "avg_ms_pair_wall": 2.0,
+        },
+        {
+            "method": "sift",
+            "split": "val",
+            "n_pairs": 1,
+            "auc": 0.7,
+            "eer": 0.2,
+            "eer_threshold": 0.55,
+            "far_at_eer": 0.2,
+            "frr_at_eer": 0.2,
+            "tar_at_far_1e_2": 0.5,
+            "frr_at_far_1e_2": 0.5,
+            "tar_at_far_1e_3": 0.4,
+            "frr_at_far_1e_3": 0.6,
+            "avg_ms_pair_reported": 1.0,
+            "avg_ms_pair_wall": 2.0,
+        },
     ]
 
     with summary_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -217,7 +282,13 @@ def test_render_results_md_orders_fusion_after_source_methods(tmp_path: Path) ->
 
     matrix.render_results_md(summary_csv, summary_md)
 
-    body_lines = [line for line in summary_md.read_text(encoding="utf-8").splitlines() if line.startswith("|")][2:]
+    lines = [line for line in summary_md.read_text(encoding="utf-8").splitlines() if line.startswith("|")]
+    assert "eer_threshold" in lines[0]
+    assert "far_at_eer" in lines[0]
+    assert "frr_at_eer" in lines[0]
+    assert "frr_at_far_1e_2" in lines[0]
+    assert "frr_at_far_1e_3" in lines[0]
+    body_lines = lines[2:]
     methods = [line.split("|")[1].strip() for line in body_lines]
     assert methods == ["sift", "dl_quick", "vit", matrix.FUSION_METHOD]
 

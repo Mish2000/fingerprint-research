@@ -40,30 +40,39 @@ def test_sourceafis_http_client_contract_encodes_binary_inputs_and_decodes_respo
             )
         if request.url.path == "/extract-template":
             assert payload is not None
-            image_payload = payload["image"]
-            assert image_payload["image_bytes_b64"] == base64.b64encode(b"fake png").decode("ascii")
+            assert payload["image_base64"] == base64.b64encode(b"fake png").decode("ascii")
+            assert payload["image_format"] == "png"
+            assert payload["metadata"]["image_id"] == "probe"
             return httpx.Response(
                 200,
                 json={
                     "provider_version": "3.18.1",
                     "template_format": "sourceafis",
                     "template_version": "3.18.1",
-                    "template_bytes_b64": base64.b64encode(b"template-probe").decode("ascii"),
+                    "template_base64": base64.b64encode(b"template-probe").decode("ascii"),
                     "metadata": {"extractor": "mock", "template_bytes_b64": "redacted"},
                 },
             )
         if request.url.path == "/verify":
+            assert payload is not None
+            assert payload["probe_template_base64"] == base64.b64encode(b"template-probe").decode("ascii")
+            assert payload["candidate_template_base64"] == base64.b64encode(b"template-candidate").decode("ascii")
             return httpx.Response(
                 200,
                 json={"score": 42.5, "latency_ms": 3.0, "metadata": {"matcher": "mock"}},
             )
         if request.url.path == "/identify":
+            assert payload is not None
+            assert payload["probe_template_base64"] == base64.b64encode(b"template-probe").decode("ascii")
+            assert payload["gallery"][0]["candidate_id"] == "g1"
+            assert payload["gallery"][0]["template_base64"] == base64.b64encode(b"template-candidate").decode("ascii")
+            assert payload["gallery"][0]["metadata"]["subject_id"] == "s1"
             return httpx.Response(
                 200,
                 json={
                     "candidates": [
-                        {"gallery_id": "g2", "subject_id": "s2", "score": 25.0},
-                        {"gallery_id": "g1", "subject_id": "s1", "score": 30.0},
+                        {"candidate_id": "g2", "metadata": {"subject_id": "s2"}, "score": 25.0},
+                        {"candidate_id": "g1", "metadata": {"subject_id": "s1"}, "score": 30.0},
                     ],
                     "latency_ms": 4.0,
                 },

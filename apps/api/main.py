@@ -86,6 +86,13 @@ from apps.api.schemas import (
     MatchResponse,
     ScannerCaptureRequest,
 )
+from src.fpbench.fingerprint_engine import (
+    FingerprintEngineError,
+    configured_provider_id,
+    get_default_engine,
+    get_engine,
+    list_engines,
+)
 from src.fpbench.identification.secure_split_store import IdentifyHints, SecureSplitFingerprintStore
 
 
@@ -308,6 +315,47 @@ def _method_capability_summary() -> dict[str, Any]:
     }
 
 
+def _engine_metadata_public_payload(metadata: Any) -> dict[str, Any]:
+    return asdict(metadata)
+
+
+def _fingerprint_engine_payload() -> dict[str, Any]:
+    registered_provider_ids = list(list_engines())
+    engines: list[dict[str, Any]] = []
+    for provider_id in registered_provider_ids:
+        try:
+            engines.append(_engine_metadata_public_payload(get_engine(provider_id).metadata()))
+        except Exception as exc:  # pragma: no cover - defensive health surface
+            engines.append(
+                {
+                    "provider_id": provider_id,
+                    "available": False,
+                    "unavailable_reason": _format_error(exc),
+                }
+            )
+
+    selected_provider = configured_provider_id()
+    selected_engine: dict[str, Any] | None = None
+    selection_error: str | None = None
+    try:
+        selected_engine = _engine_metadata_public_payload(get_default_engine().metadata())
+        selected_provider = str(selected_engine.get("provider_id") or selected_provider)
+    except FingerprintEngineError as exc:
+        selection_error = str(exc)
+    except Exception as exc:  # pragma: no cover - defensive health surface
+        selection_error = _format_error(exc)
+
+    return {
+        "configured_provider": selected_provider,
+        "selected_provider": selected_provider if selection_error is None else None,
+        "registered_provider_ids": registered_provider_ids,
+        "engines": engines,
+        "available_engines": engines,
+        "selected_engine": selected_engine,
+        "selection_error": selection_error,
+    }
+
+
 def _methods_payload() -> dict[str, Any]:
     registry = load_api_method_registry()
     availability = _method_availability()
@@ -408,6 +456,11 @@ def _browser_health_fields() -> dict[str, Any]:
     }
 
 
+@router.get("/fingerprint-engine/metadata")
+def fingerprint_engine_metadata() -> dict[str, Any]:
+    return _fingerprint_engine_payload()
+
+
 @router.get("/health")
 def health() -> dict[str, Any]:
     if not _lazy_startup_enabled() or _service is not None or _service_init_error is not None:
@@ -452,6 +505,7 @@ def health() -> dict[str, Any]:
         "identify_error": identify_error,
         **_browser_health_fields(),
         "methods": _health_method_availability(),
+        "fingerprint_engine": _fingerprint_engine_payload(),
         **_method_capability_summary(),
     }
 

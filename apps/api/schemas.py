@@ -12,6 +12,7 @@ class MatchMethod(str, Enum):
     minutiae = "minutiae"
     harris = "harris"
     sift = "sift"
+    sift_plain_roll_v2 = "sift_plain_roll_v2"
     dl = "dl"
     dedicated = "dedicated"
     vit = "vit"

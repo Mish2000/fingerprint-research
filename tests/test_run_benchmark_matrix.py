@@ -149,11 +149,21 @@ def test_benchmark_method_profiles_are_loaded_from_registry() -> None:
     assert profiles.loaded_from_registry is True
     assert list(profiles.canonical) == ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"]
     assert "dedicated" not in profiles.canonical
-    assert list(profiles.research_methods) == ["dedicated"]
+    assert "sift_plain_roll_v2" not in profiles.canonical
+    assert list(profiles.research_methods) == ["sift_plain_roll_v2", "dedicated"]
     assert list(profiles.dedicated) == ["dedicated"]
     assert matrix.BENCHMARK_METHOD_PROFILES == {
         "canonical": ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"],
-        "research": ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit", "dedicated"],
+        "research": [
+            "classic_v2",
+            "minutiae",
+            "harris",
+            "sift",
+            "dl_quick",
+            "vit",
+            "sift_plain_roll_v2",
+            "dedicated",
+        ],
         "dedicated": ["dedicated"],
     }
 
@@ -165,7 +175,16 @@ def test_research_profile_includes_dedicated_explicitly() -> None:
         include_research_methods=False,
     )
 
-    assert methods == ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit", "dedicated"]
+    assert methods == [
+        "classic_v2",
+        "minutiae",
+        "harris",
+        "sift",
+        "dl_quick",
+        "vit",
+        "sift_plain_roll_v2",
+        "dedicated",
+    ]
 
 
 def test_explicit_methods_can_run_dedicated_only() -> None:
@@ -185,7 +204,66 @@ def test_include_research_methods_appends_dedicated() -> None:
         include_research_methods=True,
     )
 
-    assert methods == ["sift", "vit", "dedicated"]
+    assert methods == ["sift", "vit", "sift_plain_roll_v2", "dedicated"]
+
+
+def test_build_eval_cmd_supports_sift_plain_roll_v2_research_method(tmp_path: Path) -> None:
+    cmd = matrix.build_eval_cmd(
+        outdir=tmp_path,
+        dataset="demo_ds",
+        data_dir=tmp_path / "dataset",
+        method="sift_plain_roll_v2",
+        split="test",
+        limit=25,
+        ensure_pairs=False,
+        dedicated_ckpt="auto",
+    )
+
+    assert cmd[cmd.index("--method") + 1] == "sift_plain_roll_v2"
+    assert cmd[cmd.index("--detector") + 1] == "sift"
+    assert cmd[cmd.index("--score_mode") + 1] == "inliers_times_inlier_ratio_times_log1p_matches"
+    assert cmd[cmd.index("--nfeatures") + 1] == "3000"
+    assert cmd[cmd.index("--target_size") + 1] == "768"
+    assert cmd[cmd.index("--blur_ksize") + 1] == "0"
+    assert cmd[cmd.index("--ransac_model") + 1] == "affine_full_2d"
+    assert cmd[cmd.index("--ransac_thresh") + 1] == "3.0"
+
+
+def test_official_run_path_preserves_sift_v2_and_canonical_sift_provenance_defaults(tmp_path: Path) -> None:
+    def value(cmd: list[str], flag: str) -> str:
+        return cmd[cmd.index(flag) + 1]
+
+    common = {
+        "outdir": tmp_path,
+        "dataset": "demo_ds",
+        "data_dir": tmp_path / "dataset",
+        "split": "test",
+        "limit": 0,
+        "ensure_pairs": False,
+        "dedicated_ckpt": "auto",
+    }
+    v2_cmd = matrix.build_eval_cmd(method="sift_plain_roll_v2", **common)
+    sift_cmd = matrix.build_eval_cmd(method="sift", **common)
+
+    assert value(v2_cmd, "--method") == "sift_plain_roll_v2"
+    assert value(v2_cmd, "--detector") == "sift"
+    assert value(v2_cmd, "--target_size") == "768"
+    assert value(v2_cmd, "--nfeatures") == "3000"
+    assert value(v2_cmd, "--blur_ksize") == "0"
+    assert value(v2_cmd, "--ratio") == "0.75"
+    assert value(v2_cmd, "--ransac_model") == "affine_full_2d"
+    assert value(v2_cmd, "--ransac_thresh") == "3.0"
+    assert value(v2_cmd, "--score_mode") == "inliers_times_inlier_ratio_times_log1p_matches"
+
+    assert value(sift_cmd, "--method") == "sift"
+    assert value(sift_cmd, "--detector") == "sift"
+    assert value(sift_cmd, "--target_size") == "512"
+    assert value(sift_cmd, "--nfeatures") == "1500"
+    assert value(sift_cmd, "--blur_ksize") == "3"
+    assert value(sift_cmd, "--ratio") == "0.75"
+    assert value(sift_cmd, "--ransac_model") == "homography"
+    assert value(sift_cmd, "--ransac_thresh") == "3.0"
+    assert value(sift_cmd, "--score_mode") == "inliers_over_min_keypoints"
 
 
 def test_render_results_md_orders_fusion_after_source_methods(tmp_path: Path) -> None:

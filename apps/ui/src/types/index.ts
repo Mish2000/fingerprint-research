@@ -38,7 +38,15 @@ export type BenchmarkSortMode = (typeof BENCHMARK_SORT_MODE_VALUES)[number];
 export const BENCHMARK_BEST_METRIC_VALUES = ["best_auc", "best_eer", "best_latency"] as const;
 export type BenchmarkBestMetric = (typeof BENCHMARK_BEST_METRIC_VALUES)[number];
 
-export const IDENTIFICATION_RETRIEVAL_METHOD_VALUES = ["dl", "vit"] as const;
+export const IDENTIFICATION_RETRIEVAL_METHOD_VALUES = [
+    "classic_orb",
+    "classic_gftt_orb",
+    "minutiae",
+    "harris",
+    "sift",
+    "dl",
+    "vit",
+] as const;
 export type IdentificationRetrievalMethod = (typeof IDENTIFICATION_RETRIEVAL_METHOD_VALUES)[number];
 
 export type JsonRecord = Record<string, unknown>;
@@ -596,7 +604,7 @@ export type EnrollFingerprintRequest = {
 export type EnrollFingerprintResponse = {
     random_id: string;
     created_at: string;
-    vector_methods: string[];
+    vector_methods: IdentificationRetrievalMethod[];
     image_sha256: string;
     storage_layout: StorageLayout;
 };

@@ -9,7 +9,7 @@ from typing import Dict, List
 
 
 FALLBACK_CANONICAL_BENCHMARK_METHODS = ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"]
-FALLBACK_RESEARCH_BENCHMARK_METHODS = ["dedicated"]
+FALLBACK_RESEARCH_BENCHMARK_METHODS = ["sift_plain_roll_v2", "dedicated"]
 PROFILE_NAMES = ("canonical", "dedicated", "research")
 
 

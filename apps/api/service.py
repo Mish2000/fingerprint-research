@@ -35,6 +35,8 @@ from src.fpbench.matchers.matching_baseline import (
     match_orb,
     match_sift,
     orb_extract,
+    ransac_inliers_for_model,
+    score_local_feature_counts,
     sift_extract,
 )
 from src.fpbench.preprocess.preprocess import PreprocessConfig, load_gray, preprocess_image
@@ -244,6 +246,9 @@ class MatchService:
         minutiae_defaults = _copy_dict(self.method_registry.definition_for("minutiae").runtime_defaults)
         harris_defaults = _copy_dict(self.method_registry.definition_for("harris").runtime_defaults)
         sift_defaults = _copy_dict(self.method_registry.definition_for("sift").runtime_defaults)
+        sift_plain_roll_v2_defaults = _copy_dict(
+            self.method_registry.definition_for("sift_plain_roll_v2").runtime_defaults
+        )
         dl_defaults = _copy_dict(self.method_registry.definition_for("dl").runtime_defaults)
         vit_defaults = _copy_dict(self.method_registry.definition_for("vit").runtime_defaults)
         dedicated_defaults = _copy_dict(self.method_registry.definition_for("dedicated").runtime_defaults)
@@ -275,6 +280,18 @@ class MatchService:
                 sift_defaults,
                 ("nfeatures", "nOctaveLayers", "contrastThreshold", "edgeThreshold", "sigma"),
             )
+        )
+        self.sift_plain_roll_v2_cfg = SIFTConfig(
+            **_extract_kwargs(
+                sift_plain_roll_v2_defaults,
+                ("nfeatures", "nOctaveLayers", "contrastThreshold", "edgeThreshold", "sigma"),
+            )
+        )
+        self.sift_plain_roll_v2_prep_cfg = PreprocessConfig(
+            target_size=int(sift_plain_roll_v2_defaults.get("target_size", 768)),
+            clahe_clip=float(sift_plain_roll_v2_defaults.get("clahe_clip", self.prep_cfg.clahe_clip)),
+            clahe_grid=_tuple_grid(sift_plain_roll_v2_defaults.get("clahe_grid"), self.prep_cfg.clahe_grid),
+            blur_ksize=int(sift_plain_roll_v2_defaults.get("blur_ksize", 0)),
         )
         if "clahe_grid" in minutiae_defaults and isinstance(minutiae_defaults["clahe_grid"], list):
             minutiae_defaults["clahe_grid"] = tuple(minutiae_defaults["clahe_grid"])
@@ -333,6 +350,22 @@ class MatchService:
         self._sift_match_defaults = {
             "ratio": float(sift_defaults.get("ratio", 0.75)),
             "reproj": float(sift_defaults.get("reproj_threshold", 3.0)),
+        }
+        self._sift_plain_roll_v2_match_defaults = {
+            "ratio": float(sift_plain_roll_v2_defaults.get("ratio", 0.75)),
+            "reproj": float(
+                sift_plain_roll_v2_defaults.get(
+                    "reproj_threshold",
+                    sift_plain_roll_v2_defaults.get("ransac_thresh", 3.0),
+                )
+            ),
+            "ransac_model": str(sift_plain_roll_v2_defaults.get("ransac_model", "affine_full_2d")),
+            "score_mode": str(
+                sift_plain_roll_v2_defaults.get(
+                    "score_mode",
+                    "inliers_times_inlier_ratio_times_log1p_matches",
+                )
+            ),
         }
 
         self.dl_resnet: BaselineDL | None = None
@@ -670,12 +703,25 @@ class MatchService:
         max_draw: int = 200,
         ratio: float,
         reproj: float,
+        sift_cfg: SIFTConfig | None = None,
+        preprocess_cfg: PreprocessConfig | None = None,
+        score_mode: str = "inliers_over_min_keypoints",
+        ransac_model: str = "homography",
     ) -> Tuple[float, Dict[str, Any], Optional[Overlay]]:
-        img1 = self._preprocess_path(path_a)
-        img2 = self._preprocess_path(path_b)
+        img1 = (
+            preprocess_image(load_gray(path_a), preprocess_cfg)
+            if preprocess_cfg is not None
+            else self._preprocess_path(path_a)
+        )
+        img2 = (
+            preprocess_image(load_gray(path_b), preprocess_cfg)
+            if preprocess_cfg is not None
+            else self._preprocess_path(path_b)
+        )
 
-        kps1, desc1 = sift_extract(img1, None, self.sift_cfg)
-        kps2, desc2 = sift_extract(img2, None, self.sift_cfg)
+        cfg = sift_cfg or self.sift_cfg
+        kps1, desc1 = sift_extract(img1, None, cfg)
+        kps2, desc2 = sift_extract(img2, None, cfg)
 
         if desc1 is None or desc2 is None or len(kps1) == 0 or len(kps2) == 0:
             meta = {
@@ -690,17 +736,41 @@ class MatchService:
 
         mask = None
         inliers = 0
-        if len(matches) >= 8:
-            pts1 = np.float32([kps1[m.queryIdx].pt for m in matches])
-            pts2 = np.float32([kps2[m.trainIdx].pt for m in matches])
-            _, mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, ransacReprojThreshold=reproj)
-            if mask is not None:
-                mask = mask.reshape(-1).astype(np.uint8)
-                inliers = int(mask.sum())
+        min_matches = 8 if str(ransac_model) == "homography" else 3
+        if len(matches) >= min_matches:
+            inliers, mask = ransac_inliers_for_model(
+                kps1,
+                kps2,
+                matches,
+                ransac_model=str(ransac_model),
+                ransac_thresh=float(reproj),
+            )
 
-        denom = max(1, min(len(kps1), len(kps2)))
-        score = float(inliers / denom)
-        meta = {"inliers": int(inliers), "matches": int(len(matches)), "k1": len(kps1), "k2": len(kps2)}
+        score = score_local_feature_counts(
+            score_mode=str(score_mode),
+            inliers=int(inliers),
+            matches=int(len(matches)),
+            k1=len(kps1),
+            k2=len(kps2),
+            normalization_k=int(cfg.nfeatures),
+        )
+        meta = {
+            "inliers": int(inliers),
+            "matches": int(len(matches)),
+            "k1": len(kps1),
+            "k2": len(kps2),
+        }
+        if str(score_mode) != "inliers_over_min_keypoints" or str(ransac_model) != "homography":
+            meta.update(
+                {
+                    "score_mode": str(score_mode),
+                    "geometry_model": str(ransac_model),
+                    "inlier_ratio": float(inliers) / float(max(len(matches), 1)),
+                    "nfeatures": int(cfg.nfeatures),
+                    "target_size": int(preprocess_cfg.target_size) if preprocess_cfg is not None else self.prep_cfg.target_size,
+                    "blur_ksize": int(preprocess_cfg.blur_ksize) if preprocess_cfg is not None else self.prep_cfg.blur_ksize,
+                }
+            )
 
         ov = None
         if return_overlay:
@@ -881,6 +951,31 @@ class MatchService:
                 return_overlay=return_overlay,
                 ratio=float(self._sift_match_defaults["ratio"]),
                 reproj=float(self._sift_match_defaults["reproj"]),
+            )
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            return MatchResponse(
+                method=method_enum,
+                score=score,
+                decision=bool(score >= th),
+                threshold=th,
+                latency_ms=float(latency_ms),
+                meta=meta,
+                overlay=ov,
+                method_metadata=method_metadata,
+            )
+
+        if method_enum == MatchMethod.sift_plain_roll_v2:
+            t0 = time.perf_counter()
+            score, meta, ov = self._sift_score_and_overlay(
+                path_a,
+                path_b,
+                return_overlay=return_overlay,
+                ratio=float(self._sift_plain_roll_v2_match_defaults["ratio"]),
+                reproj=float(self._sift_plain_roll_v2_match_defaults["reproj"]),
+                sift_cfg=self.sift_plain_roll_v2_cfg,
+                preprocess_cfg=self.sift_plain_roll_v2_prep_cfg,
+                score_mode=str(self._sift_plain_roll_v2_match_defaults["score_mode"]),
+                ransac_model=str(self._sift_plain_roll_v2_match_defaults["ransac_model"]),
             )
             latency_ms = (time.perf_counter() - t0) * 1000.0
             return MatchResponse(

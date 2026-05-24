@@ -1082,7 +1082,7 @@ export function normalizeEnrollFingerprintResponse(payload: unknown): EnrollFing
     return {
         random_id: expectString(record, "random_id", "EnrollFingerprintResponse"),
         created_at: expectString(record, "created_at", "EnrollFingerprintResponse"),
-        vector_methods: expectStringArray(record.vector_methods, "EnrollFingerprintResponse.vector_methods"),
+        vector_methods: normalizeRetrievalMethodArray(record.vector_methods, "EnrollFingerprintResponse.vector_methods"),
         image_sha256: expectString(record, "image_sha256", "EnrollFingerprintResponse"),
         storage_layout: normalizeStringRecord(record.storage_layout ?? {}, "EnrollFingerprintResponse.storage_layout"),
     };

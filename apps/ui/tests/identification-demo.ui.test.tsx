@@ -167,11 +167,16 @@ function createStats(totalEnrolled: number, demoSeededCount: number, browserSeed
 }
 
 const retrievalMethodLabels = [
+    "Classic (ORB)",
+    "Classic (ROI GFTT+ORB)",
+    "Classic (Minutiae)",
+    "Classic (Harris + ORB)",
+    "Classic (SIFT)",
     "Deep Learning (ResNet18)",
     "Deep Learning (ViT)",
 ];
 
-const retrievalRerankExplanation = "Vector retrieval uses embedding-based methods for fast shortlist generation; classic methods are applied during reranking.";
+const retrievalRerankExplanation = "Direct retrieval methods build the shortlist; rerank methods can rescore the top candidates.";
 
 const identifyGalleryItems = [
     {
@@ -828,10 +833,18 @@ afterEach(() => {
 });
 
 describe("Identification demo gallery workspace", () => {
-    it("limits direct retrieval options to embedding methods", () => {
+    it("lists every registry-declared direct retrieval option without dedicated", () => {
         const directMethods = [...IDENTIFICATION_RETRIEVAL_METHOD_VALUES];
 
-        expect(directMethods).toEqual(["dl", "vit"]);
+        expect(directMethods).toEqual([
+            "classic_orb",
+            "classic_gftt_orb",
+            "minutiae",
+            "harris",
+            "sift",
+            "dl",
+            "vit",
+        ]);
         expect(directMethods).not.toContain("dedicated");
         expect(IDENTIFICATION_RETRIEVAL_OPTIONS.map((option) => option.value)).toEqual(directMethods);
     });

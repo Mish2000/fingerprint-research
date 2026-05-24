@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, List
 
@@ -80,6 +81,106 @@ def match_sift(desc1, desc2, ratio: float = 0.75):
             if m.distance < ratio * n.distance:
                 good.append(m)
     return good
+
+SIFT_PLAIN_ROLL_V2_SCORE_MODE = "inliers_times_inlier_ratio_times_log1p_matches"
+LOCAL_FEATURE_SCORE_MODES = (
+    "inliers_over_k",
+    "inliers",
+    "matches",
+    "inliers_over_matches",
+    "inliers_over_min_keypoints",
+    SIFT_PLAIN_ROLL_V2_SCORE_MODE,
+)
+RANSAC_MODELS = ("homography", "affine_partial_2d", "affine_full_2d")
+
+
+def score_local_feature_counts(
+    *,
+    score_mode: str,
+    inliers: int,
+    matches: int,
+    k1: int,
+    k2: int,
+    normalization_k: int,
+) -> float:
+    matches = int(matches)
+    inliers = int(inliers)
+    if score_mode == "inliers":
+        return float(inliers)
+    if score_mode == "matches":
+        return float(matches)
+    if score_mode == "inliers_over_matches":
+        return float(inliers) / float(max(matches, 1))
+    if score_mode == "inliers_over_k":
+        return float(inliers) / float(max(1, int(normalization_k)))
+    if score_mode == "inliers_over_min_keypoints":
+        denom = max(1, min(int(k1), int(k2)))
+        return float(inliers) / float(denom)
+    if score_mode == SIFT_PLAIN_ROLL_V2_SCORE_MODE:
+        return score_sift_plain_roll_v2_counts(matches=matches, inliers=inliers)
+    raise ValueError(f"Unknown score_mode: {score_mode}")
+
+
+def score_sift_plain_roll_v2_counts(*, matches: int, inliers: int) -> float:
+    matches = int(matches)
+    inliers = int(inliers)
+    if matches <= 0 or inliers <= 0:
+        return 0.0
+    inlier_ratio = float(inliers) / float(max(matches, 1))
+    return float(inliers) * inlier_ratio * math.log1p(float(matches))
+
+
+def ransac_inliers_for_model(
+    kps1,
+    kps2,
+    matches,
+    *,
+    ransac_model: str = "homography",
+    ransac_thresh: float = 3.0,
+) -> Tuple[int, Optional[np.ndarray]]:
+    model = str(ransac_model)
+    min_matches = 8 if model == "homography" else 3
+    if len(matches) < min_matches:
+        return 0, None
+
+    pts1 = np.float32([kps1[m.queryIdx].pt for m in matches])
+    pts2 = np.float32([kps2[m.trainIdx].pt for m in matches])
+
+    mask = None
+    if model == "homography":
+        _, mask = cv2.findHomography(
+            pts1,
+            pts2,
+            cv2.RANSAC,
+            ransacReprojThreshold=float(ransac_thresh),
+        )
+    elif model == "affine_partial_2d":
+        cv2.setRNGSeed(0)
+        _, mask = cv2.estimateAffinePartial2D(
+            pts1,
+            pts2,
+            method=cv2.RANSAC,
+            ransacReprojThreshold=float(ransac_thresh),
+            maxIters=2000,
+            confidence=0.99,
+        )
+    elif model == "affine_full_2d":
+        cv2.setRNGSeed(0)
+        _, mask = cv2.estimateAffine2D(
+            pts1,
+            pts2,
+            method=cv2.RANSAC,
+            ransacReprojThreshold=float(ransac_thresh),
+            maxIters=2000,
+            confidence=0.99,
+        )
+    else:
+        raise ValueError(f"Unsupported ransac_model: {ransac_model}")
+
+    if mask is None:
+        return 0, None
+    flat_mask = mask.reshape(-1).astype(np.uint8)
+    return int(flat_mask.sum()), flat_mask
 
 def _harris_points(
     img_u8: np.ndarray,

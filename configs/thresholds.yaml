@@ -9,6 +9,7 @@ decision:
     minutiae: 0.25
     harris: 0.01
     sift: 0.01
+    sift_plain_roll_v2: 6.866327
     dl: 0.45
     vit: 0.45
     dedicated: 0.85
@@ -173,6 +174,29 @@ classic_sift:
     ratio: 0.75
     ransac_thresh: 3.0
     method_semantics_epoch: sift_runtime_aligned_v1
+sift_plain_roll_v2:
+  api_runtime:
+    detector: sift
+    target_size: 768
+    nfeatures: 3000
+    blur_ksize: 0
+    ratio: 0.75
+    ransac_model: affine_full_2d
+    ransac_thresh: 3.0
+    score_mode: inliers_times_inlier_ratio_times_log1p_matches
+  benchmark_defaults:
+    detector: sift
+    preprocess: runtime_square_768_clahe_no_blur
+    mask_mode: none
+    geometry_model: affine_full_2d
+    score_mode: inliers_times_inlier_ratio_times_log1p_matches
+    nfeatures: 3000
+    target_size: 768
+    blur_ksize: 0
+    ratio: 0.75
+    ransac_thresh: 3.0
+    method_semantics_epoch: sift_plain_roll_v2_research_v1
+    threshold_calibration_note: Experimental NIST SD300B plain-vs-roll candidate; calibrate on protocol-specific validation scores before using as an operating point.
 dedicated:
   matcher_defaults:
     patch: 48

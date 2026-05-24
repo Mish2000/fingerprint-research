@@ -10,7 +10,7 @@ from apps.api.main import app
 from apps.api.method_registry import METHODS_CONFIG_PATH, THRESHOLDS_CONFIG_PATH, load_api_method_registry
 
 DIRECT_RETRIEVAL_METHODS = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
-RERANK_ONLY_METHODS = ["dedicated"]
+RERANK_ONLY_METHODS = ["sift_plain_roll_v2", "dedicated"]
 DEDICATED_RETRIEVAL_UNAVAILABLE_REASON = "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
 DEDICATED_FUTURE_ADAPTER_HINT = (
     "A future dedicated_aggregated_patch_descriptor_v1 adapter can be added once global pooling is validated."
@@ -132,7 +132,17 @@ def test_methods_endpoint_returns_structured_catalog(client: TestClient) -> None
     payload = response.json()
     entries = {entry["id"]: entry for entry in payload["methods"]}
 
-    assert set(entries) >= {"classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "dedicated", "vit"}
+    assert set(entries) >= {
+        "classic_orb",
+        "classic_gftt_orb",
+        "minutiae",
+        "harris",
+        "sift",
+        "sift_plain_roll_v2",
+        "dl",
+        "dedicated",
+        "vit",
+    }
     assert payload["direct_vector_retrieval_methods"] == DIRECT_RETRIEVAL_METHODS
     assert payload["rerank_only_methods"] == RERANK_ONLY_METHODS
     assert set(payload["method_capabilities"]) >= set(entries)
@@ -228,10 +238,40 @@ def test_methods_endpoint_returns_structured_catalog(client: TestClient) -> None
     assert sift_entry["benchmark_defaults"]["score_mode"] == "inliers_over_min_keypoints"
     assert sift_entry["benchmark_defaults"]["geometry_model"] == "homography"
     assert sift_entry["benchmark_defaults"]["method_semantics_epoch"] == "sift_runtime_aligned_v1"
+    assert sift_entry["benchmark_defaults"]["target_size"] == 512
+    assert sift_entry["benchmark_defaults"]["nfeatures"] == 1500
+    assert sift_entry["benchmark_defaults"]["ratio"] == pytest.approx(0.75)
     assert sift_entry["retrieval_capability"]["supports_direct_vector_retrieval"] is True
     assert sift_entry["retrieval_capability"]["retrieval_vector_dim"] == 512
     assert sift_entry["retrieval_capability"]["retrieval_vector_kind"] == CLASSIC_RETRIEVAL_KINDS["sift"]
     assert sift_entry["retrieval_capability"]["retrieval_distance_metric"] == "cosine"
+
+    sift_v2_entry = entries["sift_plain_roll_v2"]
+    assert sift_v2_entry["label"] == "SIFT Plain/Roll v2 (Experimental)"
+    assert sift_v2_entry["status"] == "experimental"
+    assert sift_v2_entry["presentation_tier"] == "research"
+    assert sift_v2_entry["showcase_eligible"] is False
+    assert sift_v2_entry["benchmark_default"] is False
+    assert sift_v2_entry["canonical_default"] is False
+    assert sift_v2_entry["research_track"] is True
+    assert sift_v2_entry["is_experimental"] is True
+    assert sift_v2_entry["benchmark_defaults"]["target_size"] == 768
+    assert sift_v2_entry["benchmark_defaults"]["nfeatures"] == 3000
+    assert sift_v2_entry["benchmark_defaults"]["blur_ksize"] == 0
+    assert sift_v2_entry["benchmark_defaults"]["ratio"] == pytest.approx(0.75)
+    assert sift_v2_entry["benchmark_defaults"]["geometry_model"] == "affine_full_2d"
+    assert sift_v2_entry["benchmark_defaults"]["ransac_thresh"] == pytest.approx(3.0)
+    assert (
+        sift_v2_entry["benchmark_defaults"]["score_mode"]
+        == "inliers_times_inlier_ratio_times_log1p_matches"
+    )
+    assert sift_v2_entry["benchmark_defaults"]["method_semantics_epoch"] == "sift_plain_roll_v2_research_v1"
+    assert sift_v2_entry["identification_roles"]["experimental"] is True
+    assert sift_v2_entry["identification_roles"]["supports_pairwise_rerank"] is True
+    assert sift_v2_entry["identification_roles"]["supports_direct_vector_retrieval"] is False
+    assert sift_v2_entry["retrieval_capability"]["retrieval_capability_status"] == "experimental_rerank_only"
+    assert sift_v2_entry["retrieval_capability"]["direct_retrieval_exclusion"] == "intentional_rerank_only"
+    assert "experimental research method" in sift_v2_entry["showcase_exclusion_note"]
 
     dedicated_entry = entries["dedicated"]
     assert dedicated_entry["status"] == "experimental"
@@ -300,6 +340,13 @@ def test_registry_exposes_method_level_retrieval_capability_contract() -> None:
     assert dedicated_capability["retrieval_unavailable_reason"] == DEDICATED_RETRIEVAL_UNAVAILABLE_REASON
     assert dedicated_capability["future_adapter_hint"] == DEDICATED_FUTURE_ADAPTER_HINT
 
+    sift_v2_capability = capabilities["sift_plain_roll_v2"]
+    assert sift_v2_capability["experimental"] is True
+    assert sift_v2_capability["research_track"] is True
+    assert sift_v2_capability["supports_pairwise_rerank"] is True
+    assert sift_v2_capability["supports_direct_vector_retrieval"] is False
+    assert sift_v2_capability["retrieval_capability_status"] == "experimental_rerank_only"
+
 
 def test_threshold_registry_marks_dl_and_vit_benchmark_defaults_as_masked() -> None:
     payload = yaml.safe_load(THRESHOLDS_CONFIG_PATH.read_text(encoding="utf-8"))
@@ -312,6 +359,8 @@ def test_threshold_registry_marks_dl_and_vit_benchmark_defaults_as_masked() -> N
     assert payload["classic_harris"]["benchmark_defaults"]["geometry_model"] == "homography"
     assert payload["classic_sift"]["benchmark_defaults"]["score_mode"] == "inliers_over_min_keypoints"
     assert payload["classic_sift"]["benchmark_defaults"]["geometry_model"] == "homography"
+    assert payload["sift_plain_roll_v2"]["benchmark_defaults"]["score_mode"] == "inliers_times_inlier_ratio_times_log1p_matches"
+    assert payload["sift_plain_roll_v2"]["benchmark_defaults"]["geometry_model"] == "affine_full_2d"
     assert payload["minutiae"]["benchmark_defaults"]["method_semantics_epoch"] == "minutiae_crossing_number_aligned_v2"
 
 
@@ -328,6 +377,7 @@ def test_active_method_registry_is_fingerprint_only() -> None:
         "minutiae",
         "harris",
         "sift",
+        "sift_plain_roll_v2",
         "dl",
         "dedicated",
         "vit",
@@ -343,7 +393,8 @@ def test_active_method_registry_is_fingerprint_only() -> None:
     assert "fusion_balanced_v1" in benchmark_runtime
     assert registry.canonical_benchmark_methods() == ("classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit")
     assert "dedicated" not in registry.canonical_benchmark_methods()
-    assert "dedicated" in registry.research_methods()
+    assert "sift_plain_roll_v2" not in registry.canonical_benchmark_methods()
+    assert registry.research_methods() == ("sift_plain_roll_v2", "dedicated")
 
     fusion_payload = methods_payload["methods"]["fusion_balanced_v1"]
     fusion_text = " ".join(

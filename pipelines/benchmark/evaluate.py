@@ -29,6 +29,7 @@ METHOD_SEMANTICS_EPOCHS = {
     "minutiae": "minutiae_crossing_number_aligned_v2",
     "harris": "harris_runtime_aligned_v1",
     "sift": "sift_runtime_aligned_v1",
+    "sift_plain_roll_v2": "sift_plain_roll_v2_research_v1",
 }
 
 
@@ -230,6 +231,89 @@ def save_roc_png(y_true: np.ndarray, scores: np.ndarray, out_png: Path, title: s
     plt.close()
 
 
+def roc_skip_reason(y_true: np.ndarray, scores: np.ndarray) -> Optional[str]:
+    y_true = np.asarray(y_true)
+    scores = np.asarray(scores, dtype=float)
+
+    if y_true.size == 0 or scores.size == 0:
+        return "ROC skipped because the score file is empty."
+
+    labels = sorted({int(x) for x in y_true.tolist()})
+    if len(labels) < 2:
+        return f"ROC skipped because the pair file contains only one label: {labels[0] if labels else 'none'}."
+
+    valid = np.isfinite(scores)
+    if not np.any(valid):
+        return "ROC skipped because no finite scores were produced."
+
+    valid_labels = sorted({int(x) for x in y_true[valid].tolist()})
+    if len(valid_labels) < 2:
+        return (
+            "ROC skipped because finite-score rows contain only one label: "
+            f"{valid_labels[0] if valid_labels else 'none'}."
+        )
+
+    return None
+
+
+class OperatingMetrics(NamedTuple):
+    threshold: Optional[float]
+    accepted_count: Optional[int]
+    rejected_count: Optional[int]
+    false_accept_count: Optional[int]
+    true_reject_count: Optional[int]
+    tar: Optional[float]
+    frr: Optional[float]
+    far: Optional[float]
+
+
+def compute_operating_metrics(
+    y_true: np.ndarray,
+    scores: np.ndarray,
+    threshold: Optional[float],
+) -> OperatingMetrics:
+    if threshold is None:
+        return OperatingMetrics(
+            threshold=None,
+            accepted_count=None,
+            rejected_count=None,
+            false_accept_count=None,
+            true_reject_count=None,
+            tar=None,
+            frr=None,
+            far=None,
+        )
+
+    y_true = np.asarray(y_true).astype(int)
+    scores = np.asarray(scores, dtype=float)
+    accepted = np.isfinite(scores) & (scores >= float(threshold))
+
+    positive_mask = y_true == 1
+    negative_mask = y_true == 0
+    n_positive = int(np.sum(positive_mask))
+    n_negative = int(np.sum(negative_mask))
+
+    accepted_count = int(np.sum(accepted & positive_mask))
+    rejected_count = int(n_positive - accepted_count)
+    false_accept_count = int(np.sum(accepted & negative_mask))
+    true_reject_count = int(n_negative - false_accept_count)
+
+    tar = float(accepted_count / n_positive) if n_positive > 0 else None
+    frr = float(rejected_count / n_positive) if n_positive > 0 else None
+    far = float(false_accept_count / n_negative) if n_negative > 0 else None
+
+    return OperatingMetrics(
+        threshold=float(threshold),
+        accepted_count=accepted_count if n_positive > 0 else None,
+        rejected_count=rejected_count if n_positive > 0 else None,
+        false_accept_count=false_accept_count if n_negative > 0 else None,
+        true_reject_count=true_reject_count if n_negative > 0 else None,
+        tar=tar,
+        frr=frr,
+        far=far,
+    )
+
+
 # -----------------------------
 # Standardized result row
 # -----------------------------
@@ -253,6 +337,21 @@ class EvalRow:
     scores_csv: str
     meta_json: Optional[str]
     config_json: str
+    pair_set_name: Optional[str] = None
+    n_positive: Optional[int] = None
+    n_negative: Optional[int] = None
+    threshold: Optional[float] = None
+    threshold_source: Optional[str] = None
+    accepted_count: Optional[int] = None
+    rejected_count: Optional[int] = None
+    false_accept_count: Optional[int] = None
+    true_reject_count: Optional[int] = None
+    tar: Optional[float] = None
+    frr: Optional[float] = None
+    far: Optional[float] = None
+    total_runtime_seconds: Optional[float] = None
+    roc_status: Optional[str] = None
+    roc_skip_reason: Optional[str] = None
 
 
 SUMMARY_HEADER = [
@@ -274,6 +373,21 @@ SUMMARY_HEADER = [
     "scores_csv",
     "meta_json",
     "config_json",
+    "pair_set_name",
+    "n_positive",
+    "n_negative",
+    "threshold",
+    "threshold_source",
+    "accepted_count",
+    "rejected_count",
+    "false_accept_count",
+    "true_reject_count",
+    "tar",
+    "frr",
+    "far",
+    "total_runtime_seconds",
+    "roc_status",
+    "roc_skip_reason",
 ]
 
 
@@ -462,13 +576,21 @@ def resolve_dedicated_ckpt_auto(root: Path) -> Optional[Path]:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Unified evaluation orchestrator (Week 5).")
     ap.add_argument("--method", type=str, default="dl_quick",
-                    choices=["classic_v2", "minutiae", "harris", "sift", "dl_quick", "dedicated", "vit", "fusion_balanced_v1"])
+                    choices=["classic_v2", "minutiae", "harris", "sift", "sift_plain_roll_v2", "dl_quick", "dedicated", "vit", "fusion_balanced_v1"])
     ap.add_argument("--split", default="val", choices=["train", "val", "test"])
     ap.add_argument("--limit", type=int, default=0, help="If >0, evaluate only first N pairs (quick smoke tests).")
     ap.add_argument("--dataset", type=str, default="nist_sd300b",
                     help="Dataset name (e.g., nist_sd300b, nist_sd300c)")
     ap.add_argument("--data_dir", type=str, default="",
                     help="Optional dataset dir. Supports either data/processed/<dataset> or data/manifests/<dataset>.")
+    ap.add_argument("--pairs_file", type=str, default="",
+                    help="Optional explicit pair CSV. When provided, it overrides pairs_<split>.csv resolution.")
+    ap.add_argument("--pair_set_name", type=str, default="",
+                    help="Display/result name for --pairs_file, e.g. positive_1000 or negative_1000.")
+    ap.add_argument("--operating_threshold", type=float, default=None,
+                    help="Optional fixed score threshold used for TAR/FRR/FAR count metrics.")
+    ap.add_argument("--threshold_source", type=str, default="",
+                    help="Human-readable source for --operating_threshold calibration.")
 
     ap.add_argument("--out_scores", type=str, default="", help="Optional explicit scores CSV output path.")
     ap.add_argument("--out_roc", type=str, default="", help="Optional explicit ROC PNG output path.")
@@ -484,11 +606,21 @@ def main() -> None:
     # Classic options
     ap.add_argument("--detector", type=str, default="gftt_orb", choices=["orb", "gftt_orb", "harris_orb", "sift"])
     ap.add_argument("--score_mode", type=str, default="inliers_over_k",
-                    choices=["inliers_over_k", "inliers", "matches", "inliers_over_matches", "inliers_over_min_keypoints"])
+                    choices=[
+                        "inliers_over_k",
+                        "inliers",
+                        "matches",
+                        "inliers_over_matches",
+                        "inliers_over_min_keypoints",
+                        "inliers_times_inlier_ratio_times_log1p_matches",
+                    ])
     ap.add_argument("--nfeatures", type=int, default=1500)
     ap.add_argument("--long_edge", type=int, default=512)
     ap.add_argument("--target_size", type=int, default=512)
+    ap.add_argument("--blur_ksize", type=int, default=3)
     ap.add_argument("--ratio", type=float, default=0.75)
+    ap.add_argument("--ransac_model", type=str, default="homography",
+                    choices=["homography", "affine_partial_2d", "affine_full_2d"])
     ap.add_argument("--ransac_thresh", type=float, default=4.0)
 
     # Minutiae options
@@ -539,9 +671,15 @@ def main() -> None:
     input_dir = parse_file_uri(args.data_dir) if args.data_dir else None
     data_dir = resolve_dataset_dir(root, args.dataset, input_dir)
     manifest_path = data_dir / "manifest.csv"
-    pairs_path = resolve_pairs_path(data_dir, args.split)
+    custom_pairs_file = bool(str(args.pairs_file).strip())
+    pairs_path = parse_file_uri(args.pairs_file) if custom_pairs_file else resolve_pairs_path(data_dir, args.split)
+    pair_set_name = (
+        str(args.pair_set_name).strip()
+        if str(args.pair_set_name).strip()
+        else (pairs_path.stem if custom_pairs_file else args.split)
+    )
 
-    if args.ensure_pairs and not pairs_path.exists():
+    if args.ensure_pairs and not custom_pairs_file and not pairs_path.exists():
         gen_script = root / "pipelines" / "ingest" / "generate_pairs.py"
         cmd_gen = [sys.executable, str(gen_script), "--dataset", args.dataset, "--overwrite"]
         if args.data_dir:
@@ -562,13 +700,13 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     out_scores = parse_file_uri(args.out_scores) if args.out_scores else (
-        out_dir / f"scores_{args.dataset}_{args.method}_{args.split}.csv"
+        out_dir / f"scores_{args.dataset}_{args.method}_{pair_set_name}.csv"
     )
     out_roc = parse_file_uri(args.out_roc) if args.out_roc else (
-        out_dir / f"roc_{args.dataset}_{args.method}_{args.split}.png"
+        out_dir / f"roc_{args.dataset}_{args.method}_{pair_set_name}.png"
     )
     out_run_meta = parse_file_uri(args.out_run_meta) if args.out_run_meta else (
-        out_dir / f"run_{args.dataset}_{args.method}_{args.split}.meta.json"
+        out_dir / f"run_{args.dataset}_{args.method}_{pair_set_name}.meta.json"
     )
 
     ensure_parent(out_scores)
@@ -580,8 +718,12 @@ def main() -> None:
 
     resolved_detector = args.detector
     resolved_score_mode = args.score_mode
+    resolved_nfeatures = args.nfeatures
+    resolved_ratio = args.ratio
     resolved_ransac_thresh = args.ransac_thresh
     resolved_target_size = args.target_size
+    resolved_blur_ksize = args.blur_ksize
+    resolved_ransac_model = args.ransac_model
     resolved_method_semantics_epoch = None
 
     if args.method == "minutiae":
@@ -607,24 +749,45 @@ def main() -> None:
         run_subprocess(cmd, cwd=root)
         meta_path = out_scores.with_suffix(".meta.json")
 
-    elif args.method in ("classic_v2", "harris", "sift"):
+    elif args.method in ("classic_v2", "harris", "sift", "sift_plain_roll_v2"):
         script = parse_file_uri(args.script_classic)
         if args.method == "classic_v2":
             resolved_detector = "gftt_orb"
             resolved_score_mode = "inliers_over_k"
+            resolved_nfeatures = 1500
+            resolved_ratio = 0.75
             resolved_ransac_thresh = 4.0
+            resolved_ransac_model = "affine_partial_2d"
         elif args.method == "harris":
             resolved_detector = "harris_orb"
             resolved_score_mode = "inliers_over_min_keypoints"
+            resolved_nfeatures = 1500
+            resolved_ratio = 0.75
             resolved_ransac_thresh = 3.0
             resolved_target_size = 512
+            resolved_blur_ksize = 3
+            resolved_ransac_model = "homography"
             resolved_method_semantics_epoch = METHOD_SEMANTICS_EPOCHS["harris"]
         elif args.method == "sift":
             resolved_detector = "sift"
             resolved_score_mode = "inliers_over_min_keypoints"
+            resolved_nfeatures = 1500
+            resolved_ratio = 0.75
             resolved_ransac_thresh = 3.0
             resolved_target_size = 512
+            resolved_blur_ksize = 3
+            resolved_ransac_model = "homography"
             resolved_method_semantics_epoch = METHOD_SEMANTICS_EPOCHS["sift"]
+        elif args.method == "sift_plain_roll_v2":
+            resolved_detector = "sift"
+            resolved_score_mode = "inliers_times_inlier_ratio_times_log1p_matches"
+            resolved_nfeatures = 3000
+            resolved_ratio = 0.75
+            resolved_ransac_thresh = 3.0
+            resolved_target_size = 768
+            resolved_blur_ksize = 0
+            resolved_ransac_model = "affine_full_2d"
+            resolved_method_semantics_epoch = METHOD_SEMANTICS_EPOCHS["sift_plain_roll_v2"]
         cmd = [
             sys.executable, str(script),
             to_file_uri(out_scores),
@@ -632,10 +795,12 @@ def main() -> None:
             "--pairs", str(pairs_path),
             "--detector", resolved_detector,
             "--score_mode", resolved_score_mode,
-            "--nfeatures", str(args.nfeatures),
+            "--nfeatures", str(resolved_nfeatures),
             "--long_edge", str(args.long_edge),
             "--target_size", str(resolved_target_size),
-            "--ratio", str(args.ratio),
+            "--blur_ksize", str(resolved_blur_ksize),
+            "--ratio", str(resolved_ratio),
+            "--ransac_model", str(resolved_ransac_model),
             "--ransac_thresh", str(resolved_ransac_thresh),
             "--limit", str(args.limit),
         ]
@@ -752,13 +917,17 @@ def main() -> None:
     # Read scores + compute unified metrics
     y, s = read_scores(out_scores)
     n = int(len(y))
-    wall_ms_pair = float((t1 - t0) * 1000.0 / max(n, 1))
+    total_runtime_seconds = float(t1 - t0)
+    wall_ms_pair = float(total_runtime_seconds * 1000.0 / max(n, 1))
+    n_positive = int(np.sum(np.asarray(y).astype(int) == 1))
+    n_negative = int(np.sum(np.asarray(y).astype(int) == 0))
 
     metrics = compute_auc_eer(y, s)
     tar_1e2 = tar_at_far(y, s, 1e-2)
     tar_1e3 = tar_at_far(y, s, 1e-3)
     frr_1e2 = 1.0 - tar_1e2
     frr_1e3 = 1.0 - tar_1e3
+    operating_metrics = compute_operating_metrics(y, s, args.operating_threshold)
 
     # Load reported latency from meta if exists
     reported_avg = None
@@ -772,16 +941,26 @@ def main() -> None:
             except Exception:
                 reported_avg = None
 
-    # Save ROC png
-    save_roc_png(y, s, out_roc, title=f"{args.method} | split={args.split} | AUC={metrics.auc:.4f} | EER~{metrics.eer:.4f}")
+    # Save ROC png only when the score file has both labels with finite scores.
+    roc_reason = roc_skip_reason(y, s)
+    roc_status = "written"
+    roc_png_path: Optional[str] = str(out_roc)
+    if roc_reason is None:
+        save_roc_png(y, s, out_roc, title=f"{args.method} | split={pair_set_name} | AUC={metrics.auc:.4f} | EER~{metrics.eer:.4f}")
+    else:
+        roc_status = "skipped"
+        roc_png_path = None
 
     # Create and append standardized row
     classic_config = {
         "script": str(args.script_classic),
         "detector": resolved_detector,
         "score_mode": resolved_score_mode,
-        "nfeatures": args.nfeatures,
-        "ratio": args.ratio,
+        "nfeatures": resolved_nfeatures,
+        "target_size": resolved_target_size,
+        "blur_ksize": resolved_blur_ksize,
+        "ratio": resolved_ratio,
+        "ransac_model": resolved_ransac_model,
         "ransac_thresh": resolved_ransac_thresh,
     }
     if args.method == "classic_v2":
@@ -794,14 +973,22 @@ def main() -> None:
                 "normalization": "configured_nfeatures",
             }
         )
-    elif args.method in {"harris", "sift"}:
+    elif args.method in {"harris", "sift", "sift_plain_roll_v2"}:
         classic_config.update(
             {
                 "target_size": resolved_target_size,
-                "preprocess": "runtime_square_512_clahe_blur",
+                "preprocess": (
+                    "runtime_square_768_clahe_no_blur"
+                    if args.method == "sift_plain_roll_v2"
+                    else "runtime_square_512_clahe_blur"
+                ),
                 "mask_mode": "none",
-                "geometry_model": "homography",
-                "normalization": "min_detected_keypoints",
+                "geometry_model": resolved_ransac_model,
+                "normalization": (
+                    "inliers_times_inlier_ratio_times_log1p_matches"
+                    if args.method == "sift_plain_roll_v2"
+                    else "min_detected_keypoints"
+                ),
             }
         )
         if resolved_method_semantics_epoch is not None:
@@ -810,12 +997,18 @@ def main() -> None:
     config = {
         "schema_version": BENCHMARK_CONFIG_SCHEMA_VERSION,
         "method": args.method,
-        "split": args.split,
+        "split": pair_set_name,
+        "benchmark_split_arg": args.split,
+        "pair_set_name": pair_set_name,
         "limit": args.limit,
         "dataset": args.dataset,
         "resolved_data_dir": str(data_dir),
         "manifest_path": str(manifest_path),
         "pairs_path": str(pairs_path),
+        "pairs_file": str(pairs_path) if custom_pairs_file else "",
+        "custom_pairs_file": bool(custom_pairs_file),
+        "operating_threshold": args.operating_threshold,
+        "threshold_source": args.threshold_source,
         "method_semantics_epoch": resolved_method_semantics_epoch,
         "classic": classic_config,
         "minutiae": {
@@ -868,7 +1061,7 @@ def main() -> None:
     row = EvalRow(
         timestamp_utc=utc_now_iso(),
         method=args.method,
-        split=args.split,
+        split=pair_set_name,
         n_pairs=n,
         auc=float(metrics.auc),
         eer=float(metrics.eer),
@@ -884,6 +1077,21 @@ def main() -> None:
         scores_csv=str(out_scores),
         meta_json=meta_json_path_str,
         config_json=json.dumps(config, ensure_ascii=False),
+        pair_set_name=pair_set_name,
+        n_positive=n_positive,
+        n_negative=n_negative,
+        threshold=operating_metrics.threshold,
+        threshold_source=args.threshold_source or None,
+        accepted_count=operating_metrics.accepted_count,
+        rejected_count=operating_metrics.rejected_count,
+        false_accept_count=operating_metrics.false_accept_count,
+        true_reject_count=operating_metrics.true_reject_count,
+        tar=operating_metrics.tar,
+        frr=operating_metrics.frr,
+        far=operating_metrics.far,
+        total_runtime_seconds=total_runtime_seconds,
+        roc_status=roc_status,
+        roc_skip_reason=roc_reason,
     )
     append_summary_row(summary_csv, row)
 
@@ -892,12 +1100,31 @@ def main() -> None:
         "schema_version": BENCHMARK_RUN_META_SCHEMA_VERSION,
         "row": asdict(row),
         "scores_csv": str(out_scores),
-        "roc_png": str(out_roc),
+        "roc_png": roc_png_path,
+        "roc": {
+            "status": roc_status,
+            "output_path": str(out_roc),
+            "skip_reason": roc_reason,
+        },
         "summary_csv": str(summary_csv),
         "method_meta_json": meta_json_path_str,
         "resolved_data_dir": str(data_dir),
         "manifest_path": str(manifest_path),
         "pairs_path": str(pairs_path),
+        "pair_set_name": pair_set_name,
+        "custom_pairs_file": bool(custom_pairs_file),
+        "operating_threshold": args.operating_threshold,
+        "threshold_source": args.threshold_source,
+        "timing": {
+            "total_runtime_seconds": total_runtime_seconds,
+            "avg_ms_pair_wall": wall_ms_pair,
+            "avg_ms_pair_reported": reported_avg,
+            "n_pairs": n,
+        },
+        "label_counts": {
+            "n_positive": n_positive,
+            "n_negative": n_negative,
+        },
         "config": config,
     }
     out_run_meta.write_text(json.dumps(run_meta, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -908,7 +1135,10 @@ def main() -> None:
     print("  Manifest:", manifest_path)
     print("  Pairs   :", pairs_path)
     print("  Scores  :", out_scores)
-    print("  ROC     :", out_roc)
+    if roc_status == "written":
+        print("  ROC     :", out_roc)
+    else:
+        print("  ROC     :", roc_reason)
     print("  Summary :", summary_csv)
     print("  RunMeta :", out_run_meta)
 

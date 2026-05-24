@@ -494,7 +494,7 @@ def test_inspection_state_uses_read_only_connection_path(monkeypatch) -> None:
     assert "Reseed demo/browser stores" in payload["coverage_recommendation"]
     assert "source image path is known" in payload["coverage_recommendation"]
     assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
-    assert payload["rerank_only_methods"] == ["dedicated"]
+    assert payload["rerank_only_methods"] == ["sift_plain_roll_v2", "dedicated"]
     assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["vit"]["retrieval_vector_dim"] == 768
     assert payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512

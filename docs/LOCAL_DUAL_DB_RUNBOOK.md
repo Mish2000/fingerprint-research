@@ -34,8 +34,13 @@ python -m pytest tests/test_secure_split_store.py tests/test_secure_split_store_
 For application runtime, prefer environment variables instead of hardcoded URLs:
 
 ```powershell
-$env:DATABASE_URL = "postgresql://<user>:<password>@<host>:<port>/biometric_db"
-$env:IDENTITY_DATABASE_URL = "postgresql://<user>:<password>@<host>:<port>/identity_db"
+$env:DATABASE_URL = "postgresql://admin:$env:BIOMETRIC_POSTGRES_PASSWORD@127.0.0.1:5432/biometric_db"
+$env:IDENTITY_DATABASE_URL = "postgresql://admin:$env:IDENTITY_POSTGRES_PASSWORD@127.0.0.1:5433/identity_db"
 ```
 
 If `IDENTITY_DATABASE_URL` is omitted, the store falls back to the biometric database URL and behaves as a single-database deployment.
+
+The application fallback URL intentionally has no embedded credentials. If local PostgreSQL requires authentication,
+`/identify/stats` will keep the existing service-unavailable error path and include the missing env var in the
+message, while `/identify/admin/layout` will still return a readiness inspection payload with a
+`database_connection_failed` issue.

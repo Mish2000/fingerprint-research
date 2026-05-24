@@ -655,6 +655,51 @@ methods:
     - roll
     - contactless
     - contact_based
+  cots_afis_primary:
+    api_name: cots_afis_primary
+    benchmark_name: cots_afis_primary
+    ui_label: COTS AFIS Primary
+    family: commercial_afis
+    track: production_candidate
+    status: stub
+    presentation_tier: production_candidate
+    showcase_eligible: true
+    benchmark_default: false
+    canonical_default: false
+    research_track: false
+    promotion_required: true
+    provider_id: cots_afis_primary_stub
+    supports_verification: true
+    supports_identification: true
+    supports_quality: true
+    supports_template_storage: true
+    description: commercial AFIS-grade provider slot; currently a stub until SDK integration
+    notes:
+    - This entry reserves the production-candidate commercial AFIS provider slot.
+    - It intentionally points at an unavailable stub until a licensed SDK adapter is implemented.
+    - It is not listed in api_runtime or benchmark_runtime and is not a benchmark default.
+  null_fingerprint_engine:
+    api_name: null_fingerprint_engine
+    benchmark_name: null_fingerprint_engine
+    ui_label: Null Fingerprint Engine
+    family: test_provider
+    track: internal
+    status: test_only
+    presentation_tier: internal
+    showcase_eligible: false
+    benchmark_default: false
+    canonical_default: false
+    research_track: false
+    promotion_required: false
+    provider_id: null
+    supports_verification: true
+    supports_identification: true
+    supports_quality: true
+    supports_template_storage: true
+    description: deterministic non-biometric provider for tests and architecture validation
+    notes:
+    - This provider is not a real biometric matcher.
+    - It is excluded from API runtime method selection and benchmark defaults.
   fusion_balanced_v1:
     api_name: fusion_balanced_v1
     benchmark_name: fusion_balanced_v1

@@ -655,6 +655,45 @@ methods:
     - roll
     - contactless
     - contact_based
+  sourceafis_open:
+    api_name: sourceafis_open
+    benchmark_name: sourceafis_open
+    label: SourceAFIS Open Matcher
+    ui_label: SourceAFIS Open Matcher
+    family: open_source_afis
+    track: open_source_baseline
+    status: optional_external
+    presentation_tier: production_candidate
+    showcase_eligible: true
+    benchmark_default: false
+    canonical_default: false
+    research_track: false
+    promotion_required: false
+    provider_id: sourceafis_open
+    supports_verification: true
+    supports_identification: true
+    supports_quality: false
+    supports_template_storage: true
+    identification:
+      supports_pairwise_rerank: true
+      supports_direct_vector_retrieval: false
+      retrieval_unavailable_reason: external_afis_sidecar_no_local_fixed_vector_adapter
+      future_adapter_hint: SourceAFIS identification is exposed through the fingerprint engine provider, not the pgvector shortlist path.
+    current_sources:
+    - src/fpbench/fingerprint_engine/providers/sourceafis_provider.py
+    - src/fpbench/fingerprint_engine/providers/sourceafis_client.py
+    - configs/methods.yaml
+    description: >
+      Open-source AFIS provider used as a real non-proprietary baseline behind
+      the fingerprint engine abstraction. Intended for integration validation
+      and comparison against research baselines and future COTS providers.
+    notes:
+    - This entry documents the optional SourceAFIS engine provider and is intentionally
+      not listed in api_runtime or benchmark_runtime in this phase.
+    - Runtime integration is via an HTTP sidecar configured with SOURCEAFIS_ENABLED=true
+      and SOURCEAFIS_SERVICE_URL=http://127.0.0.1:8765.
+    - SourceAFIS raw matching scores require dataset-level calibration before comparison
+      with normalized research baseline scores.
   cots_afis_primary:
     api_name: cots_afis_primary
     benchmark_name: cots_afis_primary

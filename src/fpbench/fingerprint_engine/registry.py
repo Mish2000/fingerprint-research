@@ -5,7 +5,11 @@ from collections.abc import Callable
 
 from src.fpbench.fingerprint_engine.base import FingerprintEngine
 from src.fpbench.fingerprint_engine.errors import ProviderUnavailableError
-from src.fpbench.fingerprint_engine.providers import CotsStubFingerprintEngine, NullFingerprintEngine
+from src.fpbench.fingerprint_engine.providers import (
+    CotsStubFingerprintEngine,
+    NullFingerprintEngine,
+    SourceAfisFingerprintEngine,
+)
 from src.fpbench.fingerprint_engine.types import EngineMetadata
 
 EngineFactory = Callable[[], FingerprintEngine]
@@ -77,3 +81,4 @@ def _normalize_optional_provider_id(provider_id: str | None) -> str | None:
 
 register_engine("null", NullFingerprintEngine)
 register_engine("cots_afis_primary_stub", CotsStubFingerprintEngine)
+register_engine("sourceafis_open", SourceAfisFingerprintEngine)

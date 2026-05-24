@@ -97,6 +97,10 @@ apps/ui/dist/
 apps/ui/.vite/
 apps/ui/.eslintcache/
 
+# ---------- Java sidecars ----------
+apps/sourceafis-service/target/
+apps/sourceafis-service/*.class
+
 # Backward-compatible legacy UI paths
 ui/node_modules/
 ui/dist/

@@ -29,11 +29,11 @@ class SourceAfisHealth:
 
 
 class SourceAfisClient:
-    """HTTP sidecar adapter for a future SourceAFIS runtime.
+    """HTTP sidecar adapter for the SourceAFIS runtime.
 
     The Python backend intentionally does not link directly against SourceAFIS.
-    A real sidecar should expose JSON endpoints that accept base64-encoded image
-    and template bytes and return SourceAFIS raw matching scores.
+    The sidecar exposes JSON endpoints that accept base64-encoded image and
+    template bytes and return SourceAFIS raw matching scores.
     """
 
     def __init__(
@@ -64,6 +64,7 @@ class SourceAfisClient:
 
         version = _optional_str(
             payload.get("sourceafis_version")
+            or payload.get("engine_version")
             or payload.get("version")
             or payload.get("provider_version")
         )
@@ -89,22 +90,28 @@ class SourceAfisClient:
             "/extract-template",
             error_cls=TemplateExtractionError,
             operation="SourceAFIS template extraction",
-            json_payload={"image": _image_payload(image)},
+            json_payload=_image_payload(image),
         )
-        encoded_template = _required_str(payload, "template_bytes_b64", TemplateExtractionError)
+        encoded_template = _required_str(
+            payload,
+            ("template_base64", "template_bytes_b64"),
+            TemplateExtractionError,
+        )
         return {
             "provider_version": _optional_str(
                 payload.get("provider_version")
+                or payload.get("engine_version")
                 or payload.get("sourceafis_version")
                 or payload.get("template_version")
             ),
             "template_format": _optional_str(payload.get("template_format")) or "sourceafis",
             "template_version": _optional_str(
                 payload.get("template_version")
+                or payload.get("engine_version")
                 or payload.get("sourceafis_version")
                 or payload.get("provider_version")
             ),
-            "template_bytes": _decode_base64(encoded_template, TemplateExtractionError, "template_bytes_b64"),
+            "template_bytes": _decode_base64(encoded_template, TemplateExtractionError, "template_base64"),
             "quality_score": _optional_float(payload.get("quality_score")),
             "metadata": _sanitize_metadata(payload.get("metadata", {})),
         }
@@ -120,13 +127,13 @@ class SourceAfisClient:
             error_cls=VerificationError,
             operation="SourceAFIS verification",
             json_payload={
-                "probe_template": _template_payload(probe_template),
-                "candidate_template": _template_payload(candidate_template),
+                "probe_template_base64": _template_base64(probe_template),
+                "candidate_template_base64": _template_base64(candidate_template),
             },
         )
         return {
             "provider_version": _optional_str(
-                payload.get("provider_version") or payload.get("sourceafis_version")
+                payload.get("provider_version") or payload.get("engine_version") or payload.get("sourceafis_version")
             ),
             "score": _required_float(payload, VerificationError),
             "normalized_score": _optional_float(payload.get("normalized_score")),
@@ -148,13 +155,12 @@ class SourceAfisClient:
             error_cls=IdentificationError,
             operation="SourceAFIS identification",
             json_payload={
-                "probe_template": _template_payload(probe_template),
+                "probe_template_base64": _template_base64(probe_template),
                 "gallery": [
                     {
-                        "gallery_id": item.gallery_id,
-                        "subject_id": item.subject_id,
-                        "template": _template_payload(item.template),
-                        "metadata": _sanitize_metadata(item.metadata),
+                        "candidate_id": item.gallery_id,
+                        "template_base64": _template_base64(item.template),
+                        "metadata": _gallery_metadata(item),
                     }
                     for item in gallery
                 ],
@@ -167,7 +173,7 @@ class SourceAfisClient:
 
         return {
             "provider_version": _optional_str(
-                payload.get("provider_version") or payload.get("sourceafis_version")
+                payload.get("provider_version") or payload.get("engine_version") or payload.get("sourceafis_version")
             ),
             "candidates": [_candidate_payload(candidate) for candidate in candidates],
             "threshold": _optional_float(payload.get("threshold")),
@@ -214,42 +220,46 @@ class SourceAfisClient:
 
 
 def _image_payload(image: FingerprintImage) -> dict[str, Any]:
-    payload: dict[str, Any] = {
+    if image.image_bytes is None:
+        raise TemplateExtractionError("SourceAFIS sidecar extraction requires in-memory image bytes.")
+    metadata = _sanitize_metadata(image.metadata)
+    for key, value in {
         "sha256": image.sha256,
-        "path": image.path,
         "image_id": image.image_id,
         "mime_type": image.mime_type,
         "width": image.width,
         "height": image.height,
         "dpi": image.dpi,
         "capture_type": image.capture_type,
-        "metadata": _sanitize_metadata(image.metadata),
-    }
-    if image.image_bytes is not None:
-        payload["image_bytes_b64"] = base64.b64encode(image.image_bytes).decode("ascii")
-    return {key: value for key, value in payload.items() if value is not None}
-
-
-def _template_payload(template: FingerprintTemplate) -> dict[str, Any]:
+    }.items():
+        if value is not None and key not in metadata:
+            metadata[key] = value
     return {
-        "provider_id": template.provider_id,
-        "provider_version": template.provider_version,
-        "template_format": template.template_format,
-        "template_version": template.template_version,
-        "template_bytes_b64": base64.b64encode(template.template_bytes).decode("ascii"),
-        "image_id": template.image_id,
-        "quality_score": template.quality_score,
-        "metadata": _sanitize_metadata(template.metadata),
+        "image_base64": base64.b64encode(image.image_bytes).decode("ascii"),
+        "image_format": _image_format(image),
+        "metadata": metadata,
     }
+
+
+def _template_base64(template: FingerprintTemplate) -> str:
+    return base64.b64encode(template.template_bytes).decode("ascii")
+
+
+def _gallery_metadata(item: GalleryTemplate) -> dict[str, Any]:
+    metadata = _sanitize_metadata(item.metadata)
+    if item.subject_id is not None and "subject_id" not in metadata:
+        metadata["subject_id"] = item.subject_id
+    return metadata
 
 
 def _candidate_payload(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         raise IdentificationError("SourceAFIS identification candidate entries must be JSON objects.")
-    gallery_id = _required_str(payload, "gallery_id", IdentificationError)
+    gallery_id = _required_str(payload, ("candidate_id", "gallery_id"), IdentificationError)
     return {
         "gallery_id": gallery_id,
-        "subject_id": _optional_str(payload.get("subject_id")),
+        "subject_id": _optional_str(payload.get("subject_id"))
+        or _optional_str(_sanitize_metadata(payload.get("metadata", {})).get("subject_id")),
         "score": _required_float(payload, IdentificationError),
         "normalized_score": _optional_float(payload.get("normalized_score")),
         "threshold": _optional_float(payload.get("threshold")),
@@ -266,12 +276,15 @@ def _decode_base64(value: str, error_cls: type[Exception], field_name: str) -> b
         raise error_cls(f"SourceAFIS response field {field_name!r} is not valid base64.") from exc
 
 
-def _required_str(payload: Mapping[str, Any], field_name: str, error_cls: type[Exception]) -> str:
-    value = payload.get(field_name)
-    text = _optional_str(value)
-    if text is None:
-        raise error_cls(f"SourceAFIS response missing required field {field_name!r}.")
-    return text
+def _required_str(payload: Mapping[str, Any], field_names: str | tuple[str, ...], error_cls: type[Exception]) -> str:
+    names = (field_names,) if isinstance(field_names, str) else field_names
+    for field_name in names:
+        value = payload.get(field_name)
+        text = _optional_str(value)
+        if text is not None:
+            return text
+    expected = names[0] if len(names) == 1 else " or ".join(repr(name) for name in names)
+    raise error_cls(f"SourceAFIS response missing required field {expected}.")
 
 
 def _required_float(payload: Mapping[str, Any], error_cls: type[Exception]) -> float:
@@ -310,6 +323,27 @@ def _optional_bool(value: Any) -> bool | None:
     return None
 
 
+def _image_format(image: FingerprintImage) -> str:
+    mime_type = _optional_str(image.mime_type)
+    if mime_type:
+        normalized = mime_type.lower().split(";", 1)[0].strip()
+        if normalized in {"image/png", "image/x-png"}:
+            return "png"
+        if normalized in {"image/jpeg", "image/jpg"}:
+            return "jpg"
+        if normalized in {"image/bmp", "image/x-ms-bmp"}:
+            return "bmp"
+        if normalized in {"image/tiff", "image/tif"}:
+            return "tif"
+
+    path = _optional_str(image.path)
+    if path:
+        suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+        if suffix in {"png", "jpg", "jpeg", "bmp", "tif", "tiff"}:
+            return "jpg" if suffix == "jpeg" else "tif" if suffix == "tiff" else suffix
+    return "unknown"
+
+
 def _sanitize_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
@@ -320,6 +354,11 @@ def _sanitize_metadata(value: Any) -> dict[str, Any]:
         "probe_template_bytes_b64",
         "candidate_template_bytes",
         "candidate_template_bytes_b64",
+        "image_base64",
+        "image_bytes_b64",
+        "template_base64",
+        "probe_template_base64",
+        "candidate_template_base64",
     }
     return {
         str(key): item

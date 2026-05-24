@@ -235,7 +235,16 @@ def test_validate_bundle_default_expected_methods_do_not_require_dedicated(
 def test_validator_expected_profiles_come_from_registry() -> None:
     assert validate_benchmark_bundle.EXPECTED_METHOD_PROFILES == {
         "canonical": ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit"],
-        "research": ["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit", "dedicated"],
+        "research": [
+            "classic_v2",
+            "minutiae",
+            "harris",
+            "sift",
+            "dl_quick",
+            "vit",
+            "sift_plain_roll_v2",
+            "dedicated",
+        ],
         "dedicated": ["dedicated"],
     }
     assert "dedicated" not in validate_benchmark_bundle.EXPECTED_METHOD_PROFILES["canonical"]
@@ -246,7 +255,19 @@ def test_validate_bundle_research_profile_can_expect_dedicated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     outdir = tmp_path / "research_bundle"
-    _write_bundle(outdir, methods=["classic_v2", "minutiae", "harris", "sift", "dl_quick", "vit", "dedicated"])
+    _write_bundle(
+        outdir,
+        methods=[
+            "classic_v2",
+            "minutiae",
+            "harris",
+            "sift",
+            "dl_quick",
+            "vit",
+            "sift_plain_roll_v2",
+            "dedicated",
+        ],
+    )
 
     monkeypatch.setattr(
         sys,

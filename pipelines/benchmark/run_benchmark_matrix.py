@@ -283,11 +283,19 @@ def build_eval_cmd(
     fusion_sift_weight: float = 0.91,
     fusion_dl_weight: float = 0.05,
     fusion_vit_weight: float = 0.04,
+    pairs_file: str | Path = "",
+    pair_set_name: str = "",
+    operating_threshold: float | str | None = None,
+    threshold_source: str = "",
 ) -> List[str]:
     summary_csv = outdir / "results_summary.csv"
-    out_scores = outdir / f"scores_{method}_{split}.csv"
-    out_roc = outdir / f"roc_{method}_{split}.png"
-    out_run_meta = outdir / f"run_{method}_{split}.meta.json"
+    pair_set = (
+        str(pair_set_name).strip()
+        or (Path(str(pairs_file)).stem if str(pairs_file).strip() else split)
+    )
+    out_scores = outdir / f"scores_{method}_{pair_set}.csv"
+    out_roc = outdir / f"roc_{method}_{pair_set}.png"
+    out_run_meta = outdir / f"run_{method}_{pair_set}.meta.json"
 
     cmd = [
         sys.executable,
@@ -302,6 +310,16 @@ def build_eval_cmd(
         "--out_roc", str(out_roc),
         "--out_run_meta", str(out_run_meta),
     ]
+
+    if str(pairs_file).strip():
+        cmd += ["--pairs_file", str(pairs_file)]
+        cmd += ["--pair_set_name", pair_set]
+
+    if operating_threshold is not None and str(operating_threshold).strip() != "":
+        cmd += ["--operating_threshold", str(operating_threshold)]
+
+    if threshold_source:
+        cmd += ["--threshold_source", threshold_source]
 
     if ensure_pairs:
         cmd.append("--ensure_pairs")
@@ -340,7 +358,20 @@ def build_eval_cmd(
             "--score_mode", "inliers_over_min_keypoints",
             "--nfeatures", "1500",
             "--target_size", "512",
+            "--blur_ksize", "3",
             "--ratio", "0.75",
+            "--ransac_model", "homography",
+            "--ransac_thresh", "3.0",
+        ]
+    elif method == "sift_plain_roll_v2":
+        cmd += [
+            "--detector", "sift",
+            "--score_mode", "inliers_times_inlier_ratio_times_log1p_matches",
+            "--nfeatures", "3000",
+            "--target_size", "768",
+            "--blur_ksize", "0",
+            "--ratio", "0.75",
+            "--ransac_model", "affine_full_2d",
             "--ransac_thresh", "3.0",
         ]
     elif method in {"dl_quick", "vit"}:
@@ -394,10 +425,11 @@ def render_results_md(summary_csv: Path, summary_md: Path) -> None:
         "minutiae": 1,
         "harris": 2,
         "sift": 3,
-        "dl_quick": 4,
-        "vit": 5,
-        "dedicated": 6,
-        FUSION_METHOD: 7,
+        "sift_plain_roll_v2": 4,
+        "dl_quick": 5,
+        "vit": 6,
+        "dedicated": 7,
+        FUSION_METHOD: 8,
     }
 
     rows.sort(
@@ -412,6 +444,16 @@ def render_results_md(summary_csv: Path, summary_md: Path) -> None:
         "method",
         "split",
         "n_pairs",
+        "n_positive",
+        "n_negative",
+        "threshold",
+        "accepted_count",
+        "rejected_count",
+        "false_accept_count",
+        "true_reject_count",
+        "tar",
+        "frr",
+        "far",
         "auc",
         "eer",
         "eer_threshold",
@@ -423,6 +465,7 @@ def render_results_md(summary_csv: Path, summary_md: Path) -> None:
         "frr_at_far_1e_3",
         "avg_ms_pair_reported",
         "avg_ms_pair_wall",
+        "total_runtime_seconds",
     ]
     existing_cols = [col for col in cols if col in rows[0]]
 
@@ -461,6 +504,10 @@ def build_manifest_payload(
     profile: str = "canonical",
     include_research_methods: bool = False,
     argv: Optional[list[str]] = None,
+    pairs_file: str = "",
+    pair_set_name: str = "",
+    operating_threshold: str = "",
+    threshold_source: str = "",
 ) -> Dict[str, object]:
     packages = {
         "numpy": safe_pkg_version("numpy"),
@@ -485,6 +532,10 @@ def build_manifest_payload(
         "method_profile": profile,
         "include_research_methods": bool(include_research_methods),
         "splits": splits,
+        "pairs_file": pairs_file,
+        "pair_set_name": pair_set_name,
+        "operating_threshold": operating_threshold,
+        "threshold_source": threshold_source,
         "limit": int(limit),
         "ensure_pairs": bool(ensure_pairs),
         "dedicated_ckpt": dedicated_ckpt,
@@ -520,7 +571,7 @@ def build_manifest_payload(
     return payload
 
 
-def expected_output_paths(outdir: Path, methods: list[str], splits: list[str]) -> list[Path]:
+def expected_output_paths(outdir: Path, methods: list[str], splits: list[str], *, require_roc: bool = True) -> list[Path]:
     expected = [
         outdir / "results_summary.csv",
         outdir / "results_summary.md",
@@ -529,11 +580,10 @@ def expected_output_paths(outdir: Path, methods: list[str], splits: list[str]) -
     ]
     for split in splits:
         for method in methods:
-            expected.extend([
-                outdir / f"scores_{method}_{split}.csv",
-                outdir / f"roc_{method}_{split}.png",
-                outdir / f"run_{method}_{split}.meta.json",
-            ])
+            expected.append(outdir / f"scores_{method}_{split}.csv")
+            if require_roc:
+                expected.append(outdir / f"roc_{method}_{split}.png")
+            expected.append(outdir / f"run_{method}_{split}.meta.json")
     return expected
 
 
@@ -561,6 +611,10 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Comma-separated benchmark methods. Defaults to the canonical profile: {DEFAULT_BENCHMARK_METHODS}.",
     )
     parser.add_argument("--splits", type=str, default="val,test")
+    parser.add_argument("--pairs_file", type=str, default="")
+    parser.add_argument("--pair_set_name", type=str, default="")
+    parser.add_argument("--operating_threshold", type=str, default="")
+    parser.add_argument("--threshold_source", type=str, default="")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--ensure_pairs", action="store_true")
     parser.add_argument("--dedicated_ckpt", type=str, default="auto")
@@ -612,6 +666,9 @@ def run_matrix(args: argparse.Namespace) -> int:
     if not splits:
         log("ERROR: --splits resolved to an empty split list.")
         return 2
+    if str(args.pairs_file).strip() and len(splits) != 1:
+        log("ERROR: --pairs_file can be used with exactly one --splits value.")
+        return 2
 
     try:
         validate_fusion_request(methods, splits, args.fusion_fit_split)
@@ -650,6 +707,10 @@ def run_matrix(args: argparse.Namespace) -> int:
         profile=args.profile,
         include_research_methods=args.include_research_methods,
         argv=list(sys.argv),
+        pairs_file=args.pairs_file,
+        pair_set_name=args.pair_set_name,
+        operating_threshold=args.operating_threshold,
+        threshold_source=args.threshold_source,
     )
     (outdir / "run_manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False),
@@ -699,6 +760,10 @@ def run_matrix(args: argparse.Namespace) -> int:
                 fusion_sift_weight=args.fusion_sift_weight,
                 fusion_dl_weight=args.fusion_dl_weight,
                 fusion_vit_weight=args.fusion_vit_weight,
+                pairs_file=args.pairs_file,
+                pair_set_name=args.pair_set_name,
+                operating_threshold=args.operating_threshold,
+                threshold_source=args.threshold_source,
             )
             log("[RUN] " + " ".join(cmd))
             rc = run_cmd_stream(cmd, cwd=ROOT, log_path=log_path)
@@ -711,7 +776,16 @@ def run_matrix(args: argparse.Namespace) -> int:
     render_results_md(summary_csv, summary_md)
     log(f"OK: Wrote {summary_md}")
 
-    missing_outputs = [path for path in expected_output_paths(outdir, methods, splits) if not path.exists()]
+    expected_splits = (
+        [str(args.pair_set_name).strip() or Path(str(args.pairs_file)).stem]
+        if str(args.pairs_file).strip()
+        else splits
+    )
+    missing_outputs = [
+        path
+        for path in expected_output_paths(outdir, methods, expected_splits, require_roc=not bool(str(args.pairs_file).strip()))
+        if not path.exists()
+    ]
     if missing_outputs:
         log("ERROR: Missing expected outputs:")
         for path in missing_outputs:

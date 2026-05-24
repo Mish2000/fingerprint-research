@@ -17,11 +17,15 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.fpbench.matchers.matching_baseline import (
     HarrisConfig,
+    LOCAL_FEATURE_SCORE_MODES,
+    RANSAC_MODELS,
     SIFTConfig,
     harris_extract,
     match_harris,
     match_sift,
     ransac_inliers,
+    ransac_inliers_for_model,
+    score_local_feature_counts,
     sift_extract,
 )
 from src.fpbench.preprocess.preprocess import PreprocessConfig, preprocess_image
@@ -154,6 +158,7 @@ def extract(
     nfeatures: int,
     long_edge: int,
     target_size: int,
+    blur_ksize: int = 3,
 ) -> tuple[list[cv2.KeyPoint], np.ndarray | None, np.ndarray | None]:
     path = Path(path_str)
     img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
@@ -161,7 +166,10 @@ def extract(
         return [], None, np.zeros((1, 1), dtype=np.uint8)
 
     if detector in {"harris_orb", "sift"}:
-        img = preprocess_image(img, PreprocessConfig(target_size=int(target_size)))
+        img = preprocess_image(
+            img,
+            PreprocessConfig(target_size=int(target_size), blur_ksize=int(blur_ksize)),
+        )
         roi = None
     else:
         img = resize_long_edge(img, long_edge=long_edge)
@@ -210,6 +218,7 @@ def match_and_score(
     ransac_thresh: float,
     detector: str,
     normalization_k: int,
+    ransac_model: str = "homography",
 ) -> tuple[float, int, int]:
     if des1 is None or des2 is None or len(des1) < 8 or len(des2) < 8:
         return 0.0, 0, 0
@@ -231,13 +240,23 @@ def match_and_score(
                     good.append(m)
 
     matches = len(good)
-    if matches < 8:
+    min_matches = 8 if str(ransac_model) == "homography" else 3
+    if matches < min_matches:
         if score_mode == "matches":
             return float(matches), 0, matches
         return 0.0, 0, matches
 
     if detector in {"harris_orb", "sift"}:
-        inliers, _ = ransac_inliers(kps1, kps2, good, reproj=float(ransac_thresh))
+        if str(ransac_model) == "homography":
+            inliers, _ = ransac_inliers(kps1, kps2, good, reproj=float(ransac_thresh))
+        else:
+            inliers, _ = ransac_inliers_for_model(
+                kps1,
+                kps2,
+                good,
+                ransac_model=str(ransac_model),
+                ransac_thresh=float(ransac_thresh),
+            )
     else:
         pts1 = np.float32([kps1[m.queryIdx].pt for m in good])
         pts2 = np.float32([kps2[m.trainIdx].pt for m in good])
@@ -252,19 +271,15 @@ def match_and_score(
 
         inliers = int(inlier_mask.sum()) if inlier_mask is not None else 0
 
-    if score_mode == "inliers":
-        return float(inliers), inliers, matches
-    if score_mode == "matches":
-        return float(matches), inliers, matches
-    if score_mode == "inliers_over_matches":
-        return float(inliers) / float(matches), inliers, matches
-    if score_mode == "inliers_over_k":
-        return float(inliers) / float(max(1, int(normalization_k))), inliers, matches
-    if score_mode == "inliers_over_min_keypoints":
-        denom = max(1, min(len(kps1), len(kps2)))
-        return float(inliers) / float(denom), inliers, matches
-
-    raise ValueError(f"Unknown score_mode: {score_mode}")
+    score = score_local_feature_counts(
+        score_mode=score_mode,
+        inliers=int(inliers),
+        matches=int(matches),
+        k1=len(kps1),
+        k2=len(kps2),
+        normalization_k=int(normalization_k),
+    )
+    return float(score), inliers, matches
 
 
 def compute_auc_eer(y_true: np.ndarray, scores: np.ndarray) -> tuple[float, float]:
@@ -343,11 +358,13 @@ def main():
     ap.add_argument("--pairs", type=str, default="", help="Optional explicit pairs CSV path. If empty, uses data/processed/nist_sd300b/pairs_<split>.csv")
     ap.add_argument("--detector", type=str, default="gftt_orb", choices=["orb", "gftt_orb", "harris_orb", "sift"])
     ap.add_argument("--score_mode", type=str, default="inliers_over_k",
-                    choices=["inliers_over_k", "inliers", "matches", "inliers_over_matches", "inliers_over_min_keypoints"])
+                    choices=list(LOCAL_FEATURE_SCORE_MODES))
     ap.add_argument("--nfeatures", type=int, default=1500)
     ap.add_argument("--long_edge", type=int, default=512)
     ap.add_argument("--target_size", type=int, default=512)
+    ap.add_argument("--blur_ksize", type=int, default=3)
     ap.add_argument("--ratio", type=float, default=0.75)
+    ap.add_argument("--ransac_model", type=str, default="homography", choices=list(RANSAC_MODELS))
     ap.add_argument("--ransac_thresh", type=float, default=4.0)
     ap.add_argument("--limit", type=int, default=0, help="If >0, evaluate only first N pairs (for quick tests).")
     args = ap.parse_args()
@@ -369,9 +386,10 @@ def main():
         pa = str(r["path_a"])
         pb = str(r["path_b"])
         label = int(r["label"])
+        row_split = str(r.get("split", args.split))
 
-        kps1, des1, _ = extract(pa, args.detector, args.nfeatures, args.long_edge, args.target_size)
-        kps2, des2, _ = extract(pb, args.detector, args.nfeatures, args.long_edge, args.target_size)
+        kps1, des1, _ = extract(pa, args.detector, args.nfeatures, args.long_edge, args.target_size, args.blur_ksize)
+        kps2, des2, _ = extract(pb, args.detector, args.nfeatures, args.long_edge, args.target_size, args.blur_ksize)
 
         score, inliers, matches = match_and_score(
             des1, des2, kps1, kps2,
@@ -380,11 +398,12 @@ def main():
             ransac_thresh=args.ransac_thresh,
             detector=args.detector,
             normalization_k=args.nfeatures,
+            ransac_model=args.ransac_model,
         )
 
         rows.append({
             "label": label,
-            "split": args.split,
+            "split": row_split,
             "path_a": pa,
             "path_b": pb,
             "score": float(score),

@@ -242,13 +242,14 @@ def main() -> None:
         path_a = str(row["path_a"])
         path_b = str(row["path_b"])
         label = int(row["label"])
+        row_split = str(row.get("split", args.split))
         template_a = template_cache.get(path_a)
         template_b = template_cache.get(path_b)
         result = match_minutiae_templates(template_a, template_b, cfg=cfg)
         rows.append(
             {
                 "label": label,
-                "split": args.split,
+                "split": row_split,
                 "path_a": path_a,
                 "path_b": path_b,
                 "score": float(result.score),

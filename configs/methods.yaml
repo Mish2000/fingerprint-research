@@ -19,6 +19,7 @@ namespaces:
   - minutiae
   - harris
   - sift
+  - sift_plain_roll_v2
   - dl
   - dedicated
   - vit
@@ -27,6 +28,7 @@ namespaces:
   - minutiae
   - harris
   - sift
+  - sift_plain_roll_v2
   - dl_quick
   - dedicated
   - vit
@@ -46,6 +48,7 @@ identification:
   - minutiae
   - harris
   - sift
+  - sift_plain_roll_v2
   - dedicated
   - dl
   - vit
@@ -398,6 +401,81 @@ methods:
       homography RANSAC, and min-keypoint normalization as the shipped runtime method.
     - Canonical post-alignment benchmark rows carry method_semantics_epoch=sift_runtime_aligned_v1
       so older ROI/affine/fixed-k artifacts stay separated from current benchmark surfaces.
+  sift_plain_roll_v2:
+    api_name: sift_plain_roll_v2
+    benchmark_name: sift_plain_roll_v2
+    ui_label: SIFT Plain/Roll v2 (Experimental)
+    family: local_features
+    identification:
+      supports_pairwise_rerank: true
+      supports_direct_vector_retrieval: false
+      experimental: true
+      retrieval_vector_dim: null
+      retrieval_vector_kind: null
+      retrieval_distance_metric: null
+      retrieval_unavailable_reason: experimental_plain_roll_research_no_validated_global_retrieval_vector
+      future_adapter_hint: A future retrieval adapter must be validated before this method is used for direct 1:N shortlist retrieval.
+    status: experimental
+    presentation_tier: research
+    showcase_eligible: false
+    benchmark_default: false
+    canonical_default: false
+    research_track: true
+    promotion_required: true
+    promotion_criteria:
+    - Must be reproduced on the official NIST SD300B professor 1000 val/test protocol.
+    - Must pass broader NIST SD300B/SD300C and cross-dataset validation before canonical promotion.
+    - Must include reviewed visual audits of true accepts, false rejects, and false accepts at low FAR.
+    showcase_exclusion_note: >-
+      SIFT Plain/Roll v2 is an experimental research method optimized for NIST
+      SD300B plain-vs-roll verification. It is excluded from canonical showcase
+      ranking unless explicitly requested through a research profile or method list.
+    current_sources:
+    - src/fpbench/matchers/matching_baseline.py
+    - apps/api/service.py
+    - pipelines/benchmark/eval_classic.py
+    - pipelines/benchmark/evaluate.py
+    planned_location: src/fpbench/matchers/matching_baseline.py
+    scoring:
+      output_score: inliers_times_inlier_ratio_times_log1p_matches
+      decision_threshold_ref: decision.api.sift_plain_roll_v2
+    api_runtime_defaults:
+      detector: sift
+      target_size: 768
+      nfeatures: 3000
+      blur_ksize: 0
+      ratio: 0.75
+      ransac_model: affine_full_2d
+      ransac_thresh: 3.0
+      reproj_threshold: 3.0
+      score_mode: inliers_times_inlier_ratio_times_log1p_matches
+      nOctaveLayers: 3
+      contrastThreshold: 0.04
+      edgeThreshold: 10
+      sigma: 1.6
+    benchmark_defaults:
+      detector: sift
+      preprocess: runtime_square_768_clahe_no_blur
+      mask_mode: none
+      geometry_model: affine_full_2d
+      score_mode: inliers_times_inlier_ratio_times_log1p_matches
+      nfeatures: 3000
+      target_size: 768
+      blur_ksize: 0
+      ratio: 0.75
+      ransac_thresh: 3.0
+      method_semantics_epoch: sift_plain_roll_v2_research_v1
+    notes:
+    - >-
+      Experimental SIFT variant selected from focused plain-vs-roll diagnostics:
+      target_size=768, nfeatures=3000, no Gaussian blur, Lowe ratio 0.75,
+      affine_full_2d RANSAC at threshold 3.0, and score=inliers*(inliers/matches)*log1p(matches).
+    - >-
+      The method is optimized specifically for NIST SD300B plain-vs-roll verification.
+      It does not replace the canonical `sift` method or its runtime/benchmark defaults.
+    - >-
+      The score is deterministic: when matches<=0 or inliers<=0 it is 0; otherwise
+      inlier_ratio=inliers/max(matches,1) and score=inliers*inlier_ratio*log1p(matches).
   dl:
     api_name: dl
     benchmark_name: dl_quick

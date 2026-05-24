@@ -290,6 +290,7 @@ def main():
         pa = str(r["path_a"])
         pb = str(r["path_b"])
         y = int(r["label"])
+        row_split = str(r.get("split", args.split))
 
         t0 = time.perf_counter()
         cap_a = resolve_pair_capture(r, "a")
@@ -305,7 +306,7 @@ def main():
 
         rows.append({
             "label": y,
-            "split": args.split,
+            "split": row_split,
             "path_a": pa,
             "path_b": pb,
             "score": float(score),

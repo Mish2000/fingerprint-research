@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +12,11 @@ from apps.api.schemas import (
     IdentificationAdminReconciliationResponse,
 )
 import apps.api.service as api_service
+import src.fpbench.identification.secure_split_store as secure_store_module
+
+
+DIRECT_RETRIEVAL_METHODS = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
+RERANK_ONLY_METHODS = ["sift_plain_roll_v2", "dedicated"]
 
 
 class _FakeMatchService:
@@ -142,8 +148,8 @@ def _inspection_payload(
         "unexpected_vector_methods": {},
         "method_capabilities": method_capabilities,
         "retrieval_capabilities": method_capabilities,
-        "direct_vector_retrieval_methods": ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"],
-        "rerank_only_methods": ["dedicated"],
+        "direct_vector_retrieval_methods": DIRECT_RETRIEVAL_METHODS,
+        "rerank_only_methods": RERANK_ONLY_METHODS,
         "vector_storage_schema": api_main.SecureSplitFingerprintStore.vector_storage_schema_metadata(),
         "schema_hardening": {
             "identity_map_guarantees": {
@@ -239,6 +245,17 @@ def test_admin_inspection_schema_accepts_template_protection_section() -> None:
     assert response.template_protection["raw_image_storage_policy"] == "metadata_only_new_writes"
     assert response.template_protection["legacy_raw_image_storage_status"] == "clear"
     assert response.template_protection["legacy_raw_image_bytes_row_count"] == 0
+
+
+def test_admin_response_models_accept_full_direct_retrieval_contract() -> None:
+    inspection = IdentificationAdminInspectionResponse(**_inspection_payload())
+    reconciliation = IdentificationAdminReconciliationResponse(
+        **_reconciliation_payload(inspection=_inspection_payload())
+    )
+
+    assert inspection.direct_vector_retrieval_methods == DIRECT_RETRIEVAL_METHODS
+    assert reconciliation.inspection.direct_vector_retrieval_methods == DIRECT_RETRIEVAL_METHODS
+    assert "dedicated" not in inspection.direct_vector_retrieval_methods
 
 
 def test_admin_reconciliation_schema_accepts_legacy_redaction_repair_result() -> None:
@@ -388,8 +405,8 @@ def test_admin_layout_endpoint_returns_redacted_read_only_inspection_payload(
     assert payload["schema_hardening"]["identity_map_guarantees"]["contract_enforced"] is True
     assert payload["template_protection"]["raw_image_storage_policy"] == "metadata_only_new_writes"
     assert payload["template_protection"]["legacy_raw_image_storage_status"] == "clear"
-    assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
-    assert payload["rerank_only_methods"] == ["dedicated"]
+    assert payload["direct_vector_retrieval_methods"] == DIRECT_RETRIEVAL_METHODS
+    assert payload["rerank_only_methods"] == RERANK_ONLY_METHODS
     assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["sift"]["retrieval_vector_kind"] == "sift_aggregated_descriptor_v1"
@@ -448,6 +465,8 @@ def test_lifespan_startup_initializes_operational_services_and_shutdown_clears_r
         assert health.json()["status"] == "ready"
         assert health.json()["identify_status"] == "ready"
         assert health.json()["identify_browser_status"] == "lazy_not_initialized"
+        assert health.json()["direct_vector_retrieval_methods"] == DIRECT_RETRIEVAL_METHODS
+        assert "dedicated" not in health.json()["direct_vector_retrieval_methods"]
 
     assert api_main._service is None
     assert api_main._ident_service is None
@@ -615,3 +634,60 @@ def test_browser_initialization_failure_is_visible_after_lazy_init_attempt(
     assert health_after.json()["identify_browser_initialized"] is False
     assert health_after.json()["identify_browser_status"] == "error"
     assert "browser identification bootstrap exploded" in health_after.json()["identify_browser_error"]
+
+
+def _install_missing_password_psycopg(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _connect(*args, **kwargs):
+        raise RuntimeError("fe_sendauth: no password supplied")
+
+    monkeypatch.setattr(
+        secure_store_module,
+        "_load_postgres_base_deps",
+        lambda: (SimpleNamespace(connect=_connect), object()),
+    )
+
+
+def test_identify_stats_missing_database_password_error_is_actionable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_missing_password_psycopg(monkeypatch)
+    monkeypatch.setattr(api_service, "MatchService", _FakeMatchService)
+    monkeypatch.setenv("FPBENCH_API_LAZY_STARTUP", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://admin@127.0.0.1:5432/biometric_db")
+    monkeypatch.delenv("IDENTITY_DATABASE_URL", raising=False)
+
+    with TestClient(api_main.app) as client:
+        response = client.get("/identify/stats")
+
+    assert response.status_code == 500
+    detail = response.json()["detail"]
+    assert "fe_sendauth: no password supplied" in detail
+    assert "Set DATABASE_URL" in detail
+    assert "postgresql://admin:<password>@127.0.0.1:5432/biometric_db" in detail
+    assert "docs/LOCAL_DUAL_DB_RUNBOOK.md" in detail
+    assert "change_me_biometric_dev_password" not in detail
+
+
+def test_admin_layout_missing_database_password_returns_readiness_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_missing_password_psycopg(monkeypatch)
+    monkeypatch.setenv("FPBENCH_API_LAZY_STARTUP", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://admin@127.0.0.1:5432/biometric_db")
+    monkeypatch.setenv("IDENTITY_DATABASE_URL", "postgresql://admin@127.0.0.1:5433/identity_db")
+
+    with TestClient(api_main.app) as client:
+        response = client.get("/identify/admin/layout")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["overall_ok"] is False
+    assert payload["readiness"]["status"] == "not_ready"
+    assert payload["direct_vector_retrieval_methods"] == DIRECT_RETRIEVAL_METHODS
+    connection_issues = [
+        issue for issue in payload["issues"] if issue["code"] == "database_connection_failed"
+    ]
+    assert {issue["database_role"] for issue in connection_issues} == {"biometric_db", "identity_db"}
+    assert any("Set DATABASE_URL" in issue["message"] for issue in connection_issues)
+    assert any("Set IDENTITY_DATABASE_URL" in issue["message"] for issue in connection_issues)
+    assert "change_me_biometric_dev_password" not in json.dumps(payload)

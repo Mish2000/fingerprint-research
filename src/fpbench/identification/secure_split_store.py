@@ -18,6 +18,7 @@ from apps.api.method_registry import MethodRegistryError, load_api_method_regist
 # Local fallback intentionally omits embedded credentials. Production/demo deployments should set
 # DATABASE_URL and, when using the split-DB layout, IDENTITY_DATABASE_URL.
 DEFAULT_DATABASE_URL = "postgresql://127.0.0.1:5432/biometric_db"
+LOCAL_DUAL_DB_RUNBOOK = "docs/LOCAL_DUAL_DB_RUNBOOK.md"
 _PREFIX_RE = re.compile(r"[^a-zA-Z0-9_]+")
 
 
@@ -326,6 +327,57 @@ def _looks_like_missing_generic_vector_storage_error(exc: Exception) -> bool:
         "does not exist" in message
         or "undefined column" in message
         or "undefined table" in message
+    )
+
+
+def _database_env_name_for_role(database_role: str) -> str:
+    role = str(database_role).strip().lower()
+    return "IDENTITY_DATABASE_URL" if "identity" in role else "DATABASE_URL"
+
+
+def _database_url_example_for_role(database_role: str, database_url: str) -> str:
+    role = str(database_role).strip().lower()
+    parsed = urlsplit(str(database_url))
+    host = parsed.hostname or "127.0.0.1"
+    if "identity" in role:
+        port = parsed.port or 5433
+        db_name = parsed.path.lstrip("/") or "identity_db"
+    else:
+        port = parsed.port or 5432
+        db_name = parsed.path.lstrip("/") or "biometric_db"
+    return f"postgresql://admin:<password>@{host}:{port}/{db_name}"
+
+
+def _postgres_connection_hint(database_url: str, *, database_role: str, exc: Exception) -> str:
+    env_name = _database_env_name_for_role(database_role)
+    parsed = urlsplit(str(database_url))
+    message = str(exc).lower()
+    missing_credentials = not parsed.username or not parsed.password or "no password supplied" in message
+    if missing_credentials:
+        return (
+            f"Set {env_name} to a PostgreSQL URL that includes both username and password, "
+            f"for example {_database_url_example_for_role(database_role, database_url)}. "
+            f"The no-credential fallback is only a placeholder; local docker-compose defaults are in "
+            f"{LOCAL_DUAL_DB_RUNBOOK}."
+        )
+    return (
+        f"Verify {env_name}, PostgreSQL reachability, and credentials. "
+        f"Local docker-compose setup is documented in {LOCAL_DUAL_DB_RUNBOOK}."
+    )
+
+
+def _postgres_connection_error_message(
+    database_url: str,
+    *,
+    database_role: str,
+    exc: Exception,
+    inspection: bool = False,
+) -> str:
+    mode = " in read-only inspection mode" if inspection else ""
+    return (
+        f"Failed to connect to {database_role} database{mode} "
+        f"({SecureSplitFingerprintStore._redacted_database_url(database_url)}): {exc}. "
+        f"{_postgres_connection_hint(database_url, database_role=database_role, exc=exc)}"
     )
 
 
@@ -2479,8 +2531,12 @@ class SecureSplitFingerprintStore:
             )
         except Exception as exc:  # pragma: no cover - runtime dependency
             raise RuntimeError(
-                f"Failed to connect to {database_role} database in read-only inspection mode "
-                f"({self._redacted_database_url(database_url)}): {exc}"
+                _postgres_connection_error_message(
+                    database_url,
+                    database_role=database_role,
+                    exc=exc,
+                    inspection=True,
+                )
             ) from exc
 
     def _inspection_contract_database_role(self, database_role: str) -> str:
@@ -4799,7 +4855,11 @@ class SecureSplitFingerprintStore:
             conn = psycopg.connect(database_url, autocommit=autocommit, row_factory=dict_row)
         except Exception as exc:  # pragma: no cover - runtime dependency
             raise RuntimeError(
-                f'Failed to connect to {database_role} database ({self._redacted_database_url(database_url)}): {exc}'
+                _postgres_connection_error_message(
+                    database_url,
+                    database_role=database_role,
+                    exc=exc,
+                )
             ) from exc
 
         try:

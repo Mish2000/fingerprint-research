@@ -1021,7 +1021,7 @@ export default function IdentificationOperationalWorkspace({ identification }: I
                     />
 
                     <InlineBanner variant="info">
-                        Vector retrieval uses embedding-based methods for fast shortlist generation; classic methods are applied during reranking.
+                        Direct retrieval methods build the shortlist; rerank methods can rescore the top candidates.
                     </InlineBanner>
 
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

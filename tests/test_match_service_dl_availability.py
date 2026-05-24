@@ -107,7 +107,7 @@ def test_health_and_methods_payload_include_dl_vit_availability(
         "dl",
         "vit",
     ]
-    assert health_payload["rerank_only_methods"] == ["dedicated"]
+    assert health_payload["rerank_only_methods"] == ["sift_plain_roll_v2", "dedicated"]
     assert health_payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert health_payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
     assert health_payload["method_capabilities"]["sift"]["retrieval_vector_kind"] == "sift_aggregated_descriptor_v1"
@@ -129,4 +129,5 @@ def test_health_and_methods_payload_include_dl_vit_availability(
         "dl",
         "vit",
     ]
+    assert methods_payload["rerank_only_methods"] == ["sift_plain_roll_v2", "dedicated"]
     assert methods_payload["method_capabilities"]["vit"]["retrieval_vector_dim"] == 768

@@ -19,6 +19,7 @@ SUPPORTED_METHODS = [
     "minutiae",
     "harris",
     "sift",
+    "sift_plain_roll_v2",
     "dl_quick",
     "dedicated",
     "vit",
@@ -33,6 +34,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--outdir", type=str, default="artifacts/reports/benchmark/current")
     parser.add_argument("--method", type=str, default="classic_v2", choices=SUPPORTED_METHODS)
     parser.add_argument("--split", type=str, default="val", choices=["train", "val", "test"])
+    parser.add_argument("--pairs_file", type=str, default="")
+    parser.add_argument("--pair_set_name", type=str, default="")
+    parser.add_argument("--operating_threshold", type=str, default="")
+    parser.add_argument("--threshold_source", type=str, default="")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--ensure_pairs", action="store_true")
     parser.add_argument("--dedicated_ckpt", type=str, default="auto")
@@ -101,6 +106,10 @@ def run_once(args: argparse.Namespace) -> int:
         input_hashes=input_hashes,
         mode="single",
         argv=list(sys.argv),
+        pairs_file=args.pairs_file,
+        pair_set_name=args.pair_set_name,
+        operating_threshold=args.operating_threshold,
+        threshold_source=args.threshold_source,
     )
     (outdir / "run_manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False),
@@ -147,6 +156,10 @@ def run_once(args: argparse.Namespace) -> int:
         fusion_sift_weight=args.fusion_sift_weight,
         fusion_dl_weight=args.fusion_dl_weight,
         fusion_vit_weight=args.fusion_vit_weight,
+        pairs_file=args.pairs_file,
+        pair_set_name=args.pair_set_name,
+        operating_threshold=args.operating_threshold,
+        threshold_source=args.threshold_source,
     )
 
     log("[RUN] " + " ".join(cmd))
@@ -159,7 +172,17 @@ def run_once(args: argparse.Namespace) -> int:
     matrix.render_results_md(summary_csv, summary_md)
     log(f"OK: Wrote {summary_md}")
 
-    expected_outputs = matrix.expected_output_paths(outdir, [args.method], [args.split])
+    expected_split = (
+        str(args.pair_set_name).strip() or Path(str(args.pairs_file)).stem
+        if str(args.pairs_file).strip()
+        else args.split
+    )
+    expected_outputs = matrix.expected_output_paths(
+        outdir,
+        [args.method],
+        [expected_split],
+        require_roc=not bool(str(args.pairs_file).strip()),
+    )
     missing_outputs = [path for path in expected_outputs if not path.exists()]
     if missing_outputs:
         log("ERROR: Missing expected outputs:")

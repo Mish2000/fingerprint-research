@@ -12,15 +12,20 @@ from scripts.diagnostics.run_sourceafis_plain_roll_benchmark import (
     METRICS_COLUMNS,
     SCORES_COLUMNS,
     THRESHOLD_COLUMNS,
+    RetryConfig,
     SourceAfisBenchmarkError,
     build_metrics_table,
+    build_parser,
     build_threshold_table,
+    call_with_retries,
     compute_auc_eer,
     compute_confusion,
     ensure_sourceafis_available,
+    load_plain_roll_pairs,
     output_schema,
     run_benchmark,
 )
+from src.fpbench.fingerprint_engine.errors import ProviderUnavailableError, TemplateExtractionError
 from src.fpbench.fingerprint_engine.types import (
     EngineCapabilities,
     EngineMetadata,
@@ -257,5 +262,181 @@ def test_mocked_provider_generates_output_schema_without_sidecar(tmp_path: Path)
     assert metrics[(metrics["split"] == "test") & (metrics["target_far"] == 0.50)].iloc[0]["tar"] == 1.0
     assert manifest["schema_version"] == "sourceafis_open_plain_roll_benchmark_v1"
     assert manifest["output_schema"] == output_schema()
+    assert manifest["timeout_settings"]["extract_timeout_seconds"] == pytest.approx(120.0)
+    assert manifest["retry_settings"]["max_retries"] == 1
+    assert manifest["sample_strategy"] == "balanced_spread"
+    assert manifest["sample_seed"] == 13
+    assert manifest["sidecar_warmup"]["ok"] is True
     assert "template_base64" not in summary
     assert "sourceafis_plain_roll_scores_val.csv" in summary
+
+
+def test_cli_parses_runtime_hardening_args() -> None:
+    args = build_parser().parse_args(
+        [
+            "--request_timeout_seconds",
+            "30",
+            "--extract_timeout_seconds",
+            "90",
+            "--verify_timeout_seconds",
+            "45",
+            "--max_retries",
+            "3",
+            "--retry_backoff_seconds",
+            "0.25",
+            "--sample_strategy",
+            "balanced_spread",
+            "--sample_seed",
+            "21",
+        ]
+    )
+
+    assert args.request_timeout_seconds == pytest.approx(30.0)
+    assert args.extract_timeout_seconds == pytest.approx(90.0)
+    assert args.verify_timeout_seconds == pytest.approx(45.0)
+    assert args.max_retries == 3
+    assert args.retry_backoff_seconds == pytest.approx(0.25)
+    assert args.sample_strategy == "balanced_spread"
+    assert args.sample_seed == 21
+
+
+def test_balanced_spread_sampling_is_deterministic_and_spread(tmp_path: Path) -> None:
+    manifest_dir = tmp_path / "data" / "manifests" / "toy"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    rows: list[dict[str, Any]] = []
+    for idx in range(40):
+        label = 1 if idx % 2 else 0
+        rows.append(
+            {
+                "pair_id": str(idx),
+                "label": label,
+                "split": "val",
+                "subject_a": f"s{idx}",
+                "subject_b": f"s{idx}" if label else f"other-{idx}",
+                "frgp": idx % 10,
+                "path_a": f"C:/fingerprint-research/plain_{idx}.png",
+                "path_b": f"C:/fingerprint-research/roll_{idx}.png",
+            }
+        )
+    pd.DataFrame(rows).to_csv(manifest_dir / "pairs_val.csv", index=False)
+
+    sampled_a, _ = load_plain_roll_pairs(
+        "toy",
+        "val",
+        repo_root=tmp_path,
+        limit=10,
+        sample_strategy="balanced_spread",
+        sample_seed=7,
+    )
+    sampled_b, _ = load_plain_roll_pairs(
+        "toy",
+        "val",
+        repo_root=tmp_path,
+        limit=10,
+        sample_strategy="balanced_spread",
+        sample_seed=7,
+    )
+    first, _ = load_plain_roll_pairs(
+        "toy",
+        "val",
+        repo_root=tmp_path,
+        limit=10,
+        sample_strategy="first",
+        sample_seed=7,
+    )
+
+    assert sampled_a["pair_id"].tolist() == sampled_b["pair_id"].tolist()
+    assert int((sampled_a["label"] == 1).sum()) == 5
+    assert int((sampled_a["label"] == 0).sum()) == 5
+    assert sampled_a["pair_id"].astype(int).max() > first["pair_id"].astype(int).max()
+
+
+def test_retry_only_transient_transport_failures() -> None:
+    attempts = {"transient": 0, "invalid": 0}
+
+    def transient_then_ok() -> str:
+        attempts["transient"] += 1
+        if attempts["transient"] == 1:
+            raise ProviderUnavailableError("SourceAFIS template extraction timed out contacting sidecar.")
+        return "ok"
+
+    result = call_with_retries("extract_template", transient_then_ok, RetryConfig(max_retries=2, retry_backoff_seconds=0))
+
+    assert result.value == "ok"
+    assert result.retry_count == 1
+    assert attempts["transient"] == 2
+
+    def invalid_image() -> str:
+        attempts["invalid"] += 1
+        raise TemplateExtractionError("image decode failed")
+
+    with pytest.raises(TemplateExtractionError):
+        call_with_retries("extract_template", invalid_image, RetryConfig(max_retries=2, retry_backoff_seconds=0))
+    assert attempts["invalid"] == 1
+
+
+class FailingExtractionEngine(MockSourceAfisEngine):
+    def __init__(self) -> None:
+        self.extract_calls_by_path: dict[str, int] = {}
+
+    def extract_template(self, image: FingerprintImage) -> FingerprintTemplate:
+        path = str(image.path)
+        self.extract_calls_by_path[path] = self.extract_calls_by_path.get(path, 0) + 1
+        raise TemplateExtractionError("image decode failed")
+
+
+def test_repeated_image_extraction_failure_is_cached_in_run(tmp_path: Path) -> None:
+    manifest_dir = tmp_path / "data" / "manifests" / "toy"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    image_dir = tmp_path / "images"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    shared_plain = image_dir / "plain_shared.png"
+    shared_plain.write_bytes(b"not-a-real-png")
+    for idx in range(2):
+        (image_dir / f"roll_{idx}.png").write_bytes(f"roll-{idx}".encode("ascii"))
+    pd.DataFrame(
+        [
+            {
+                "pair_id": "0",
+                "label": 0,
+                "split": "val",
+                "subject_a": "s1",
+                "subject_b": "s2",
+                "frgp": 1,
+                "path_a": str(shared_plain),
+                "path_b": str(image_dir / "roll_0.png"),
+            },
+            {
+                "pair_id": "1",
+                "label": 1,
+                "split": "val",
+                "subject_a": "s1",
+                "subject_b": "s1",
+                "frgp": 1,
+                "path_a": str(shared_plain),
+                "path_b": str(image_dir / "roll_1.png"),
+            },
+        ]
+    ).to_csv(manifest_dir / "pairs_val.csv", index=False)
+    engine = FailingExtractionEngine()
+
+    paths = run_benchmark(
+        datasets=("toy",),
+        splits=("val",),
+        outdir=tmp_path / "reports",
+        target_fars=(0.5,),
+        engine=engine,
+        require_enabled_env=False,
+        repo_root=tmp_path,
+        template_cache_dir=tmp_path / "cache",
+        retry_backoff_seconds=0,
+    )
+
+    failures = pd.read_csv(paths["failures"])
+    scores = pd.read_csv(paths["scores_val"])
+    metrics = pd.read_csv(paths["metrics"])
+
+    assert engine.extract_calls_by_path[str(shared_plain)] == 1
+    assert failures["cached_failure"].tolist() == [False, True]
+    assert list(scores["raw_score"].isna()) == [True, True]
+    assert int(metrics.iloc[0]["n_unscored"]) == 2

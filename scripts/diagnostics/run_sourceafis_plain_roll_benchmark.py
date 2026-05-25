@@ -29,7 +29,17 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.fpbench.fingerprint_engine import FingerprintImage, FingerprintTemplate, get_engine
 from src.fpbench.fingerprint_engine.base import FingerprintEngine
-from src.fpbench.fingerprint_engine.errors import FingerprintEngineError
+from src.fpbench.fingerprint_engine.errors import (
+    FingerprintEngineError,
+    ProviderUnavailableError,
+    TemplateExtractionError,
+)
+from src.fpbench.fingerprint_engine.providers.sourceafis_client import (
+    SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS_ENV,
+    SOURCEAFIS_READ_TIMEOUT_SECONDS_ENV,
+    SOURCEAFIS_VERIFY_TIMEOUT_SECONDS_ENV,
+    sourceafis_timeout_settings_from_env,
+)
 from src.fpbench.fingerprint_engine.providers.sourceafis_provider import (
     SOURCEAFIS_ENABLED_ENV,
     SOURCEAFIS_SERVICE_URL_ENV,
@@ -42,6 +52,10 @@ DEFAULT_DATASETS = ("nist_sd300b", "nist_sd300c")
 DEFAULT_SPLITS = ("val", "test")
 TARGET_FARS = (0.01, 0.005, 0.001, 0.0001)
 OUTPUT_SCHEMA_VERSION = "sourceafis_open_plain_roll_benchmark_v1"
+DEFAULT_MAX_RETRIES = 1
+DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
+DEFAULT_SAMPLE_STRATEGY = "balanced_spread"
+DEFAULT_SAMPLE_SEED = 13
 DEFAULT_OUTDIR = (
     REPO_ROOT
     / "artifacts"
@@ -72,8 +86,11 @@ SCORES_COLUMNS = [
     "extraction_cache_hit_b",
     "extraction_latency_ms_a",
     "extraction_latency_ms_b",
+    "extraction_retry_count_a",
+    "extraction_retry_count_b",
     "verification_latency_ms",
     "verification_wall_latency_ms",
+    "verification_retry_count",
     "normalized_score_returned",
     "warnings",
     "error",
@@ -156,6 +173,9 @@ FAILURE_COLUMNS = [
     "subject_a",
     "subject_b",
     "finger_position",
+    "retry_count",
+    "cached_failure",
+    "failure_category",
     "error_type",
     "error_message",
 ]
@@ -185,6 +205,36 @@ class TemplateCacheResult:
     cache_key: str
     cache_hit: bool
     latency_ms: float
+    retry_count: int = 0
+
+
+@dataclass(frozen=True)
+class RetryConfig:
+    max_retries: int = DEFAULT_MAX_RETRIES
+    retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS
+
+
+@dataclass(frozen=True)
+class RetryResult:
+    value: Any
+    retry_count: int
+
+
+@dataclass(frozen=True)
+class CachedExtractionFailure:
+    image_path: str
+    image_sha256: str
+    cache_key: str
+    retry_count: int
+    error_type: str
+    error_message: str
+    failure_category: str
+
+
+class CachedTemplateExtractionError(TemplateExtractionError):
+    def __init__(self, failure: CachedExtractionFailure) -> None:
+        super().__init__(f"Cached SourceAFIS template extraction failure for {failure.image_path}: {failure.error_message}")
+        self.failure = failure
 
 
 def output_schema() -> dict[str, list[str]]:
@@ -222,6 +272,54 @@ def _safe_float(value: Any) -> float:
     except (TypeError, ValueError):
         return float("nan")
     return number if math.isfinite(number) else float("nan")
+
+
+def _is_transient_transport_error(exc: BaseException) -> bool:
+    if not isinstance(exc, ProviderUnavailableError):
+        return False
+    message = str(exc).lower()
+    return "timed out" in message or "could not reach" in message or "transport" in message
+
+
+def _failure_category(exc: BaseException) -> str:
+    message = str(exc).lower()
+    if isinstance(exc, CachedTemplateExtractionError):
+        return exc.failure.failure_category
+    if "timed out" in message or "timeout" in message:
+        return "timeout"
+    if "could not reach" in message or "transport" in message:
+        return "transport"
+    if isinstance(exc, TemplateExtractionError) and ("decode" in message or "image" in message):
+        return "invalid_image"
+    if isinstance(exc, ProviderUnavailableError):
+        return "provider_unavailable"
+    return "domain_error"
+
+
+def _retry_count(exc: BaseException) -> int:
+    if isinstance(exc, CachedTemplateExtractionError):
+        return int(exc.failure.retry_count)
+    return int(getattr(exc, "retry_count", 0) or 0)
+
+
+def call_with_retries(operation: str, func: Any, retry_config: RetryConfig) -> RetryResult:
+    del operation
+    max_retries = max(int(retry_config.max_retries), 0)
+    backoff = max(float(retry_config.retry_backoff_seconds), 0.0)
+    retry_count = 0
+    while True:
+        try:
+            return RetryResult(value=func(), retry_count=retry_count)
+        except Exception as exc:
+            if retry_count >= max_retries or not _is_transient_transport_error(exc):
+                try:
+                    setattr(exc, "retry_count", retry_count)
+                except Exception:
+                    pass
+                raise
+            retry_count += 1
+            if backoff > 0:
+                time.sleep(backoff * retry_count)
 
 
 def _finite_labels_scores(labels: Any, scores: Any) -> tuple[np.ndarray, np.ndarray]:
@@ -466,6 +564,74 @@ def validate_output_directory(outdir: Path, *, repo_root: Path = REPO_ROOT) -> P
     )
 
 
+def _timeout_env_overrides(
+    *,
+    request_timeout_seconds: float | None,
+    extract_timeout_seconds: float | None,
+    verify_timeout_seconds: float | None,
+) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    if request_timeout_seconds is not None:
+        overrides[SOURCEAFIS_READ_TIMEOUT_SECONDS_ENV] = str(float(request_timeout_seconds))
+    if extract_timeout_seconds is not None:
+        overrides[SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS_ENV] = str(float(extract_timeout_seconds))
+    if verify_timeout_seconds is not None:
+        overrides[SOURCEAFIS_VERIFY_TIMEOUT_SECONDS_ENV] = str(float(verify_timeout_seconds))
+    return overrides
+
+
+def _set_env_overrides(overrides: dict[str, str]) -> dict[str, str | None]:
+    previous: dict[str, str | None] = {}
+    for key, value in overrides.items():
+        previous[key] = os.environ.get(key)
+        os.environ[key] = value
+    return previous
+
+
+def _restore_env(previous: dict[str, str | None]) -> None:
+    for key, value in previous.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
+def _resolved_timeout_settings(
+    *,
+    request_timeout_seconds: float | None,
+    extract_timeout_seconds: float | None,
+    verify_timeout_seconds: float | None,
+) -> dict[str, float]:
+    return sourceafis_timeout_settings_from_env(
+        read_timeout_seconds=request_timeout_seconds,
+        extract_timeout_seconds=extract_timeout_seconds,
+        verify_timeout_seconds=verify_timeout_seconds,
+    ).as_dict()
+
+
+def warmup_sidecar(engine: FingerprintEngine) -> dict[str, Any]:
+    start = time.perf_counter()
+    try:
+        metadata = engine.metadata()
+    except Exception as exc:
+        return {
+            "operation": "health",
+            "ok": False,
+            "latency_ms": float((time.perf_counter() - start) * 1000.0),
+            "error_type": type(exc).__name__,
+            "error_message": str(exc),
+        }
+    return {
+        "operation": "health",
+        "ok": bool(metadata.available),
+        "latency_ms": float((time.perf_counter() - start) * 1000.0),
+        "provider_version": metadata.provider_version,
+        "engine_version": metadata.provider_version,
+        "service_url": metadata.metadata.get("service_url", os.getenv(SOURCEAFIS_SERVICE_URL_ENV, "")),
+        "unavailable_reason": metadata.unavailable_reason,
+    }
+
+
 def _pairs_path(dataset: str, split: str, *, repo_root: Path = REPO_ROOT) -> Path | None:
     candidates = [
         repo_root / "data" / "manifests" / dataset / f"pairs_{split}.csv",
@@ -487,11 +653,54 @@ def _one_plain_one_roll(path_a: Any, path_b: Any) -> bool:
     return (left_plain and right_roll) or (left_roll and right_plain)
 
 
-def _limit_pairs(df: pd.DataFrame, limit: int) -> pd.DataFrame:
+def _target_label_counts(df: pd.DataFrame, limit: int) -> tuple[int, int]:
+    positives_available = int((df["label"] == 1).sum())
+    negatives_available = int((df["label"] == 0).sum())
+    positive_target = min(int(math.ceil(limit / 2)), positives_available)
+    negative_target = min(int(math.floor(limit / 2)), negatives_available)
+    remaining = max(int(limit) - positive_target - negative_target, 0)
+    if remaining and positives_available > positive_target:
+        add = min(remaining, positives_available - positive_target)
+        positive_target += add
+        remaining -= add
+    if remaining and negatives_available > negative_target:
+        add = min(remaining, negatives_available - negative_target)
+        negative_target += add
+    return positive_target, negative_target
+
+
+def _spread_sample(group: pd.DataFrame, count: int, rng: np.random.Generator) -> pd.DataFrame:
+    if count <= 0:
+        return group.head(0)
+    if len(group) <= count:
+        return group
+    positions = np.arange(len(group))
+    bins = np.array_split(positions, count)
+    chosen_positions = [int(rng.choice(bucket)) for bucket in bins if len(bucket)]
+    return group.iloc[chosen_positions]
+
+
+def _limit_pairs(
+    df: pd.DataFrame,
+    limit: int,
+    *,
+    sample_strategy: str = DEFAULT_SAMPLE_STRATEGY,
+    sample_seed: int = DEFAULT_SAMPLE_SEED,
+) -> pd.DataFrame:
     if limit <= 0 or len(df) <= limit:
         return df.reset_index(drop=True)
-    positives = df[df["label"] == 1].head(math.ceil(limit / 2))
-    negatives = df[df["label"] == 0].head(math.floor(limit / 2))
+    positive_target, negative_target = _target_label_counts(df, int(limit))
+    positives_all = df[df["label"] == 1]
+    negatives_all = df[df["label"] == 0]
+    if sample_strategy == "first":
+        positives = positives_all.head(positive_target)
+        negatives = negatives_all.head(negative_target)
+    elif sample_strategy == "balanced_spread":
+        rng = np.random.default_rng(int(sample_seed))
+        positives = _spread_sample(positives_all, positive_target, rng)
+        negatives = _spread_sample(negatives_all, negative_target, rng)
+    else:
+        raise ValueError(f"Unsupported sample_strategy: {sample_strategy!r}")
     limited = pd.concat([positives, negatives], ignore_index=False).sort_values("_source_order")
     return limited.head(limit).reset_index(drop=True)
 
@@ -502,6 +711,8 @@ def load_plain_roll_pairs(
     *,
     repo_root: Path = REPO_ROOT,
     limit: int = 0,
+    sample_strategy: str = DEFAULT_SAMPLE_STRATEGY,
+    sample_seed: int = DEFAULT_SAMPLE_SEED,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     pairs_csv = _pairs_path(dataset, split, repo_root=repo_root)
     if pairs_csv is None:
@@ -550,8 +761,13 @@ def load_plain_roll_pairs(
     plain_roll_mask = normalized.apply(lambda row: _one_plain_one_roll(row["path_a"], row["path_b"]), axis=1)
     same_subject = normalized["subject_a"] == normalized["subject_b"]
     protocol_mask = ((normalized["label"] == 1) & same_subject) | ((normalized["label"] == 0) & ~same_subject)
-    filtered = normalized[split_mask & label_mask & plain_roll_mask & protocol_mask].copy()
-    filtered = _limit_pairs(filtered, int(limit))
+    filtered_before_sampling = normalized[split_mask & label_mask & plain_roll_mask & protocol_mask].copy()
+    filtered = _limit_pairs(
+        filtered_before_sampling,
+        int(limit),
+        sample_strategy=sample_strategy,
+        sample_seed=int(sample_seed),
+    )
 
     status = {
         "dataset": dataset,
@@ -565,7 +781,12 @@ def load_plain_roll_pairs(
         "n_positive": int((filtered["label"] == 1).sum()) if len(filtered) else 0,
         "n_negative": int((filtered["label"] == 0).sum()) if len(filtered) else 0,
         "source_n_pairs": int(len(df)),
-        "filtered_out_pairs": int(len(df) - len(filtered)),
+        "protocol_eligible_pairs": int(len(filtered_before_sampling)),
+        "filtered_out_pairs": int(len(df) - len(filtered_before_sampling)),
+        "sampled_out_pairs": int(len(filtered_before_sampling) - len(filtered)),
+        "sample_strategy": sample_strategy,
+        "sample_seed": int(sample_seed),
+        "limit_per_split": int(limit),
     }
     columns = [
         "dataset",
@@ -628,6 +849,7 @@ class TemplateCache:
         self.service_url = service_url
         self.repo_root = repo_root
         self._memory: dict[str, TemplateCacheResult] = {}
+        self._failures: dict[str, CachedExtractionFailure] = {}
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def get(
@@ -639,10 +861,13 @@ class TemplateCache:
         split: str,
         pair_id: Any,
         side: str,
+        retry_config: RetryConfig,
     ) -> TemplateCacheResult:
         resolved_path = parse_file_uri(image_path, repo_root=self.repo_root)
         image_bytes, image_sha256 = _read_image(resolved_path)
         cache_key = self._cache_key(resolved_path, image_sha256)
+        if cache_key in self._failures:
+            raise CachedTemplateExtractionError(self._failures[cache_key])
         if cache_key in self._memory:
             cached = self._memory[cache_key]
             return TemplateCacheResult(
@@ -652,6 +877,7 @@ class TemplateCache:
                 cache_key=cached.cache_key,
                 cache_hit=True,
                 latency_ms=0.0,
+                retry_count=cached.retry_count,
             )
 
         cache_path = self.cache_dir / f"{cache_key}.json"
@@ -666,6 +892,7 @@ class TemplateCache:
                 cache_key=cache_key,
                 cache_hit=True,
                 latency_ms=float(latency_ms),
+                retry_count=0,
             )
             self._memory[cache_key] = result
             return result
@@ -686,7 +913,30 @@ class TemplateCache:
             },
         )
         start = time.perf_counter()
-        template = engine.extract_template(image)
+        try:
+            retry_result = call_with_retries(
+                "extract_template",
+                lambda: engine.extract_template(image),
+                retry_config,
+            )
+        except Exception as exc:
+            latency_ms = (time.perf_counter() - start) * 1000.0
+            failure = CachedExtractionFailure(
+                image_path=str(resolved_path),
+                image_sha256=image_sha256,
+                cache_key=cache_key,
+                retry_count=_retry_count(exc),
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                failure_category=_failure_category(exc),
+            )
+            self._failures[cache_key] = failure
+            try:
+                setattr(exc, "latency_ms", float(latency_ms))
+            except Exception:
+                pass
+            raise
+        template = retry_result.value
         latency_ms = (time.perf_counter() - start) * 1000.0
         self._write_cache_file(cache_path, template, resolved_path, image_sha256)
         result = TemplateCacheResult(
@@ -696,6 +946,7 @@ class TemplateCache:
             cache_key=cache_key,
             cache_hit=False,
             latency_ms=float(latency_ms),
+            retry_count=int(retry_result.retry_count),
         )
         self._memory[cache_key] = result
         return result
@@ -785,6 +1036,7 @@ def score_pairs(
     *,
     engine: FingerprintEngine,
     cache: TemplateCache,
+    retry_config: RetryConfig,
 ) -> tuple[pd.DataFrame, list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
@@ -821,6 +1073,7 @@ def score_pairs(
                 split=split,
                 pair_id=pair_id,
                 side="a",
+                retry_config=retry_config,
             )
             latency_events.append(
                 _latency_event(
@@ -839,6 +1092,7 @@ def score_pairs(
                 split=split,
                 pair_id=pair_id,
                 side="b",
+                retry_config=retry_config,
             )
             latency_events.append(
                 _latency_event(
@@ -851,16 +1105,21 @@ def score_pairs(
                 )
             )
         except Exception as exc:
+            cached_failure = isinstance(exc, CachedTemplateExtractionError)
+            cached = exc.failure if cached_failure else None
             failures.append(
                 {
                     "dataset": dataset,
                     "split": split,
                     "pair_id": pair_id,
                     "operation": "extract_template",
-                    "path": f"{pair.path_a} | {pair.path_b}",
+                    "path": cached.image_path if cached is not None else f"{pair.path_a} | {pair.path_b}",
                     "subject_a": str(pair.subject_a),
                     "subject_b": str(pair.subject_b),
                     "finger_position": str(pair.finger_position),
+                    "retry_count": _retry_count(exc),
+                    "cached_failure": cached_failure,
+                    "failure_category": _failure_category(exc),
                     "error_type": type(exc).__name__,
                     "error_message": str(exc),
                 }
@@ -873,8 +1132,11 @@ def score_pairs(
                     "extraction_cache_hit_b": "",
                     "extraction_latency_ms_a": float("nan"),
                     "extraction_latency_ms_b": float("nan"),
+                    "extraction_retry_count_a": _retry_count(exc),
+                    "extraction_retry_count_b": "",
                     "verification_latency_ms": float("nan"),
                     "verification_wall_latency_ms": float("nan"),
+                    "verification_retry_count": "",
                     "normalized_score_returned": False,
                     "error": f"template extraction failed: {exc}",
                 }
@@ -884,7 +1146,12 @@ def score_pairs(
 
         try:
             start = time.perf_counter()
-            match = engine.verify(template_a.template, template_b.template)
+            retry_result = call_with_retries(
+                "verify",
+                lambda: engine.verify(template_a.template, template_b.template),
+                retry_config,
+            )
+            match = retry_result.value
             wall_latency_ms = (time.perf_counter() - start) * 1000.0
             verification_latency_ms = (
                 float(match.latency_ms) if match.latency_ms is not None else float(wall_latency_ms)
@@ -903,8 +1170,11 @@ def score_pairs(
                     "extraction_cache_hit_b": bool(template_b.cache_hit),
                     "extraction_latency_ms_a": float(template_a.latency_ms),
                     "extraction_latency_ms_b": float(template_b.latency_ms),
+                    "extraction_retry_count_a": int(template_a.retry_count),
+                    "extraction_retry_count_b": int(template_b.retry_count),
                     "verification_latency_ms": verification_latency_ms,
                     "verification_wall_latency_ms": float(wall_latency_ms),
+                    "verification_retry_count": int(retry_result.retry_count),
                     "normalized_score_returned": match.normalized_score is not None,
                     "warnings": "; ".join(match.warnings),
                     "error": "",
@@ -921,6 +1191,9 @@ def score_pairs(
                     "subject_a": str(pair.subject_a),
                     "subject_b": str(pair.subject_b),
                     "finger_position": str(pair.finger_position),
+                    "retry_count": _retry_count(exc),
+                    "cached_failure": False,
+                    "failure_category": _failure_category(exc),
                     "error_type": type(exc).__name__,
                     "error_message": str(exc),
                 }
@@ -936,8 +1209,11 @@ def score_pairs(
                     "extraction_cache_hit_b": bool(template_b.cache_hit),
                     "extraction_latency_ms_a": float(template_a.latency_ms),
                     "extraction_latency_ms_b": float(template_b.latency_ms),
+                    "extraction_retry_count_a": int(template_a.retry_count),
+                    "extraction_retry_count_b": int(template_b.retry_count),
                     "verification_latency_ms": float("nan"),
                     "verification_wall_latency_ms": float("nan"),
+                    "verification_retry_count": _retry_count(exc),
                     "normalized_score_returned": False,
                     "error": f"verification failed: {exc}",
                 }
@@ -1094,9 +1370,25 @@ def render_summary_markdown(
     total_runtime_s: float,
     output_paths: dict[str, Path],
     comparison_created: bool,
+    timeout_settings: dict[str, float],
+    retry_settings: dict[str, Any],
+    sample_strategy: str,
+    sample_seed: int,
+    warmup_result: dict[str, Any],
 ) -> str:
     extraction_failures = int((failures["operation"] == "extract_template").sum()) if not failures.empty else 0
     scoring_failures = int((failures["operation"] == "verify").sum()) if not failures.empty else 0
+    timeout_failures = (
+        int(((failures["operation"] == "extract_template") & (failures["failure_category"] == "timeout")).sum())
+        if not failures.empty
+        else 0
+    )
+    transport_failures = int((failures["failure_category"].isin(["timeout", "transport"])).sum()) if not failures.empty else 0
+    invalid_image_failures = (
+        int(((failures["operation"] == "extract_template") & (failures["failure_category"] == "invalid_image")).sum())
+        if not failures.empty
+        else 0
+    )
     lines = [
         "# SourceAFIS Plain/Roll Benchmark",
         "",
@@ -1107,6 +1399,21 @@ def render_summary_markdown(
         f"Total runtime: {_fmt_float(total_runtime_s, 2)} s",
         f"Template extraction failures: {extraction_failures}",
         f"Scoring failures: {scoring_failures}",
+        f"Extraction timeout failures: {timeout_failures}",
+        f"Transport failures: {transport_failures}",
+        f"Extraction invalid image failures: {invalid_image_failures}",
+        "",
+        "## Runtime Settings",
+        "",
+        f"- Request/read timeout: {_fmt_float(timeout_settings.get('read_timeout_seconds'), 1)} s",
+        f"- Extract timeout: {_fmt_float(timeout_settings.get('extract_timeout_seconds'), 1)} s",
+        f"- Verify timeout: {_fmt_float(timeout_settings.get('verify_timeout_seconds'), 1)} s",
+        f"- Connect timeout: {_fmt_float(timeout_settings.get('connect_timeout_seconds'), 1)} s",
+        f"- Max retries: {retry_settings.get('max_retries')}",
+        f"- Retry backoff: {_fmt_float(retry_settings.get('retry_backoff_seconds'), 2)} s",
+        f"- Sample strategy: `{sample_strategy}`",
+        f"- Sample seed: {int(sample_seed)}",
+        f"- Sidecar warmup: {'ok' if warmup_result.get('ok') else 'failed'} in {_fmt_float(warmup_result.get('latency_ms'), 2)} ms",
         "",
         "## Dataset Protocols",
         "",
@@ -1242,6 +1549,11 @@ def write_manifest(
     total_runtime_s: float,
     repo_root: Path,
     cache_dir: Path,
+    timeout_settings: dict[str, float],
+    retry_settings: dict[str, Any],
+    sample_strategy: str,
+    sample_seed: int,
+    warmup_result: dict[str, Any],
 ) -> None:
     payload = {
         "schema_version": OUTPUT_SCHEMA_VERSION,
@@ -1253,12 +1565,18 @@ def write_manifest(
         "provider": {
             "provider_id": provider_metadata.provider_id,
             "provider_version": provider_metadata.provider_version,
+            "engine_version": provider_metadata.provider_version,
             "template_format": provider_metadata.template_format,
             "template_version": provider_metadata.template_version,
             "sdk_name": provider_metadata.sdk_name,
-            "service_url": os.getenv(SOURCEAFIS_SERVICE_URL_ENV, ""),
+            "service_url": provider_metadata.metadata.get("service_url", os.getenv(SOURCEAFIS_SERVICE_URL_ENV, "")),
             "metadata": provider_metadata.metadata,
         },
+        "timeout_settings": timeout_settings,
+        "retry_settings": retry_settings,
+        "sample_strategy": sample_strategy,
+        "sample_seed": int(sample_seed),
+        "sidecar_warmup": warmup_result,
         "score_semantics": {
             "raw_score_name": "SourceAFIS raw similarity score",
             "higher_score_more_similar": True,
@@ -1365,47 +1683,95 @@ def run_benchmark(
     require_enabled_env: bool = True,
     repo_root: Path = REPO_ROOT,
     template_cache_dir: Path | None = None,
+    request_timeout_seconds: float | None = None,
+    extract_timeout_seconds: float | None = None,
+    verify_timeout_seconds: float | None = None,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
+    sample_strategy: str = DEFAULT_SAMPLE_STRATEGY,
+    sample_seed: int = DEFAULT_SAMPLE_SEED,
 ) -> dict[str, Path]:
     start = time.perf_counter()
+    if sample_strategy not in {"first", "balanced_spread"}:
+        raise SourceAfisBenchmarkError(f"Unsupported sample_strategy: {sample_strategy!r}")
     output = validate_output_directory(outdir, repo_root=repo_root)
     output.mkdir(parents=True, exist_ok=True)
-    selected_engine, provider_metadata = ensure_sourceafis_available(
-        engine,
-        require_enabled_env=require_enabled_env,
+    timeout_overrides = _timeout_env_overrides(
+        request_timeout_seconds=request_timeout_seconds,
+        extract_timeout_seconds=extract_timeout_seconds,
+        verify_timeout_seconds=verify_timeout_seconds,
     )
-
-    service_url = str(os.getenv(SOURCEAFIS_SERVICE_URL_ENV) or provider_metadata.metadata.get("service_url") or "")
-    cache_dir = template_cache_dir or (output / "template_cache")
-    cache = TemplateCache(
-        parse_file_uri(cache_dir, repo_root=repo_root),
-        provider_metadata=provider_metadata,
-        service_url=service_url,
-        repo_root=repo_root,
-    )
-
-    dataset_statuses: list[dict[str, Any]] = []
-    score_frames: list[pd.DataFrame] = []
-    failure_rows: list[dict[str, Any]] = []
-    latency_events: list[dict[str, Any]] = []
-
-    for dataset in datasets:
-        for split in splits:
-            pairs, status = load_plain_roll_pairs(
-                dataset,
-                split,
-                repo_root=repo_root,
-                limit=int(limit_per_split),
+    previous_env = _set_env_overrides(timeout_overrides)
+    try:
+        timeout_settings = _resolved_timeout_settings(
+            request_timeout_seconds=request_timeout_seconds,
+            extract_timeout_seconds=extract_timeout_seconds,
+            verify_timeout_seconds=verify_timeout_seconds,
+        )
+        retry_config = RetryConfig(
+            max_retries=max(int(max_retries), 0),
+            retry_backoff_seconds=max(float(retry_backoff_seconds), 0.0),
+        )
+        retry_settings = {
+            "max_retries": int(retry_config.max_retries),
+            "retry_backoff_seconds": float(retry_config.retry_backoff_seconds),
+        }
+        selected_engine, provider_metadata = ensure_sourceafis_available(
+            engine,
+            require_enabled_env=require_enabled_env,
+        )
+        warmup_result = warmup_sidecar(selected_engine)
+        if not bool(warmup_result.get("ok")):
+            raise SourceAfisBenchmarkError(
+                f"SourceAFIS sidecar warmup failed: {warmup_result.get('error_message') or warmup_result.get('unavailable_reason')}"
             )
-            dataset_statuses.append(status)
-            if pairs.empty:
-                continue
-            scored, failures, events = score_pairs(pairs, engine=selected_engine, cache=cache)
-            score_frames.append(scored)
-            failure_rows.extend(failures)
-            latency_events.extend(events)
 
-    if not score_frames:
-        raise SourceAfisBenchmarkError("No compatible plain-vs-roll pairs were scored.")
+        service_url = str(
+            provider_metadata.metadata.get("service_url")
+            or os.getenv(SOURCEAFIS_SERVICE_URL_ENV)
+            or warmup_result.get("service_url")
+            or ""
+        )
+        cache_dir = template_cache_dir or (output / "template_cache")
+        cache = TemplateCache(
+            parse_file_uri(cache_dir, repo_root=repo_root),
+            provider_metadata=provider_metadata,
+            service_url=service_url,
+            repo_root=repo_root,
+        )
+
+        dataset_statuses: list[dict[str, Any]] = []
+        score_frames: list[pd.DataFrame] = []
+        failure_rows: list[dict[str, Any]] = []
+        latency_events: list[dict[str, Any]] = []
+
+        for dataset in datasets:
+            for split in splits:
+                pairs, status = load_plain_roll_pairs(
+                    dataset,
+                    split,
+                    repo_root=repo_root,
+                    limit=int(limit_per_split),
+                    sample_strategy=sample_strategy,
+                    sample_seed=int(sample_seed),
+                )
+                dataset_statuses.append(status)
+                if pairs.empty:
+                    continue
+                scored, failures, events = score_pairs(
+                    pairs,
+                    engine=selected_engine,
+                    cache=cache,
+                    retry_config=retry_config,
+                )
+                score_frames.append(scored)
+                failure_rows.extend(failures)
+                latency_events.extend(events)
+
+        if not score_frames:
+            raise SourceAfisBenchmarkError("No compatible plain-vs-roll pairs were scored.")
+    finally:
+        _restore_env(previous_env)
 
     scores = pd.concat(score_frames, ignore_index=True, sort=False)
     thresholds = build_threshold_table(scores, tuple(float(x) for x in target_fars))
@@ -1447,6 +1813,11 @@ def run_benchmark(
             total_runtime_s=total_runtime_s,
             output_paths=paths,
             comparison_created=comparison_created,
+            timeout_settings=timeout_settings,
+            retry_settings=retry_settings,
+            sample_strategy=sample_strategy,
+            sample_seed=int(sample_seed),
+            warmup_result=warmup_result,
         ),
         encoding="utf-8",
     )
@@ -1459,6 +1830,11 @@ def run_benchmark(
         total_runtime_s=total_runtime_s,
         repo_root=repo_root,
         cache_dir=cache.cache_dir,
+        timeout_settings=timeout_settings,
+        retry_settings=retry_settings,
+        sample_strategy=sample_strategy,
+        sample_seed=int(sample_seed),
+        warmup_result=warmup_result,
     )
     return paths
 
@@ -1482,6 +1858,32 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Optional template cache directory. Defaults to <outdir>/template_cache.",
     )
+    parser.add_argument(
+        "--request_timeout_seconds",
+        type=float,
+        default=None,
+        help="General SourceAFIS request/read timeout in seconds. Operation-specific timeouts override this.",
+    )
+    parser.add_argument(
+        "--extract_timeout_seconds",
+        type=float,
+        default=None,
+        help="SourceAFIS template extraction timeout in seconds.",
+    )
+    parser.add_argument(
+        "--verify_timeout_seconds",
+        type=float,
+        default=None,
+        help="SourceAFIS verification timeout in seconds.",
+    )
+    parser.add_argument("--max_retries", type=int, default=DEFAULT_MAX_RETRIES)
+    parser.add_argument("--retry_backoff_seconds", type=float, default=DEFAULT_RETRY_BACKOFF_SECONDS)
+    parser.add_argument(
+        "--sample_strategy",
+        choices=("first", "balanced_spread"),
+        default=DEFAULT_SAMPLE_STRATEGY,
+    )
+    parser.add_argument("--sample_seed", type=int, default=DEFAULT_SAMPLE_SEED)
     return parser
 
 
@@ -1498,6 +1900,13 @@ def main(argv: list[str] | None = None) -> int:
             target_fars=tuple(float(x) for x in args.target_far),
             limit_per_split=int(args.limit_per_split),
             template_cache_dir=template_cache_dir,
+            request_timeout_seconds=args.request_timeout_seconds,
+            extract_timeout_seconds=args.extract_timeout_seconds,
+            verify_timeout_seconds=args.verify_timeout_seconds,
+            max_retries=int(args.max_retries),
+            retry_backoff_seconds=float(args.retry_backoff_seconds),
+            sample_strategy=str(args.sample_strategy),
+            sample_seed=int(args.sample_seed),
         )
     except (FingerprintEngineError, SourceAfisBenchmarkError) as exc:
         print(f"SourceAFIS Plain/Roll benchmark unavailable: {exc}", file=sys.stderr)

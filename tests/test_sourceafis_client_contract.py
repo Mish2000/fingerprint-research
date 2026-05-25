@@ -138,6 +138,33 @@ def test_sourceafis_client_maps_sidecar_errors_to_domain_errors() -> None:
         client.verify(template, template)
 
 
+def test_sourceafis_client_timeout_settings_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SOURCEAFIS_CONNECT_TIMEOUT_SECONDS", "3")
+    monkeypatch.setenv("SOURCEAFIS_READ_TIMEOUT_SECONDS", "11")
+    monkeypatch.setenv("SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS", "17")
+    monkeypatch.setenv("SOURCEAFIS_VERIFY_TIMEOUT_SECONDS", "19")
+
+    client = SourceAfisClient("http://sourceafis.test", transport=httpx.MockTransport(lambda request: httpx.Response(200, json={})))
+
+    assert client.timeout_settings.connect_timeout_seconds == pytest.approx(3.0)
+    assert client.timeout_settings.read_timeout_seconds == pytest.approx(11.0)
+    assert client.timeout_settings.extract_timeout_seconds == pytest.approx(17.0)
+    assert client.timeout_settings.verify_timeout_seconds == pytest.approx(19.0)
+
+
+def test_sourceafis_client_timeout_seconds_keeps_backward_compatible_single_value() -> None:
+    client = SourceAfisClient(
+        "http://sourceafis.test",
+        timeout_seconds=7,
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={})),
+    )
+
+    assert client.timeout_settings.connect_timeout_seconds == pytest.approx(7.0)
+    assert client.timeout_settings.read_timeout_seconds == pytest.approx(7.0)
+    assert client.timeout_settings.extract_timeout_seconds == pytest.approx(7.0)
+    assert client.timeout_settings.verify_timeout_seconds == pytest.approx(7.0)
+
+
 def test_sourceafis_provider_uses_mock_client_for_successful_operations() -> None:
     class MockSourceAfisClient:
         service_url = "mock://sourceafis"

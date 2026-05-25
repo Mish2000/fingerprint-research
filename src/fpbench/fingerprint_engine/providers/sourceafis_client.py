@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+import os
 from typing import Any
 
 import httpx
@@ -16,7 +17,32 @@ from src.fpbench.fingerprint_engine.errors import (
 from src.fpbench.fingerprint_engine.types import FingerprintImage, FingerprintTemplate, GalleryTemplate
 
 
-DEFAULT_SOURCEAFIS_TIMEOUT_SECONDS = 2.0
+DEFAULT_SOURCEAFIS_CONNECT_TIMEOUT_SECONDS = 5.0
+DEFAULT_SOURCEAFIS_READ_TIMEOUT_SECONDS = 60.0
+DEFAULT_SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS = 120.0
+DEFAULT_SOURCEAFIS_VERIFY_TIMEOUT_SECONDS = 60.0
+DEFAULT_SOURCEAFIS_TIMEOUT_SECONDS = DEFAULT_SOURCEAFIS_READ_TIMEOUT_SECONDS
+
+SOURCEAFIS_CONNECT_TIMEOUT_SECONDS_ENV = "SOURCEAFIS_CONNECT_TIMEOUT_SECONDS"
+SOURCEAFIS_READ_TIMEOUT_SECONDS_ENV = "SOURCEAFIS_READ_TIMEOUT_SECONDS"
+SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS_ENV = "SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS"
+SOURCEAFIS_VERIFY_TIMEOUT_SECONDS_ENV = "SOURCEAFIS_VERIFY_TIMEOUT_SECONDS"
+
+
+@dataclass(frozen=True)
+class SourceAfisTimeoutSettings:
+    connect_timeout_seconds: float
+    read_timeout_seconds: float
+    extract_timeout_seconds: float
+    verify_timeout_seconds: float
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "connect_timeout_seconds": float(self.connect_timeout_seconds),
+            "read_timeout_seconds": float(self.read_timeout_seconds),
+            "extract_timeout_seconds": float(self.extract_timeout_seconds),
+            "verify_timeout_seconds": float(self.verify_timeout_seconds),
+        }
 
 
 @dataclass(frozen=True)
@@ -40,15 +66,26 @@ class SourceAfisClient:
         self,
         service_url: str,
         *,
-        timeout_seconds: float = DEFAULT_SOURCEAFIS_TIMEOUT_SECONDS,
+        timeout_seconds: float | None = None,
+        connect_timeout_seconds: float | None = None,
+        read_timeout_seconds: float | None = None,
+        extract_timeout_seconds: float | None = None,
+        verify_timeout_seconds: float | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         normalized_url = str(service_url or "").strip().rstrip("/")
         if not normalized_url:
             raise ProviderUnavailableError("SOURCEAFIS_SERVICE_URL must be set to a non-empty HTTP sidecar URL.")
         self.service_url = normalized_url
-        self.timeout_seconds = float(timeout_seconds)
-        self._client = httpx.Client(timeout=self.timeout_seconds, transport=transport)
+        self.timeout_settings = sourceafis_timeout_settings_from_env(
+            timeout_seconds=timeout_seconds,
+            connect_timeout_seconds=connect_timeout_seconds,
+            read_timeout_seconds=read_timeout_seconds,
+            extract_timeout_seconds=extract_timeout_seconds,
+            verify_timeout_seconds=verify_timeout_seconds,
+        )
+        self.timeout_seconds = float(self.timeout_settings.read_timeout_seconds)
+        self._client = httpx.Client(timeout=self._httpx_timeout(self.timeout_seconds), transport=transport)
 
     def health(self) -> SourceAfisHealth:
         payload = self._request_json(
@@ -91,6 +128,7 @@ class SourceAfisClient:
             error_cls=TemplateExtractionError,
             operation="SourceAFIS template extraction",
             json_payload=_image_payload(image),
+            read_timeout_seconds=self.timeout_settings.extract_timeout_seconds,
         )
         encoded_template = _required_str(
             payload,
@@ -130,6 +168,7 @@ class SourceAfisClient:
                 "probe_template_base64": _template_base64(probe_template),
                 "candidate_template_base64": _template_base64(candidate_template),
             },
+            read_timeout_seconds=self.timeout_settings.verify_timeout_seconds,
         )
         return {
             "provider_version": _optional_str(
@@ -190,10 +229,16 @@ class SourceAfisClient:
         error_cls: type[Exception],
         operation: str,
         json_payload: Mapping[str, Any] | None = None,
+        read_timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
         url = f"{self.service_url}{path}"
         try:
-            response = self._client.request(method, url, json=json_payload)
+            response = self._client.request(
+                method,
+                url,
+                json=json_payload,
+                timeout=self._httpx_timeout(read_timeout_seconds or self.timeout_settings.read_timeout_seconds),
+            )
         except httpx.TimeoutException as exc:
             raise ProviderUnavailableError(f"{operation} timed out contacting SourceAFIS sidecar at {self.service_url}.") from exc
         except httpx.RequestError as exc:
@@ -217,6 +262,81 @@ class SourceAfisClient:
         if not isinstance(payload, dict):
             raise error_cls(f"{operation} returned JSON {type(payload).__name__}; expected an object.")
         return payload
+
+    def _httpx_timeout(self, read_timeout_seconds: float) -> httpx.Timeout:
+        return httpx.Timeout(
+            connect=float(self.timeout_settings.connect_timeout_seconds),
+            read=float(read_timeout_seconds),
+            write=float(read_timeout_seconds),
+            pool=float(self.timeout_settings.connect_timeout_seconds),
+        )
+
+
+def sourceafis_timeout_settings_from_env(
+    *,
+    timeout_seconds: float | None = None,
+    connect_timeout_seconds: float | None = None,
+    read_timeout_seconds: float | None = None,
+    extract_timeout_seconds: float | None = None,
+    verify_timeout_seconds: float | None = None,
+) -> SourceAfisTimeoutSettings:
+    fallback = _positive_float(timeout_seconds, "timeout_seconds") if timeout_seconds is not None else None
+    connect = _timeout_value(
+        connect_timeout_seconds,
+        fallback,
+        SOURCEAFIS_CONNECT_TIMEOUT_SECONDS_ENV,
+        DEFAULT_SOURCEAFIS_CONNECT_TIMEOUT_SECONDS,
+    )
+    read = _timeout_value(
+        read_timeout_seconds,
+        fallback,
+        SOURCEAFIS_READ_TIMEOUT_SECONDS_ENV,
+        DEFAULT_SOURCEAFIS_READ_TIMEOUT_SECONDS,
+    )
+    extract = _timeout_value(
+        extract_timeout_seconds,
+        fallback,
+        SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS_ENV,
+        DEFAULT_SOURCEAFIS_EXTRACT_TIMEOUT_SECONDS,
+    )
+    verify = _timeout_value(
+        verify_timeout_seconds,
+        fallback,
+        SOURCEAFIS_VERIFY_TIMEOUT_SECONDS_ENV,
+        DEFAULT_SOURCEAFIS_VERIFY_TIMEOUT_SECONDS,
+    )
+    return SourceAfisTimeoutSettings(
+        connect_timeout_seconds=connect,
+        read_timeout_seconds=read,
+        extract_timeout_seconds=extract,
+        verify_timeout_seconds=verify,
+    )
+
+
+def _timeout_value(
+    explicit: float | None,
+    fallback: float | None,
+    env_name: str,
+    default: float,
+) -> float:
+    if explicit is not None:
+        return _positive_float(explicit, env_name)
+    if fallback is not None:
+        return fallback
+    env_value = os.getenv(env_name)
+    if env_value not in (None, ""):
+        return _positive_float(env_value, env_name)
+    return float(default)
+
+
+def _positive_float(value: Any, name: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ProviderUnavailableError(f"{name} must be a positive number of seconds.") from exc
+    if not parsed > 0:
+        raise ProviderUnavailableError(f"{name} must be a positive number of seconds.")
+    return float(parsed)
 
 
 def _image_payload(image: FingerprintImage) -> dict[str, Any]:

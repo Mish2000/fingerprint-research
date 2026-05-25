@@ -370,6 +370,10 @@ class SourceAfisFingerprintEngine:
         version = _optional_str(getattr(health, "version", None)) or "sourceafis-sidecar"
         health_metadata = _metadata_dict(getattr(health, "metadata", {}))
         health_metadata["service_url_configured"] = service_url_configured
+        health_metadata["service_url"] = _optional_str(getattr(client, "service_url", None)) or ""
+        timeout_settings = getattr(client, "timeout_settings", None)
+        if timeout_settings is not None and hasattr(timeout_settings, "as_dict"):
+            health_metadata["timeout_settings"] = timeout_settings.as_dict()
         return _RuntimeStatus(
             available=available,
             client=client if available else None,

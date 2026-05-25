@@ -56,6 +56,9 @@ DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
 DEFAULT_SAMPLE_STRATEGY = "balanced_spread"
 DEFAULT_SAMPLE_SEED = 13
+DEFAULT_DPI_STRATEGY = "infer_from_path"
+DPI_STRATEGIES = ("explicit", "infer_from_path", "default")
+SIDECAR_DEFAULT_DPI = 500
 DEFAULT_OUTDIR = (
     REPO_ROOT
     / "artifacts"
@@ -75,6 +78,8 @@ SCORES_COLUMNS = [
     "finger_position",
     "path_a",
     "path_b",
+    "dpi_a",
+    "dpi_b",
     "raw_score",
     "score_semantics",
     "higher_is_more_similar",
@@ -205,6 +210,7 @@ class TemplateCacheResult:
     cache_key: str
     cache_hit: bool
     latency_ms: float
+    dpi: int | None = None
     retry_count: int = 0
 
 
@@ -823,6 +829,51 @@ def _capture_type(path: Path) -> str | None:
     return None
 
 
+def _valid_dpi(value: Any) -> int | None:
+    try:
+        dpi = int(value)
+    except (TypeError, ValueError):
+        return None
+    return dpi if 100 <= dpi <= 2000 else None
+
+
+def infer_dpi_from_path(path: str | Path) -> int | None:
+    """Infer scanner DPI from path components such as images/1000/png."""
+
+    parts = [part for part in str(path).replace("\\", "/").split("/") if part]
+    for index, part in enumerate(parts[:-1]):
+        if part.lower() != "images":
+            continue
+        dpi = _valid_dpi(parts[index + 1])
+        if dpi is not None:
+            return dpi
+    return None
+
+
+def resolve_image_dpi(
+    path: str | Path,
+    *,
+    dpi_strategy: str = DEFAULT_DPI_STRATEGY,
+    image_dpi: int | None = None,
+) -> int | None:
+    if dpi_strategy == "default":
+        return None
+    if dpi_strategy == "explicit":
+        return _valid_dpi(image_dpi)
+    if dpi_strategy == "infer_from_path":
+        return infer_dpi_from_path(path)
+    raise SourceAfisBenchmarkError(f"Unsupported dpi_strategy: {dpi_strategy!r}")
+
+
+def validate_dpi_settings(*, dpi_strategy: str, image_dpi: int | None) -> None:
+    if dpi_strategy not in DPI_STRATEGIES:
+        raise SourceAfisBenchmarkError(f"Unsupported dpi_strategy: {dpi_strategy!r}")
+    if image_dpi is not None and _valid_dpi(image_dpi) is None:
+        raise SourceAfisBenchmarkError("--image_dpi must be an integer between 100 and 2000.")
+    if dpi_strategy == "explicit" and image_dpi is None:
+        raise SourceAfisBenchmarkError("--dpi_strategy explicit requires --image_dpi.")
+
+
 def _read_image(path: Path) -> tuple[bytes, str]:
     image_bytes = path.read_bytes()
     return image_bytes, hashlib.sha256(image_bytes).hexdigest()
@@ -842,15 +893,27 @@ class TemplateCache:
         *,
         provider_metadata: EngineMetadata,
         service_url: str,
+        dpi_strategy: str = DEFAULT_DPI_STRATEGY,
+        image_dpi: int | None = None,
         repo_root: Path = REPO_ROOT,
     ) -> None:
+        validate_dpi_settings(dpi_strategy=dpi_strategy, image_dpi=image_dpi)
         self.cache_dir = cache_dir
         self.provider_metadata = provider_metadata
         self.service_url = service_url
+        self.dpi_strategy = dpi_strategy
+        self.image_dpi = image_dpi
         self.repo_root = repo_root
         self._memory: dict[str, TemplateCacheResult] = {}
         self._failures: dict[str, CachedExtractionFailure] = {}
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def dpi_for_path(self, image_path: str | Path) -> int | None:
+        return resolve_image_dpi(
+            image_path,
+            dpi_strategy=self.dpi_strategy,
+            image_dpi=self.image_dpi,
+        )
 
     def get(
         self,
@@ -864,8 +927,9 @@ class TemplateCache:
         retry_config: RetryConfig,
     ) -> TemplateCacheResult:
         resolved_path = parse_file_uri(image_path, repo_root=self.repo_root)
+        dpi = self.dpi_for_path(resolved_path)
         image_bytes, image_sha256 = _read_image(resolved_path)
-        cache_key = self._cache_key(resolved_path, image_sha256)
+        cache_key = self._cache_key(resolved_path, image_sha256, dpi=dpi)
         if cache_key in self._failures:
             raise CachedTemplateExtractionError(self._failures[cache_key])
         if cache_key in self._memory:
@@ -877,6 +941,7 @@ class TemplateCache:
                 cache_key=cached.cache_key,
                 cache_hit=True,
                 latency_ms=0.0,
+                dpi=cached.dpi,
                 retry_count=cached.retry_count,
             )
 
@@ -892,10 +957,24 @@ class TemplateCache:
                 cache_key=cache_key,
                 cache_hit=True,
                 latency_ms=float(latency_ms),
+                dpi=dpi,
                 retry_count=0,
             )
             self._memory[cache_key] = result
             return result
+
+        image_metadata: dict[str, Any] = {
+            "dataset": dataset,
+            "split": split,
+            "pair_id": str(pair_id),
+            "side": side,
+            "path": str(resolved_path),
+            "dpi_strategy": self.dpi_strategy,
+        }
+        if self.image_dpi is not None:
+            image_metadata["image_dpi_argument"] = int(self.image_dpi)
+        if dpi is not None:
+            image_metadata["dpi"] = int(dpi)
 
         image = FingerprintImage(
             image_bytes=image_bytes,
@@ -903,14 +982,9 @@ class TemplateCache:
             path=str(resolved_path),
             image_id=f"{dataset}:{split}:{pair_id}:{side}:{image_sha256[:16]}",
             mime_type=_image_mime_type(resolved_path),
+            dpi=dpi,
             capture_type=_capture_type(resolved_path),
-            metadata={
-                "dataset": dataset,
-                "split": split,
-                "pair_id": str(pair_id),
-                "side": side,
-                "path": str(resolved_path),
-            },
+            metadata=image_metadata,
         )
         start = time.perf_counter()
         try:
@@ -938,7 +1012,7 @@ class TemplateCache:
             raise
         template = retry_result.value
         latency_ms = (time.perf_counter() - start) * 1000.0
-        self._write_cache_file(cache_path, template, resolved_path, image_sha256)
+        self._write_cache_file(cache_path, template, resolved_path, image_sha256, dpi=dpi)
         result = TemplateCacheResult(
             template=template,
             image_path=str(resolved_path),
@@ -946,12 +1020,13 @@ class TemplateCache:
             cache_key=cache_key,
             cache_hit=False,
             latency_ms=float(latency_ms),
+            dpi=dpi,
             retry_count=int(retry_result.retry_count),
         )
         self._memory[cache_key] = result
         return result
 
-    def _cache_key(self, image_path: Path, image_sha256: str) -> str:
+    def _cache_key(self, image_path: Path, image_sha256: str, *, dpi: int | None) -> str:
         payload = {
             "provider_id": PROVIDER_ID,
             "provider_version": self.provider_metadata.provider_version,
@@ -959,6 +1034,9 @@ class TemplateCache:
             "template_version": self.provider_metadata.template_version,
             "image_path": str(image_path),
             "image_sha256": image_sha256,
+            "dpi_strategy": self.dpi_strategy,
+            "image_dpi": self.image_dpi,
+            "effective_dpi": dpi,
             "service_url": self.service_url,
             "engine_version": self.provider_metadata.provider_version,
         }
@@ -984,6 +1062,8 @@ class TemplateCache:
                 "runtime": "sourceafis_http_sidecar",
                 "loaded_from_template_cache": True,
                 "cache_key": cache_path.stem,
+                "dpi": payload.get("dpi"),
+                "dpi_strategy": payload.get("dpi_strategy"),
             },
         )
 
@@ -993,6 +1073,8 @@ class TemplateCache:
         template: FingerprintTemplate,
         image_path: Path,
         image_sha256: str,
+        *,
+        dpi: int | None,
     ) -> None:
         payload = {
             "schema_version": "sourceafis_template_cache_v1",
@@ -1003,6 +1085,9 @@ class TemplateCache:
             "image_id": template.image_id,
             "image_path": str(image_path),
             "image_sha256": image_sha256,
+            "dpi": dpi,
+            "dpi_strategy": self.dpi_strategy,
+            "image_dpi_argument": self.image_dpi,
             "service_url": self.service_url,
             "engine_version": self.provider_metadata.provider_version,
             "created_at": _utc_now(),
@@ -1046,6 +1131,8 @@ def score_pairs(
         dataset = str(pair.dataset)
         split = str(pair.split)
         pair_id = str(pair.pair_id)
+        dpi_a = cache.dpi_for_path(pair.path_a)
+        dpi_b = cache.dpi_for_path(pair.path_b)
         row_base = {
             "dataset": dataset,
             "split": split,
@@ -1057,6 +1144,8 @@ def score_pairs(
             "finger_position": str(pair.finger_position),
             "path_a": str(pair.path_a),
             "path_b": str(pair.path_b),
+            "dpi_a": dpi_a if dpi_a is not None else "",
+            "dpi_b": dpi_b if dpi_b is not None else "",
             "score_semantics": "sourceafis_raw_similarity_score",
             "higher_is_more_similar": True,
             "provider_id": PROVIDER_ID,
@@ -1334,6 +1423,54 @@ def build_latency_summary(latency_events: list[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=LATENCY_COLUMNS)
 
 
+def build_dpi_metadata(
+    scores: pd.DataFrame,
+    *,
+    dpi_strategy: str,
+    image_dpi: int | None,
+) -> dict[str, Any]:
+    images: dict[str, int | None] = {}
+    for side in ("a", "b"):
+        path_column = f"path_{side}"
+        dpi_column = f"dpi_{side}"
+        if path_column not in scores:
+            continue
+        for _, row in scores.iterrows():
+            path = str(row.get(path_column) or "").strip()
+            if not path:
+                continue
+            dpi_value = row.get(dpi_column) if dpi_column in scores else None
+            dpi = _valid_dpi(dpi_value)
+            if path not in images or images[path] is None:
+                images[path] = dpi
+
+    dpi_counts: dict[str, int] = {}
+    unknown_count = 0
+    for dpi in images.values():
+        if dpi is None:
+            unknown_count += 1
+            continue
+        key = str(int(dpi))
+        dpi_counts[key] = dpi_counts.get(key, 0) + 1
+
+    default_note = (
+        f"No DPI is sent with --dpi_strategy default; the SourceAFIS sidecar contract defaults to {SIDECAR_DEFAULT_DPI} DPI."
+        if dpi_strategy == "default"
+        else None
+    )
+    return {
+        "dpi_strategy": dpi_strategy,
+        "image_dpi": int(image_dpi) if image_dpi is not None else None,
+        "unique_image_count": int(len(images)),
+        "dpi_counts": dict(sorted(dpi_counts.items(), key=lambda item: int(item[0]))),
+        "inferred_dpi_counts": dict(sorted(dpi_counts.items(), key=lambda item: int(item[0])))
+        if dpi_strategy == "infer_from_path"
+        else {},
+        "unknown_dpi_image_count": int(unknown_count),
+        "sidecar_default_dpi_note": default_note,
+    }
+
+
 def _write_csv(path: Path, df: pd.DataFrame, columns: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     df.reindex(columns=columns).to_csv(path, index=False, quoting=csv.QUOTE_MINIMAL)
@@ -1347,6 +1484,12 @@ def _fmt_float(value: Any, digits: int = 4) -> str:
 def _fmt_pct(value: Any, digits: int = 2) -> str:
     number = _safe_float(value)
     return "nan" if not math.isfinite(number) else f"{100.0 * number:.{digits}f}%"
+
+
+def _format_dpi_counts(value: Any) -> str:
+    if not isinstance(value, dict) or not value:
+        return "none"
+    return ", ".join(f"{dpi}: {count}" for dpi, count in sorted(value.items(), key=lambda item: int(item[0])))
 
 
 def _metric_lookup(metrics: pd.DataFrame, dataset: str, split: str, target_far: float) -> pd.Series | None:
@@ -1375,6 +1518,7 @@ def render_summary_markdown(
     sample_strategy: str,
     sample_seed: int,
     warmup_result: dict[str, Any],
+    dpi_metadata: dict[str, Any],
 ) -> str:
     extraction_failures = int((failures["operation"] == "extract_template").sum()) if not failures.empty else 0
     scoring_failures = int((failures["operation"] == "verify").sum()) if not failures.empty else 0
@@ -1415,11 +1559,24 @@ def render_summary_markdown(
         f"- Sample seed: {int(sample_seed)}",
         f"- Sidecar warmup: {'ok' if warmup_result.get('ok') else 'failed'} in {_fmt_float(warmup_result.get('latency_ms'), 2)} ms",
         "",
+        "## DPI Handling",
+        "",
+        f"- DPI strategy: `{dpi_metadata.get('dpi_strategy', '')}`",
+        f"- image_dpi argument: {dpi_metadata.get('image_dpi') if dpi_metadata.get('image_dpi') is not None else 'not supplied'}",
+        f"- Inferred DPI counts: {_format_dpi_counts(dpi_metadata.get('inferred_dpi_counts', {}))}",
+        f"- Images with unknown DPI: {int(dpi_metadata.get('unknown_dpi_image_count', 0))}",
+    ]
+    if dpi_metadata.get("sidecar_default_dpi_note"):
+        lines.append(f"- Sidecar default DPI note: {dpi_metadata['sidecar_default_dpi_note']}")
+    lines.extend(
+        [
+        "",
         "## Dataset Protocols",
         "",
         "| dataset | split | compatible | pairs | positives | negatives | reason | pairs CSV |",
         "| --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
-    ]
+        ]
+    )
     for status in dataset_statuses:
         lines.append(
             f"| {status.get('dataset', '')} | {status.get('split', '')} | {bool(status.get('compatible', False))} | "
@@ -1554,6 +1711,7 @@ def write_manifest(
     sample_strategy: str,
     sample_seed: int,
     warmup_result: dict[str, Any],
+    dpi_metadata: dict[str, Any],
 ) -> None:
     payload = {
         "schema_version": OUTPUT_SCHEMA_VERSION,
@@ -1576,6 +1734,7 @@ def write_manifest(
         "retry_settings": retry_settings,
         "sample_strategy": sample_strategy,
         "sample_seed": int(sample_seed),
+        "dpi_handling": dpi_metadata,
         "sidecar_warmup": warmup_result,
         "score_semantics": {
             "raw_score_name": "SourceAFIS raw similarity score",
@@ -1690,10 +1849,13 @@ def run_benchmark(
     retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS,
     sample_strategy: str = DEFAULT_SAMPLE_STRATEGY,
     sample_seed: int = DEFAULT_SAMPLE_SEED,
+    dpi_strategy: str = DEFAULT_DPI_STRATEGY,
+    image_dpi: int | None = None,
 ) -> dict[str, Path]:
     start = time.perf_counter()
     if sample_strategy not in {"first", "balanced_spread"}:
         raise SourceAfisBenchmarkError(f"Unsupported sample_strategy: {sample_strategy!r}")
+    validate_dpi_settings(dpi_strategy=dpi_strategy, image_dpi=image_dpi)
     output = validate_output_directory(outdir, repo_root=repo_root)
     output.mkdir(parents=True, exist_ok=True)
     timeout_overrides = _timeout_env_overrides(
@@ -1737,6 +1899,8 @@ def run_benchmark(
             parse_file_uri(cache_dir, repo_root=repo_root),
             provider_metadata=provider_metadata,
             service_url=service_url,
+            dpi_strategy=dpi_strategy,
+            image_dpi=image_dpi,
             repo_root=repo_root,
         )
 
@@ -1778,6 +1942,7 @@ def run_benchmark(
     metrics = build_metrics_table(scores, thresholds)
     latency = build_latency_summary(latency_events)
     failures = pd.DataFrame(failure_rows, columns=FAILURE_COLUMNS)
+    dpi_metadata = build_dpi_metadata(scores, dpi_strategy=dpi_strategy, image_dpi=image_dpi)
 
     paths = {
         "scores_val": output / "sourceafis_plain_roll_scores_val.csv",
@@ -1818,6 +1983,7 @@ def run_benchmark(
             sample_strategy=sample_strategy,
             sample_seed=int(sample_seed),
             warmup_result=warmup_result,
+            dpi_metadata=dpi_metadata,
         ),
         encoding="utf-8",
     )
@@ -1835,6 +2001,7 @@ def run_benchmark(
         sample_strategy=sample_strategy,
         sample_seed=int(sample_seed),
         warmup_result=warmup_result,
+        dpi_metadata=dpi_metadata,
     )
     return paths
 
@@ -1884,6 +2051,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SAMPLE_STRATEGY,
     )
     parser.add_argument("--sample_seed", type=int, default=DEFAULT_SAMPLE_SEED)
+    parser.add_argument(
+        "--image_dpi",
+        type=int,
+        default=None,
+        help="Optional image DPI. Required when --dpi_strategy explicit is used.",
+    )
+    parser.add_argument(
+        "--dpi_strategy",
+        choices=DPI_STRATEGIES,
+        default=DEFAULT_DPI_STRATEGY,
+        help="How SourceAFIS image DPI is supplied: explicit, inferred from image paths, or omitted for sidecar default.",
+    )
     return parser
 
 
@@ -1907,6 +2086,8 @@ def main(argv: list[str] | None = None) -> int:
             retry_backoff_seconds=float(args.retry_backoff_seconds),
             sample_strategy=str(args.sample_strategy),
             sample_seed=int(args.sample_seed),
+            dpi_strategy=str(args.dpi_strategy),
+            image_dpi=args.image_dpi,
         )
     except (FingerprintEngineError, SourceAfisBenchmarkError) as exc:
         print(f"SourceAFIS Plain/Roll benchmark unavailable: {exc}", file=sys.stderr)

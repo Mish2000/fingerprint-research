@@ -18,6 +18,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -79,6 +80,20 @@ class SourceAfisEngineTest {
     }
 
     @Test
+    void metadataDpiIsAcceptedAndAppliedToExtraction() throws IOException {
+        byte[] image = syntheticFingerprintPng(2);
+        Map<String, Object> dpi500 = extractTemplateResponse(image, 500);
+        Map<String, Object> dpi1000 = extractTemplateResponse(image, 1000);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metadata = (Map<String, Object>) dpi1000.get("metadata");
+
+        assertEquals(1000.0, ((Number) metadata.get("dpi")).doubleValue());
+        assertEquals("metadata", metadata.get("dpi_source"));
+        assertNotEquals(dpi500.get("template_base64"), dpi1000.get("template_base64"));
+    }
+
+    @Test
     void invalidBase64ReturnsBadRequest() {
         ApiException error = assertThrows(ApiException.class, () -> engine.extractTemplate(Map.of(
             "image_base64", "not base64"
@@ -102,15 +117,23 @@ class SourceAfisEngineTest {
     }
 
     private String extractTemplateBase64(byte[] image) {
-        Map<String, Object> response = engine.extractTemplate(Map.of(
-            "image_base64", Base64.getEncoder().encodeToString(image),
-            "image_format", "png",
-            "metadata", Map.of("dpi", 500)
-        ));
+        Map<String, Object> response = extractTemplateResponse(image, 500);
 
         String template = (String) response.get("template_base64");
         assertTrue(template.length() > 10);
         return template;
+    }
+
+    private Map<String, Object> extractTemplateResponse(byte[] image, int dpi) {
+        Map<String, Object> response = engine.extractTemplate(Map.of(
+            "image_base64", Base64.getEncoder().encodeToString(image),
+            "image_format", "png",
+            "metadata", Map.of("dpi", dpi)
+        ));
+
+        String template = (String) response.get("template_base64");
+        assertTrue(template.length() > 10);
+        return response;
     }
 
     private byte[] syntheticFingerprintPng(int variant) throws IOException {

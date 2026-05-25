@@ -18,6 +18,7 @@ final class SourceAfisEngine {
     static final String ENGINE_VERSION = "3.18.1";
     static final String TEMPLATE_FORMAT = "sourceafis";
     static final String CALIBRATION_WARNING = "Raw SourceAFIS score requires dataset-level calibration.";
+    static final double DEFAULT_DPI = 500.0;
 
     Map<String, Object> health() {
         Map<String, Object> response = new LinkedHashMap<>();
@@ -39,7 +40,11 @@ final class SourceAfisEngine {
             "image_base64"
         );
         try {
-            FingerprintImageOptions options = new FingerprintImageOptions().dpi(readDpi(request));
+            DpiSetting dpi = readDpi(request);
+            FingerprintImageOptions options = new FingerprintImageOptions();
+            if (dpi.supplied()) {
+                options = options.dpi(dpi.value());
+            }
             FingerprintTemplate template = new FingerprintTemplate(new FingerprintImage(imageBytes, options));
             String encodedTemplate = Base64.getEncoder().encodeToString(template.toByteArray());
 
@@ -51,6 +56,7 @@ final class SourceAfisEngine {
             response.put("template_format", TEMPLATE_FORMAT);
             response.put("template_version", ENGINE_VERSION);
             response.put("template_base64", encodedTemplate);
+            response.put("metadata", Map.of("dpi", dpi.value(), "dpi_source", dpi.source()));
             response.put("warnings", List.of());
             return response;
         } catch (IllegalArgumentException e) {
@@ -157,15 +163,29 @@ final class SourceAfisEngine {
         }
     }
 
-    private double readDpi(Map<String, Object> request) {
+    private DpiSetting readDpi(Map<String, Object> request) {
         Object metadata = request.get("metadata");
-        Object dpi = metadata instanceof Map<?, ?> ? ((Map<?, ?>) metadata).get("dpi") : null;
+        Object dpi = null;
+        String source = "sidecar_default";
+        if (metadata instanceof Map<?, ?> && ((Map<?, ?>) metadata).containsKey("dpi")) {
+            dpi = ((Map<?, ?>) metadata).get("dpi");
+            source = "metadata";
+        }
         if (dpi == null) {
             Object legacyImage = request.get("image");
-            dpi = legacyImage instanceof Map<?, ?> ? ((Map<?, ?>) legacyImage).get("dpi") : null;
+            if (legacyImage instanceof Map<?, ?> && ((Map<?, ?>) legacyImage).containsKey("dpi")) {
+                dpi = ((Map<?, ?>) legacyImage).get("dpi");
+                source = "legacy_image";
+            }
         }
-        double value = optionalDouble(dpi, 500.0);
-        return value >= 100.0 && value <= 2000.0 ? value : 500.0;
+        if (dpi == null) {
+            return DpiSetting.sidecarDefault();
+        }
+        double value = optionalDouble(dpi, Double.NaN);
+        if (Double.isFinite(value) && value >= 100.0 && value <= 2000.0) {
+            return new DpiSetting(value, source, true);
+        }
+        return DpiSetting.sidecarDefault();
     }
 
     private static String nestedString(Map<String, Object> root, String objectField, String leafField) {
@@ -269,6 +289,34 @@ final class SourceAfisEngine {
 
         private Map<String, Object> metadata() {
             return metadata;
+        }
+    }
+
+    private static final class DpiSetting {
+        private final double value;
+        private final String source;
+        private final boolean supplied;
+
+        private DpiSetting(double value, String source, boolean supplied) {
+            this.value = value;
+            this.source = source;
+            this.supplied = supplied;
+        }
+
+        private static DpiSetting sidecarDefault() {
+            return new DpiSetting(DEFAULT_DPI, "sidecar_default", false);
+        }
+
+        private double value() {
+            return value;
+        }
+
+        private String source() {
+            return source;
+        }
+
+        private boolean supplied() {
+            return supplied;
         }
     }
 }

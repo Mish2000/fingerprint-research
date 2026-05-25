@@ -116,6 +116,33 @@ def test_sourceafis_http_client_contract_encodes_binary_inputs_and_decodes_respo
     ]
 
 
+def test_sourceafis_client_serializes_image_dpi_as_metadata() -> None:
+    seen_payload: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        seen_payload.update(payload)
+        return httpx.Response(
+            200,
+            json={
+                "template_base64": base64.b64encode(b"template-with-dpi").decode("ascii"),
+                "template_format": "sourceafis",
+                "template_version": "3.18.1",
+            },
+        )
+
+    client = SourceAfisClient(
+        "http://sourceafis.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    client.extract_template(
+        FingerprintImage(image_bytes=b"fake png", image_id="probe", mime_type="image/png", dpi=1000)
+    )
+
+    assert seen_payload["metadata"]["dpi"] == 1000
+
+
 def test_sourceafis_client_maps_sidecar_errors_to_domain_errors() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/extract-template":

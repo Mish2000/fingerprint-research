@@ -21,8 +21,10 @@ from scripts.diagnostics.run_sourceafis_plain_roll_benchmark import (
     compute_auc_eer,
     compute_confusion,
     ensure_sourceafis_available,
+    infer_dpi_from_path,
     load_plain_roll_pairs,
     output_schema,
+    resolve_image_dpi,
     run_benchmark,
 )
 from src.fpbench.fingerprint_engine.errors import ProviderUnavailableError, TemplateExtractionError
@@ -147,6 +149,15 @@ class MockSourceAfisEngine:
         return None
 
 
+class RecordingSourceAfisEngine(MockSourceAfisEngine):
+    def __init__(self) -> None:
+        self.images: list[FingerprintImage] = []
+
+    def extract_template(self, image: FingerprintImage) -> FingerprintTemplate:
+        self.images.append(image)
+        return super().extract_template(image)
+
+
 def test_tar_far_frr_auc_and_eer_calculations() -> None:
     labels = [1, 1, 0, 0]
     scores = [0.90, 0.80, 0.20, 0.10]
@@ -229,6 +240,102 @@ def _write_pair_fixture(repo_root: Path, split: str) -> None:
     pd.DataFrame(rows).to_csv(manifest_dir / f"pairs_{split}.csv", index=False)
 
 
+def _write_sd300_dpi_pair_fixture(repo_root: Path, split: str = "val") -> None:
+    manifest_dir = repo_root / "data" / "manifests" / "nist_sd300b"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    image_dir = repo_root / "data" / "raw" / "NIST" / "sd300b" / "images" / "1000" / "png"
+    plain = image_dir / "plain_0.png"
+    roll = image_dir / "roll_0.png"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    plain.write_bytes(b"plain")
+    roll.write_bytes(b"roll")
+    pd.DataFrame(
+        [
+            {
+                "pair_id": "1",
+                "label": 1,
+                "split": split,
+                "subject_a": "s1",
+                "subject_b": "s1",
+                "frgp": 1,
+                "path_a": str(plain),
+                "path_b": str(roll),
+            }
+        ]
+    ).to_csv(manifest_dir / f"pairs_{split}.csv", index=False)
+
+
+def test_infer_from_path_extracts_1000_for_sd300_paths() -> None:
+    assert infer_dpi_from_path(r"data\raw\NIST\sd300b\images\1000\png\plain.png") == 1000
+    assert infer_dpi_from_path("data/raw/NIST/sd300c/images/1000/png/roll.png") == 1000
+
+
+def test_explicit_dpi_overrides_path_inference() -> None:
+    path = "data/raw/NIST/sd300b/images/1000/png/plain.png"
+
+    assert resolve_image_dpi(path, dpi_strategy="explicit", image_dpi=500) == 500
+
+
+def test_default_dpi_strategy_resolves_no_dpi() -> None:
+    path = "data/raw/NIST/sd300b/images/1000/png/plain.png"
+
+    assert resolve_image_dpi(path, dpi_strategy="default", image_dpi=1000) is None
+
+
+def test_benchmark_includes_inferred_dpi_in_template_extraction_request(tmp_path: Path) -> None:
+    _write_sd300_dpi_pair_fixture(tmp_path)
+    engine = RecordingSourceAfisEngine()
+
+    paths = run_benchmark(
+        datasets=("nist_sd300b",),
+        splits=("val",),
+        outdir=tmp_path / "reports",
+        target_fars=(0.5,),
+        engine=engine,
+        require_enabled_env=False,
+        repo_root=tmp_path,
+        template_cache_dir=tmp_path / "cache",
+    )
+
+    scores = pd.read_csv(paths["scores_val"])
+    manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+
+    assert {image.dpi for image in engine.images} == {1000}
+    assert {image.metadata["dpi"] for image in engine.images} == {1000}
+    assert scores["dpi_a"].tolist() == [1000]
+    assert scores["dpi_b"].tolist() == [1000]
+    assert manifest["dpi_handling"]["dpi_strategy"] == "infer_from_path"
+    assert manifest["dpi_handling"]["inferred_dpi_counts"] == {"1000": 2}
+    assert manifest["dpi_handling"]["unknown_dpi_image_count"] == 0
+
+
+def test_default_dpi_strategy_sends_no_dpi_to_template_extraction(tmp_path: Path) -> None:
+    _write_sd300_dpi_pair_fixture(tmp_path)
+    engine = RecordingSourceAfisEngine()
+
+    paths = run_benchmark(
+        datasets=("nist_sd300b",),
+        splits=("val",),
+        outdir=tmp_path / "reports",
+        target_fars=(0.5,),
+        engine=engine,
+        require_enabled_env=False,
+        repo_root=tmp_path,
+        template_cache_dir=tmp_path / "cache",
+        dpi_strategy="default",
+        image_dpi=1000,
+    )
+
+    scores = pd.read_csv(paths["scores_val"])
+    manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+
+    assert {image.dpi for image in engine.images} == {None}
+    assert all("dpi" not in image.metadata for image in engine.images)
+    assert scores["dpi_a"].isna().tolist() == [True]
+    assert scores["dpi_b"].isna().tolist() == [True]
+    assert manifest["dpi_handling"]["sidecar_default_dpi_note"]
+
+
 def test_mocked_provider_generates_output_schema_without_sidecar(tmp_path: Path) -> None:
     _write_pair_fixture(tmp_path, "val")
     _write_pair_fixture(tmp_path, "test")
@@ -266,8 +373,12 @@ def test_mocked_provider_generates_output_schema_without_sidecar(tmp_path: Path)
     assert manifest["retry_settings"]["max_retries"] == 1
     assert manifest["sample_strategy"] == "balanced_spread"
     assert manifest["sample_seed"] == 13
+    assert manifest["dpi_handling"]["dpi_strategy"] == "infer_from_path"
+    assert manifest["dpi_handling"]["image_dpi"] is None
+    assert manifest["dpi_handling"]["unknown_dpi_image_count"] == 16
     assert manifest["sidecar_warmup"]["ok"] is True
     assert "template_base64" not in summary
+    assert "## DPI Handling" in summary
     assert "sourceafis_plain_roll_scores_val.csv" in summary
 
 
@@ -288,6 +399,10 @@ def test_cli_parses_runtime_hardening_args() -> None:
             "balanced_spread",
             "--sample_seed",
             "21",
+            "--dpi_strategy",
+            "explicit",
+            "--image_dpi",
+            "1000",
         ]
     )
 
@@ -298,6 +413,8 @@ def test_cli_parses_runtime_hardening_args() -> None:
     assert args.retry_backoff_seconds == pytest.approx(0.25)
     assert args.sample_strategy == "balanced_spread"
     assert args.sample_seed == 21
+    assert args.dpi_strategy == "explicit"
+    assert args.image_dpi == 1000
 
 
 def test_balanced_spread_sampling_is_deterministic_and_spread(tmp_path: Path) -> None:

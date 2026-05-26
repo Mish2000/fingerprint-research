@@ -1,0 +1,5 @@
+dataset,target_far,threshold,calibration_split,calibration_negative_count,calibration_positive_count,calibration_false_accepts,calibration_far,enough_negatives_for_target,minimum_negatives_for_target,selection_rule,higher_is_more_similar
+nist_sd300c,0.01,14.483463789540309,val,700,700,7,0.01,True,100,lowest VAL raw-score threshold with VAL FAR <= target,True
+nist_sd300c,0.005,20.06041975470194,val,700,700,3,0.004285714285714286,True,200,lowest VAL raw-score threshold with VAL FAR <= target,True
+nist_sd300c,0.001,42.343267887498946,val,700,700,0,0.0,False,1000,lowest VAL raw-score threshold with VAL FAR <= target,True
+nist_sd300c,0.0001,42.343267887498946,val,700,700,0,0.0,False,10000,lowest VAL raw-score threshold with VAL FAR <= target,True

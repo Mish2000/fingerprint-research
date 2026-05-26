@@ -49,6 +49,7 @@ data/**
 # Then explicitly allow only the curated benchmark bundles required by the Benchmark UI.
 artifacts/**
 !artifacts/
+!artifacts/**/
 !artifacts/reports/
 !artifacts/reports/benchmark/
 !artifacts/reports/benchmark/full_nist_sd300b_h5/
@@ -63,6 +64,24 @@ artifacts/**
 !artifacts/reports/benchmark/smoke_nist_sd300c_h5/**
 !artifacts/reports/benchmark/smoke_polyu_cross_h5/
 !artifacts/reports/benchmark/smoke_polyu_cross_h5/**
+
+# Curated SourceAFIS benchmark evidence may be tracked, but biometric template
+# caches and serialized template bytes must remain local-only.
+!artifacts/reports/benchmark/**/
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_summary.md
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_metrics.csv
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_thresholds.csv
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_latency_summary.csv
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_failures.csv
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_manifest.json
+!artifacts/reports/benchmark/**/sourceafis_vs_sift_v2_comparison.csv
+!artifacts/reports/benchmark/**/sourceafis_vs_sift_v2_comparison.md
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_scores_val.csv
+!artifacts/reports/benchmark/**/sourceafis_plain_roll_scores_test.csv
+artifacts/reports/benchmark/**/template_cache/
+artifacts/reports/benchmark/**/template_cache/**
+artifacts/reports/benchmark/**/*.template.json
+artifacts/reports/benchmark/sourceafis_open_plain_roll_smoke*/
 
 # Model checkpoints / exported models (never commit)
 **/*.pth
@@ -118,7 +137,7 @@ project_tree.txt
 make_tree.py
 
 # ---------- Local/generated reports ----------
-reports/
+/reports/
 
 # ---------- Local research history / generated notes ----------
 research_history/

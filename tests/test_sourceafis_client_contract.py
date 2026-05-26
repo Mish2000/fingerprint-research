@@ -192,6 +192,56 @@ def test_sourceafis_client_timeout_seconds_keeps_backward_compatible_single_valu
     assert client.timeout_settings.verify_timeout_seconds == pytest.approx(7.0)
 
 
+def test_sourceafis_provider_reuses_environment_created_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    created_clients: list[object] = []
+
+    class EnvSourceAfisClient:
+        def __init__(self, service_url: str) -> None:
+            self.service_url = service_url
+            created_clients.append(self)
+
+        def health(self) -> SourceAfisHealth:
+            return SourceAfisHealth(available=True, version="3.18.1")
+
+        def extract_template(self, image: FingerprintImage) -> dict[str, object]:
+            return {
+                "provider_version": "3.18.1",
+                "template_format": "sourceafis",
+                "template_version": "3.18.1",
+                "template_bytes": f"template:{image.image_id}".encode("ascii"),
+            }
+
+        def verify(
+            self,
+            probe_template: FingerprintTemplate,
+            candidate_template: FingerprintTemplate,
+        ) -> dict[str, object]:
+            return {"score": 42.0}
+
+        def identify(
+            self,
+            probe_template: FingerprintTemplate,
+            gallery: list[GalleryTemplate],
+            top_k: int = 10,
+        ) -> dict[str, object]:
+            return {"candidates": []}
+
+    monkeypatch.setenv("SOURCEAFIS_ENABLED", "true")
+    monkeypatch.setenv("SOURCEAFIS_SERVICE_URL", "http://sourceafis.test")
+    monkeypatch.setattr(
+        "src.fpbench.fingerprint_engine.providers.sourceafis_provider.SourceAfisClient",
+        EnvSourceAfisClient,
+    )
+
+    engine = SourceAfisFingerprintEngine()
+    first = engine.extract_template(FingerprintImage(image_bytes=b"first", image_id="first"))
+    second = engine.extract_template(FingerprintImage(image_bytes=b"second", image_id="second"))
+
+    assert first.template_bytes == b"template:first"
+    assert second.template_bytes == b"template:second"
+    assert len(created_clients) == 1
+
+
 def test_sourceafis_provider_uses_mock_client_for_successful_operations() -> None:
     class MockSourceAfisClient:
         service_url = "mock://sourceafis"

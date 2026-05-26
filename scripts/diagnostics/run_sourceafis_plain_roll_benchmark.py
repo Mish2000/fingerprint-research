@@ -59,6 +59,10 @@ DEFAULT_SAMPLE_SEED = 13
 DEFAULT_DPI_STRATEGY = "infer_from_path"
 DPI_STRATEGIES = ("explicit", "infer_from_path", "default")
 SIDECAR_DEFAULT_DPI = 500
+NIST_DATASET_DPI = {
+    "nist_sd300b": 1000,
+    "nist_sd300c": 2000,
+}
 DEFAULT_OUTDIR = (
     REPO_ROOT
     / "artifacts"
@@ -874,6 +878,61 @@ def validate_dpi_settings(*, dpi_strategy: str, image_dpi: int | None) -> None:
         raise SourceAfisBenchmarkError("--dpi_strategy explicit requires --image_dpi.")
 
 
+def expected_nist_dataset_dpi(dataset: str) -> int | None:
+    return NIST_DATASET_DPI.get(str(dataset).strip().lower())
+
+
+def validate_dataset_dpi(
+    pairs: pd.DataFrame,
+    *,
+    dataset: str,
+    dpi_strategy: str,
+    image_dpi: int | None,
+) -> None:
+    expected_dpi = expected_nist_dataset_dpi(dataset)
+    if expected_dpi is None or pairs.empty or dpi_strategy == "default":
+        return
+
+    unknown_paths: list[str] = []
+    mismatched_paths: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for path_column in ("path_a", "path_b"):
+        if path_column not in pairs:
+            continue
+        for raw_path in pairs[path_column].dropna().astype(str):
+            path = raw_path.strip()
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            dpi = resolve_image_dpi(path, dpi_strategy=dpi_strategy, image_dpi=image_dpi)
+            if dpi is None:
+                unknown_paths.append(path)
+            elif dpi != expected_dpi:
+                mismatched_paths.append((path, int(dpi)))
+
+    if not unknown_paths and not mismatched_paths:
+        return
+
+    message_parts = [
+        f"Dataset {dataset} requires {expected_dpi} DPI for validated SourceAFIS NIST runs.",
+    ]
+    if unknown_paths:
+        examples = "; ".join(unknown_paths[:3])
+        message_parts.append(
+            f"Could not resolve DPI for {len(unknown_paths)} image(s) with --dpi_strategy {dpi_strategy}; examples: {examples}."
+        )
+    if mismatched_paths:
+        examples = "; ".join(f"{path} -> {dpi}" for path, dpi in mismatched_paths[:3])
+        message_parts.append(
+            f"Resolved non-{expected_dpi} DPI for {len(mismatched_paths)} image(s); examples: {examples}."
+        )
+    message_parts.append(
+        f"Use --dpi_strategy explicit --image_dpi {expected_dpi}, fix path-based DPI inference, "
+        "or intentionally run --dpi_strategy default for an exploratory sidecar-default run."
+    )
+    raise SourceAfisBenchmarkError(" ".join(message_parts))
+
+
 def _read_image(path: Path) -> tuple[bytes, str]:
     image_bytes = path.read_bytes()
     return image_bytes, hashlib.sha256(image_bytes).hexdigest()
@@ -1454,7 +1513,8 @@ def build_dpi_metadata(
         dpi_counts[key] = dpi_counts.get(key, 0) + 1
 
     default_note = (
-        f"No DPI is sent with --dpi_strategy default; the SourceAFIS sidecar contract defaults to {SIDECAR_DEFAULT_DPI} DPI."
+        f"No DPI is sent with --dpi_strategy default; the SourceAFIS sidecar contract defaults to {SIDECAR_DEFAULT_DPI} DPI. "
+        "Treat this as an exploratory run, not the main validated NIST result."
         if dpi_strategy == "default"
         else None
     )
@@ -1922,6 +1982,12 @@ def run_benchmark(
                 dataset_statuses.append(status)
                 if pairs.empty:
                     continue
+                validate_dataset_dpi(
+                    pairs,
+                    dataset=dataset,
+                    dpi_strategy=dpi_strategy,
+                    image_dpi=image_dpi,
+                )
                 scored, failures, events = score_pairs(
                     pairs,
                     engine=selected_engine,
@@ -2061,7 +2127,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--dpi_strategy",
         choices=DPI_STRATEGIES,
         default=DEFAULT_DPI_STRATEGY,
-        help="How SourceAFIS image DPI is supplied: explicit, inferred from image paths, or omitted for sidecar default.",
+        help=(
+            "How SourceAFIS image DPI is supplied: explicit, inferred from image paths, "
+            "or omitted for sidecar default exploratory runs."
+        ),
     )
     return parser
 

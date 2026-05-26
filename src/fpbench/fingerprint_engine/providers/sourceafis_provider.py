@@ -347,6 +347,7 @@ class SourceAfisFingerprintEngine:
                     unavailable_reason=unavailable_reason,
                     metadata={"service_url_configured": service_url_configured},
                 )
+            self._client = client
 
         try:
             health = client.health()

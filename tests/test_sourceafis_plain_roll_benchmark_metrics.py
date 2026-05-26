@@ -26,6 +26,7 @@ from scripts.diagnostics.run_sourceafis_plain_roll_benchmark import (
     output_schema,
     resolve_image_dpi,
     run_benchmark,
+    validate_dataset_dpi,
 )
 from src.fpbench.fingerprint_engine.errors import ProviderUnavailableError, TemplateExtractionError
 from src.fpbench.fingerprint_engine.types import (
@@ -267,7 +268,7 @@ def _write_sd300_dpi_pair_fixture(repo_root: Path, split: str = "val") -> None:
 
 def test_infer_from_path_extracts_1000_for_sd300_paths() -> None:
     assert infer_dpi_from_path(r"data\raw\NIST\sd300b\images\1000\png\plain.png") == 1000
-    assert infer_dpi_from_path("data/raw/NIST/sd300c/images/1000/png/roll.png") == 1000
+    assert infer_dpi_from_path("data/raw/NIST/sd300c/images/2000/png/roll.png") == 2000
 
 
 def test_explicit_dpi_overrides_path_inference() -> None:
@@ -280,6 +281,62 @@ def test_default_dpi_strategy_resolves_no_dpi() -> None:
     path = "data/raw/NIST/sd300b/images/1000/png/plain.png"
 
     assert resolve_image_dpi(path, dpi_strategy="default", image_dpi=1000) is None
+
+
+def test_nist_dpi_validation_requires_known_dpi_for_inferred_strategy() -> None:
+    pairs = pd.DataFrame(
+        [
+            {
+                "path_a": "data/raw/NIST/sd300b/plain_0.png",
+                "path_b": "data/raw/NIST/sd300b/roll_0.png",
+            }
+        ]
+    )
+
+    with pytest.raises(SourceAfisBenchmarkError, match="requires 1000 DPI"):
+        validate_dataset_dpi(
+            pairs,
+            dataset="nist_sd300b",
+            dpi_strategy="infer_from_path",
+            image_dpi=None,
+        )
+
+
+def test_nist_dpi_validation_rejects_sd300c_mismatched_inferred_dpi() -> None:
+    pairs = pd.DataFrame(
+        [
+            {
+                "path_a": "data/raw/NIST/sd300c/images/1000/png/plain_0.png",
+                "path_b": "data/raw/NIST/sd300c/images/1000/png/roll_0.png",
+            }
+        ]
+    )
+
+    with pytest.raises(SourceAfisBenchmarkError, match="requires 2000 DPI"):
+        validate_dataset_dpi(
+            pairs,
+            dataset="nist_sd300c",
+            dpi_strategy="infer_from_path",
+            image_dpi=None,
+        )
+
+
+def test_default_dpi_strategy_is_explicitly_permissive_for_nist() -> None:
+    pairs = pd.DataFrame(
+        [
+            {
+                "path_a": "data/raw/NIST/sd300b/plain_0.png",
+                "path_b": "data/raw/NIST/sd300b/roll_0.png",
+            }
+        ]
+    )
+
+    validate_dataset_dpi(
+        pairs,
+        dataset="nist_sd300b",
+        dpi_strategy="default",
+        image_dpi=None,
+    )
 
 
 def test_benchmark_includes_inferred_dpi_in_template_extraction_request(tmp_path: Path) -> None:
@@ -334,6 +391,7 @@ def test_default_dpi_strategy_sends_no_dpi_to_template_extraction(tmp_path: Path
     assert scores["dpi_a"].isna().tolist() == [True]
     assert scores["dpi_b"].isna().tolist() == [True]
     assert manifest["dpi_handling"]["sidecar_default_dpi_note"]
+    assert "not the main validated NIST result" in manifest["dpi_handling"]["sidecar_default_dpi_note"]
 
 
 def test_mocked_provider_generates_output_schema_without_sidecar(tmp_path: Path) -> None:

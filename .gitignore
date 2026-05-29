@@ -78,6 +78,8 @@ artifacts/**
 !artifacts/reports/benchmark/**/sourceafis_vs_sift_v2_comparison.md
 !artifacts/reports/benchmark/**/sourceafis_plain_roll_scores_val.csv
 !artifacts/reports/benchmark/**/sourceafis_plain_roll_scores_test.csv
+!artifacts/reports/benchmark/*_final.md
+!artifacts/reports/identification/*_final.md
 artifacts/reports/benchmark/**/template_cache/
 artifacts/reports/benchmark/**/template_cache/**
 artifacts/reports/benchmark/**/*.template.json

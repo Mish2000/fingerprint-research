@@ -17,18 +17,15 @@ The critical discovery was DPI/PPI handling. SourceAFIS defaults to 500 DPI when
 
 These SourceAFIS balanced1400 DPI runs are the current strongest validated open-AFIS evidence. SIFT v2 remains important as a research baseline and as evidence of the custom-matcher path, but SourceAFIS is substantially stronger as a production-candidate benchmark result.
 
-Primary evidence paths:
+Durable evidence paths after cleanup:
 
-- `artifacts/reports/benchmark/nist_sd300b_plain_roll_diagnostics/`
-- `artifacts/reports/benchmark/nist_sd300b_professor_1000_pos_neg/`
-- `artifacts/reports/benchmark/nist_sd300b_professor_1to1_five_methods_far_frr/`
-- `artifacts/reports/benchmark/nist_sd300b_visual_label_audit/`
-- `artifacts/reports/benchmark/sift_plain_roll_v2_external_validation/`
-- `artifacts/reports/benchmark/sift_plain_roll_v2_failure_taxonomy/`
-- `artifacts/reports/benchmark/sift_plain_roll_v2_grid3_validation/`
-- `artifacts/reports/benchmark/sift_plain_roll_v2_hypothesis_tests/`
-- `artifacts/reports/benchmark/sourceafis_open_plain_roll_balanced1400_dpi1000/`
-- `artifacts/reports/benchmark/sourceafis_open_sd300c_balanced1400_dpi2000/`
+- `artifacts/reports/benchmark/sourceafis_sd300b_plain_roll_dpi1000_final.md`
+- `artifacts/reports/benchmark/sourceafis_sd300c_plain_roll_dpi2000_final.md`
+- `artifacts/reports/benchmark/sift_v2_external_validation_final.md`
+- `artifacts/reports/identification/self_match_repeatability_1000_top1_final.md`
+- `artifacts/reports/identification/vector_reproducibility_final.md`
+
+The detailed source artifact folders referenced later in this document were consolidated into compact final summaries and pruned. Historical folder names are retained only as provenance for how the numbers were originally produced, not as live evidence paths.
 
 ## 2. Research Motivation
 

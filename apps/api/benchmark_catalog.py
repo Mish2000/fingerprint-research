@@ -40,6 +40,7 @@ from apps.api.benchmark_meta import (
 )
 from apps.api.schemas import (
     BenchmarkArtifactLink,
+    BenchmarkOperatingPoint,
     BenchmarkProvenance,
     BenchmarkRunInfo,
     BenchmarkRunsResponse,
@@ -59,12 +60,13 @@ SORT_MODES = {"best_accuracy", "lowest_eer", "lowest_latency"}
 VIEW_MODES = ("canonical", "smoke", "archive")
 SHOWCASE_VIEW_MODE = "canonical"
 SHOWCASE_METRICS = ("best_auc", "best_eer", "best_latency")
-SHOWCASE_SECONDARY_EVIDENCE_KEYS = {"scores_csv", "meta_json", "roc_png", "markdown_summary", "run_manifest"}
+SHOWCASE_SECONDARY_EVIDENCE_KEYS = {"scores_csv", "meta_json", "roc_png", "markdown_summary", "final_markdown", "run_manifest"}
 CURATED_REFERENCE_RUNS = set(ACCEPTED_CANONICAL_FULL_RUNS) | set(ACCEPTED_CANONICAL_SMOKE_RUNS)
 BENCHMARK_SOURCE_LABELS = {
     "live": "Live artifacts",
     "reference": "Reference artifacts",
 }
+FINAL_EVIDENCE_SOURCE_LABEL = "Final curated evidence"
 
 DEDICATED_SHOWCASE_EXCLUSION_NOTE = (
     "Dedicated Patch AI remains available as an experimental research method, but the current checkpoint/results do "
@@ -87,9 +89,196 @@ _ARTIFACT_LABELS = {
     "meta_json": "Meta JSON",
     "roc_png": "ROC Preview",
     "markdown_summary": "Markdown Summary",
+    "final_markdown": "Final Markdown Evidence",
     "run_manifest": "Run Manifest",
     "run_log": "Run Log",
 }
+
+SOURCEAFIS_METHOD_LABEL = "SourceAFIS Open Matcher"
+SOURCEAFIS_SIDE_CAR_NOTE = (
+    "SourceAFIS evidence was produced through the fingerprint-engine HTTP sidecar path and is not a default "
+    "interactive runtime benchmark method."
+)
+SIFT_V2_BASELINE_NOTE = (
+    "SIFT Plain/Roll v2 remains a custom research baseline and is not eligible for champion ranking."
+)
+
+CURATED_FINAL_EVIDENCE: List[Dict[str, Any]] = [
+    {
+        "run": "sourceafis_sd300b_plain_roll_dpi1000_final",
+        "filename": "sourceafis_sd300b_plain_roll_dpi1000_final.md",
+        "dataset": "nist_sd300b",
+        "split": "test",
+        "method": "sourceafis_open",
+        "method_label": SOURCEAFIS_METHOD_LABEL,
+        "run_label": "SourceAFIS SD300B final evidence (DPI 1000)",
+        "summary_prefix": "Final SourceAFIS SD300B plain-vs-roll evidence at explicit 1000 DPI",
+        "dpi": 1000,
+        "n_pairs": 1400,
+        "auc": 0.8902,
+        "eer": 0.1700,
+        "latency_ms": 272.902,
+        "timestamp_utc": "2026-05-25T20:16:41Z",
+        "manifest_path": "sourceafis_plain_roll_manifest.json",
+        "data_dir": "artifacts/reports/benchmark/sourceafis_open_plain_roll_balanced1400_dpi1000",
+        "git_commit": "6d4efecdd84da1bdb1cb385fe284039e1423a2ad",
+        "note": SOURCEAFIS_SIDE_CAR_NOTE,
+        "recommended": True,
+        "sourceafis": True,
+        "operating_points": [
+            {
+                "target_far": 0.01,
+                "label": "1.00% FAR",
+                "threshold": 14.72326764987426,
+                "test_tar": 0.7729,
+                "test_far": 0.0086,
+                "test_frr": 0.2271,
+                "ta": 541,
+                "fr": 159,
+                "fa": 6,
+                "tr": 694,
+                "calibration_far": 0.0100,
+                "calibration_false_accepts": 7,
+                "calibration_negatives": 700,
+            },
+            {
+                "target_far": 0.005,
+                "label": "0.50% FAR",
+                "threshold": 17.393218350729448,
+                "test_tar": 0.7600,
+                "test_far": 0.0043,
+                "test_frr": 0.2400,
+                "ta": 532,
+                "fr": 168,
+                "fa": 3,
+                "tr": 697,
+                "calibration_far": 0.0043,
+                "calibration_false_accepts": 3,
+                "calibration_negatives": 700,
+            },
+        ],
+    },
+    {
+        "run": "sourceafis_sd300c_plain_roll_dpi2000_final",
+        "filename": "sourceafis_sd300c_plain_roll_dpi2000_final.md",
+        "dataset": "nist_sd300c",
+        "split": "test",
+        "method": "sourceafis_open",
+        "method_label": SOURCEAFIS_METHOD_LABEL,
+        "run_label": "SourceAFIS SD300C final evidence (DPI 2000)",
+        "summary_prefix": "Final SourceAFIS SD300C plain-vs-roll evidence at explicit 2000 DPI",
+        "dpi": 2000,
+        "n_pairs": 1400,
+        "auc": 0.8815,
+        "eer": 0.1743,
+        "latency_ms": 249.966,
+        "timestamp_utc": "2026-05-25T21:17:06Z",
+        "manifest_path": "sourceafis_plain_roll_manifest.json",
+        "data_dir": "artifacts/reports/benchmark/sourceafis_open_sd300c_balanced1400_dpi2000",
+        "git_commit": "6d4efecdd84da1bdb1cb385fe284039e1423a2ad",
+        "note": SOURCEAFIS_SIDE_CAR_NOTE,
+        "recommended": True,
+        "sourceafis": True,
+        "operating_points": [
+            {
+                "target_far": 0.01,
+                "label": "1.00% FAR",
+                "threshold": 14.483463789540309,
+                "test_tar": 0.7800,
+                "test_far": 0.0129,
+                "test_frr": 0.2200,
+                "ta": 546,
+                "fr": 154,
+                "fa": 9,
+                "tr": 691,
+                "calibration_far": 0.0100,
+                "calibration_false_accepts": 7,
+                "calibration_negatives": 700,
+            },
+            {
+                "target_far": 0.005,
+                "label": "0.50% FAR",
+                "threshold": 20.06041975470194,
+                "test_tar": 0.7529,
+                "test_far": 0.0057,
+                "test_frr": 0.2471,
+                "ta": 527,
+                "fr": 173,
+                "fa": 4,
+                "tr": 696,
+                "calibration_far": 0.0043,
+                "calibration_false_accepts": 3,
+                "calibration_negatives": 700,
+            },
+        ],
+    },
+    {
+        "run": "sift_v2_external_validation_sd300b_final",
+        "filename": "sift_v2_external_validation_final.md",
+        "dataset": "nist_sd300b",
+        "split": "test",
+        "method": "sift_plain_roll_v2",
+        "run_label": "SIFT v2 SD300B research baseline",
+        "summary_prefix": "Final SIFT Plain/Roll v2 SD300B research baseline evidence",
+        "n_pairs": 2844,
+        "auc": 0.7963,
+        "eer": 0.2932,
+        "timestamp_utc": "2026-05-24T14:30:29Z",
+        "manifest_path": "run_manifest.json",
+        "data_dir": "artifacts/reports/benchmark/sift_plain_roll_v2_external_validation",
+        "note": SIFT_V2_BASELINE_NOTE,
+        "operating_points": [
+            {
+                "target_far": 0.01,
+                "label": "1.00% FAR",
+                "test_tar": 0.5021,
+                "test_far": 0.0103,
+                "test_frr": 0.4979,
+            },
+            {
+                "target_far": 0.005,
+                "label": "0.50% FAR",
+                "test_tar": 0.4318,
+                "test_far": 0.0033,
+                "test_frr": 0.5682,
+            },
+        ],
+    },
+    {
+        "run": "sift_v2_external_validation_sd300c_final",
+        "filename": "sift_v2_external_validation_final.md",
+        "dataset": "nist_sd300c",
+        "split": "test",
+        "method": "sift_plain_roll_v2",
+        "run_label": "SIFT v2 SD300C research baseline",
+        "summary_prefix": "Final SIFT Plain/Roll v2 SD300C research baseline evidence",
+        "n_pairs": 2844,
+        "auc": 0.7914,
+        "eer": 0.2827,
+        "timestamp_utc": "2026-05-24T14:30:29Z",
+        "manifest_path": "run_manifest.json",
+        "data_dir": "artifacts/reports/benchmark/sift_plain_roll_v2_external_validation",
+        "note": SIFT_V2_BASELINE_NOTE,
+        "operating_points": [
+            {
+                "target_far": 0.01,
+                "label": "1.00% FAR",
+                "test_tar": 0.4473,
+                "test_far": 0.0061,
+                "test_frr": 0.5527,
+            },
+            {
+                "target_far": 0.005,
+                "label": "0.50% FAR",
+                "test_tar": 0.4205,
+                "test_far": 0.0038,
+                "test_frr": 0.5795,
+            },
+        ],
+    },
+]
+
+CURATED_FINAL_RUNS = {str(item["run"]) for item in CURATED_FINAL_EVIDENCE}
 
 
 def _reference_root_for_live_root(root: Path) -> Path:
@@ -218,6 +407,17 @@ def _artifact_link(run: str, run_dir: Path, key: str, path: Path | None) -> Benc
     )
 
 
+def _loose_artifact_link(run: str, source_root: Path, key: str, filename: str) -> BenchmarkArtifactLink:
+    path = (source_root / filename).resolve()
+    available = _is_available_artifact_file(path) and path_is_under(source_root, path)
+    return BenchmarkArtifactLink(
+        key=key,
+        label=_ARTIFACT_LABELS[key],
+        available=available,
+        url=_artifact_url(run, filename) if available else None,
+    )
+
+
 def _resolve_candidate_path(run_dir: Path, raw_path: object, fallback: Path | None = None) -> Path | None:
     text = str(raw_path or "").strip()
     if text:
@@ -299,6 +499,8 @@ def _showcase_exclusion_note(canonical_method: str, benchmark_method: str) -> Op
 def _showcase_selection_tier(row: ComparisonRow) -> Tuple[int, str]:
     source = row.provenance.benchmark_source_root if row.provenance else None
     if row.view_mode == "canonical":
+        if row.run in CURATED_FINAL_RUNS:
+            return (0 if source == "live" else 1, row.run)
         if row.run in CANONICAL_FULL_RUNS:
             return (0 if source == "live" else 1, row.run)
         if row.run in REFERENCE_CANONICAL_FULL_RUNS:
@@ -440,6 +642,56 @@ def _build_split_infos(split_keys: Iterable[str]) -> List[NamedInfo]:
     return [info for split in split_keys if (info := _split_info(split)) is not None]
 
 
+def _legacy_operating_points(raw_row: Dict[str, Any]) -> List[BenchmarkOperatingPoint]:
+    points: List[BenchmarkOperatingPoint] = []
+    legacy_specs = (
+        ("tar_at_far_1e_2", 0.01, "1.00% FAR"),
+        ("tar_at_far_1e_3", 0.001, "0.10% FAR"),
+    )
+    for field, target_far, label in legacy_specs:
+        tar = _maybe_float(raw_row.get(field))
+        if tar is None:
+            continue
+        points.append(
+            BenchmarkOperatingPoint(
+                target_far=target_far,
+                label=label,
+                test_tar=tar,
+            )
+        )
+    return points
+
+
+def _curated_operating_points(spec: Dict[str, Any]) -> List[BenchmarkOperatingPoint]:
+    return [
+        BenchmarkOperatingPoint(**point)
+        for point in spec.get("operating_points", [])
+        if isinstance(point, dict)
+    ]
+
+
+def _method_metadata_for_final_evidence(benchmark_method: str, spec: Dict[str, Any]) -> Dict[str, Any]:
+    if benchmark_method == "sourceafis_open":
+        return {
+            "method_status": "optional_external",
+            "presentation_tier": "production_candidate",
+            "showcase_eligible": True,
+            "benchmark_default": False,
+            "canonical_default": False,
+            "research_track": False,
+            "not_champion_candidate": False,
+            "showcase_exclusion_note": None,
+        }
+    return method_presentation_metadata(benchmark_method)
+
+
+def _method_label_for_final_evidence(benchmark_method: str, spec: Dict[str, Any]) -> str:
+    label = str(spec.get("method_label") or "").strip()
+    if label:
+        return label
+    return canonical_method_label_from_benchmark(benchmark_method)
+
+
 def _read_summary_csv(summary_csv: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     with summary_csv.open("r", encoding="utf-8", newline="") as handle:
@@ -470,6 +722,149 @@ def _infer_dataset(run: str, manifest: Dict[str, Any], summary_rows: List[Dict[s
         if config_dataset:
             return config_dataset
     return None
+
+
+def _build_final_evidence_entries(source_key: str, source_label: str, source_root: Path) -> List[Tuple[BenchmarkRunInfo, List[ComparisonRow]]]:
+    entries: List[Tuple[BenchmarkRunInfo, List[ComparisonRow]]] = []
+    if not source_root.exists():
+        return entries
+
+    for spec in CURATED_FINAL_EVIDENCE:
+        filename = str(spec["filename"])
+        markdown_path = source_root / filename
+        if not _is_available_artifact_file(markdown_path):
+            continue
+
+        benchmark_method = str(spec["method"])
+        method = benchmark_method_to_canonical(benchmark_method)
+        method_label = _method_label_for_final_evidence(benchmark_method, spec)
+        presentation_meta = _method_metadata_for_final_evidence(benchmark_method, spec)
+        if spec.get("note") and benchmark_method != "sourceafis_open":
+            presentation_meta = {
+                **presentation_meta,
+                "showcase_exclusion_note": str(spec["note"]),
+            }
+        showcase_exclusion_note = presentation_meta.get("showcase_exclusion_note") or _showcase_exclusion_note(method, benchmark_method)
+        run = str(spec["run"])
+        run_label = str(spec["run_label"])
+        dataset = str(spec["dataset"])
+        split = str(spec.get("split") or "test")
+        operating_points = _curated_operating_points(spec)
+        tar_at_far_1e_2 = next(
+            (point.test_tar for point in operating_points if abs(point.target_far - 0.01) < 1e-12),
+            None,
+        )
+        artifacts = [
+            _loose_artifact_link(run, source_root, "final_markdown", filename),
+        ]
+        available_artifacts = _available_artifact_keys(artifacts)
+        source_display_label = FINAL_EVIDENCE_SOURCE_LABEL if source_key == "live" else f"{FINAL_EVIDENCE_SOURCE_LABEL} ({source_label})"
+        n_pairs = _maybe_int(spec.get("n_pairs"))
+        latency_ms = _maybe_float(spec.get("latency_ms"))
+        dpi = _maybe_int(spec.get("dpi"))
+        summary_text = (
+            f"{spec['summary_prefix']}. {n_pairs:,} scored TEST pairs. "
+            f"{spec.get('note') or 'Final markdown evidence is preserved as the source artifact.'}"
+        )
+
+        provenance = BenchmarkProvenance(
+            run=run,
+            run_label=run_label,
+            run_kind="full",
+            view_mode="canonical",
+            status="validated",
+            validation_state="validated",
+            source_type="final_markdown",
+            artifact_source=filename,
+            methods_in_run=[method],
+            benchmark_methods_in_run=[benchmark_method],
+            showcase_methods_in_run=[] if presentation_meta["research_track"] else [method],
+            showcase_benchmark_methods_in_run=[] if presentation_meta["research_track"] else [benchmark_method],
+            research_methods_in_run=[method] if presentation_meta["research_track"] else [],
+            research_benchmark_methods_in_run=[benchmark_method] if presentation_meta["research_track"] else [],
+            canonical_method=method,
+            benchmark_method=benchmark_method,
+            method_label=method_label,
+            method_status=presentation_meta["method_status"],
+            presentation_tier=presentation_meta["presentation_tier"],
+            showcase_eligible=bool(presentation_meta["showcase_eligible"]),
+            benchmark_default=bool(presentation_meta["benchmark_default"]),
+            canonical_default=bool(presentation_meta["canonical_default"]),
+            research_track=bool(presentation_meta["research_track"]),
+            not_champion_candidate=bool(presentation_meta["not_champion_candidate"]),
+            timestamp_utc=str(spec.get("timestamp_utc") or "").strip() or None,
+            manifest_path=str(spec.get("manifest_path") or "").strip() or None,
+            data_dir=str(spec.get("data_dir") or "").strip() or None,
+            git_commit=str(spec.get("git_commit") or "").strip() or None,
+            available_artifacts=available_artifacts,
+            benchmark_source_root=source_key,
+            benchmark_source_label=source_display_label,
+            showcase_exclusion_note=showcase_exclusion_note,
+        )
+
+        row = ComparisonRow(
+            dataset=dataset,
+            run=run,
+            split=split,
+            method=method,
+            benchmark_method=benchmark_method,
+            method_label=method_label,
+            method_status=presentation_meta["method_status"],
+            presentation_tier=presentation_meta["presentation_tier"],
+            showcase_eligible=bool(presentation_meta["showcase_eligible"]),
+            benchmark_default=bool(presentation_meta["benchmark_default"]),
+            canonical_default=bool(presentation_meta["canonical_default"]),
+            research_track=bool(presentation_meta["research_track"]),
+            not_champion_candidate=bool(presentation_meta["not_champion_candidate"]),
+            showcase_exclusion_note=showcase_exclusion_note,
+            auc=float(spec["auc"]),
+            eer=float(spec["eer"]),
+            n_pairs=n_pairs,
+            dpi=dpi,
+            tar_at_far_1e_2=tar_at_far_1e_2,
+            tar_at_far_1e_3=None,
+            operating_points=operating_points,
+            latency_ms=latency_ms,
+            latency_source="reported" if latency_ms is not None else None,
+            run_family=run,
+            run_label=run_label,
+            run_kind="full",
+            view_mode="canonical",
+            status="validated",
+            validation_state="validated",
+            artifact_count=len(available_artifacts),
+            available_artifacts=available_artifacts,
+            summary_text=summary_text,
+            artifacts=artifacts,
+            provenance=provenance,
+        )
+
+        run_info = BenchmarkRunInfo(
+            run=run,
+            dataset=dataset,
+            run_kind="full",
+            view_mode="canonical",
+            status="validated",
+            validation_state="validated",
+            validated=True,
+            recommended=bool(spec.get("recommended")),
+            run_label=run_label,
+            artifact_count=len(available_artifacts),
+            summary_note="Final curated markdown evidence selected for the main showcase.",
+            methods=[method],
+            benchmark_methods=[benchmark_method],
+            showcase_methods=[] if presentation_meta["research_track"] else [method],
+            showcase_benchmark_methods=[] if presentation_meta["research_track"] else [benchmark_method],
+            research_methods=[method] if presentation_meta["research_track"] else [],
+            research_benchmark_methods=[benchmark_method] if presentation_meta["research_track"] else [],
+            splits=[split],
+            dataset_info=_dataset_info(dataset),
+            benchmark_source_root=source_key,
+            benchmark_source_label=source_display_label,
+        )
+        entries.append((run_info, [row]))
+
+    return entries
 
 
 def _scan_runs(
@@ -599,6 +994,7 @@ def _scan_runs(
                 latency_wall = _maybe_float(raw_row.get("avg_ms_pair_wall"))
                 latency_ms = latency_reported if latency_reported is not None else latency_wall
                 latency_source = "reported" if latency_reported is not None else ("wall" if latency_wall is not None else None)
+                operating_points = _legacy_operating_points(raw_row)
 
                 artifacts = [
                     _artifact_link(run_dir.name, run_dir, "summary_csv", summary_csv),
@@ -673,6 +1069,7 @@ def _scan_runs(
                         n_pairs=_maybe_int(raw_row.get("n_pairs")),
                         tar_at_far_1e_2=_maybe_float(raw_row.get("tar_at_far_1e_2")),
                         tar_at_far_1e_3=_maybe_float(raw_row.get("tar_at_far_1e_3")),
+                        operating_points=operating_points,
                         latency_ms=latency_ms,
                         latency_source=latency_source,
                         run_family=run_dir.name,
@@ -760,6 +1157,12 @@ def _scan_runs(
             )
             catalog.append((run_info, comparison_rows))
 
+        for run_info, comparison_rows in _build_final_evidence_entries(source_key, source_label, source_root):
+            if run_info.run in seen_runs:
+                continue
+            seen_runs.add(run_info.run)
+            catalog.append((run_info, comparison_rows))
+
     catalog.sort(key=lambda item: run_sort_key(item[0].run, validated=item[0].validated))
     return catalog
 
@@ -788,6 +1191,8 @@ def _selection_rows(
 
 def _row_has_showcase_evidence(row: ComparisonRow) -> bool:
     available = set(row.available_artifacts)
+    if "final_markdown" in available:
+        return True
     return "summary_csv" in available and bool(available & SHOWCASE_SECONDARY_EVIDENCE_KEYS)
 
 
@@ -1105,18 +1510,35 @@ def resolve_benchmark_artifact(
         raise FileNotFoundError("Benchmark artifact request is missing run or filename.")
 
     catalog = _scan_runs(root, reference_root=reference_root)
-    run_info = next((item for item, _ in catalog if item.run == run), None)
-    if run_info is None:
+    run_entry = next((item for item in catalog if item[0].run == run), None)
+    if run_entry is None:
         raise FileNotFoundError(f"Unknown benchmark run: {run}")
+    run_info, run_rows = run_entry
 
     source_roots = {
         source_key: source_root
         for source_key, _, source_root in _benchmark_sources(root, reference_root)
     }
     source_key = run_info.benchmark_source_root or "live"
-    run_dir = source_roots.get(source_key, root) / run
+    source_root = source_roots.get(source_key, root)
+    run_dir = source_root / run
     if not run_dir.exists():
-        raise FileNotFoundError(f"Unknown benchmark run: {run}")
+        requested = str(filename).replace("\\", "/").lstrip("/")
+        artifact_urls = {
+            artifact.url
+            for row in run_rows
+            for artifact in row.artifacts
+            if artifact.available and artifact.url
+        }
+        expected_url = _artifact_url(run, requested)
+        if expected_url not in artifact_urls:
+            raise FileNotFoundError(f"Unknown benchmark artifact for final evidence run: {run}/{filename}")
+        target = (source_root / requested).resolve()
+        if not path_is_under(source_root, target):
+            raise FileNotFoundError("Benchmark artifact path escaped the benchmark evidence directory.")
+        if not _is_available_artifact_file(target):
+            raise FileNotFoundError(f"Missing benchmark artifact: {target}")
+        return target
 
     target = (run_dir / filename).resolve()
     if not path_is_under(run_dir, target):

@@ -6,11 +6,17 @@ import {
     formatLatency,
     formatMethodLabel,
     formatMetric,
-    formatOperatingPoint,
-    formatTarAtFarLabel,
+    formatOperatingPointActualFar,
+    formatOperatingPointCounts,
+    formatOperatingPointFrr,
+    formatOperatingPointTarget,
+    formatOperatingPointTar,
+    formatOperatingPointThreshold,
+    formatPercentFromFraction,
     formatApproxEqualEer,
     formatPairs,
     methodStatusBadges,
+    operatingPointsForRow,
     researchRunSourceLabel,
     statusLabel,
     statusToneClassName,
@@ -28,7 +34,7 @@ type Props = {
 const ARTIFACT_GROUPS = [
     { title: "Data", keys: ["summary_csv", "scores_csv"] },
     { title: "Metadata", keys: ["meta_json", "run_manifest"] },
-    { title: "Report", keys: ["markdown_summary", "run_log"] },
+    { title: "Report", keys: ["final_markdown", "markdown_summary", "run_log"] },
 ] as const;
 
 function artifactByKey(row: ComparisonRow, key: string) {
@@ -196,6 +202,34 @@ function RocPreview({ artifact, row }: { artifact: BenchmarkArtifactLink | null;
     );
 }
 
+function OperatingPointTile({ point }: { point: ReturnType<typeof operatingPointsForRow>[number] }) {
+    const calibrationDetail =
+        point.calibration_far != null
+            ? `VAL FAR ${formatPercentFromFraction(point.calibration_far)}${
+                point.calibration_false_accepts != null && point.calibration_negatives != null
+                    ? ` (${point.calibration_false_accepts}/${point.calibration_negatives} FA)`
+                    : ""
+            }`
+            : point.calibration_false_accepts != null && point.calibration_negatives != null
+                ? `VAL FA ${point.calibration_false_accepts}/${point.calibration_negatives}`
+                : null;
+    const details = [
+        point.test_far != null ? `Actual FAR ${formatOperatingPointActualFar(point)}` : null,
+        point.test_frr != null ? `FRR ${formatOperatingPointFrr(point)}` : null,
+        point.threshold != null ? `Threshold ${formatOperatingPointThreshold(point)}` : null,
+        calibrationDetail,
+        formatOperatingPointCounts(point),
+    ].filter((item): item is string => Boolean(item));
+
+    return (
+        <MetricTile
+            label={`TAR @ ${formatOperatingPointTarget(point)}`}
+            value={formatOperatingPointTar(point)}
+            detail={details.join(" / ") || "Target operating point"}
+        />
+    );
+}
+
 export default function BenchmarkEvidencePanel({
     row,
     datasetInfo,
@@ -224,6 +258,7 @@ export default function BenchmarkEvidencePanel({
     const sourceLabel = artifactSourceLabel(row);
     const manifestDisplayPath = provenance?.manifest_path ?? runManifestArtifact?.url;
     const showcaseExclusionNote = row.showcase_exclusion_note ?? provenance?.showcase_exclusion_note ?? null;
+    const operatingPoints = operatingPointsForRow(row);
 
     return (
         <section className="surface-card p-6">
@@ -244,9 +279,11 @@ export default function BenchmarkEvidencePanel({
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <MetricTile label="AUC" value={formatMetric(row.auc)} tone="success" />
                 <MetricTile label="EER" value={formatMetric(row.eer)} />
-                <MetricTile label="FAR≈FRR @ EER" value={formatApproxEqualEer(row.eer)} detail="EER operating point" tone="info" />
-                <MetricTile label={formatTarAtFarLabel("1e-2")} value={formatOperatingPoint(row.tar_at_far_1e_2)} />
-                <MetricTile label={formatTarAtFarLabel("1e-3")} value={formatOperatingPoint(row.tar_at_far_1e_3)} />
+                <MetricTile label="FAR ~= FRR @ EER" value={formatApproxEqualEer(row.eer)} detail="EER operating point" tone="info" />
+                {row.dpi ? <MetricTile label="DPI" value={`${row.dpi}`} detail="Acquisition resolution" tone="info" /> : null}
+                {operatingPoints.map((point) => (
+                    <OperatingPointTile key={`${point.target_far}_${point.label}`} point={point} />
+                ))}
                 <MetricTile label="Latency" value={formatLatency(row.latency_ms)} tone="warning" />
                 <MetricTile label="Pairs" value={formatPairs(row.n_pairs)} />
             </div>
@@ -254,13 +291,12 @@ export default function BenchmarkEvidencePanel({
             <div className="mt-5 inline-banner inline-banner--info">
                 <div className="inline-banner__body">
                     <p>
-                        EER is the point where FAR and FRR are approximately equal. TAR @ FAR 1% and TAR @ FAR 0.1%
-                        are target operating points that show how many genuine matches remain accepted when the ROC
-                        threshold is selected to cap false accepts at those rates.
+                        EER is the point where FAR and FRR are approximately equal. Operating points show TEST TAR
+                        at calibrated target FARs, plus actual TEST FAR and FRR when the evidence exports them.
                     </p>
                     <p className="mt-1 text-sm">
-                        The exact raw score thresholds are not exported by the current benchmark bundle, and no
-                        production threshold is claimed here.
+                        Raw score thresholds and calibration false accepts are shown when final evidence preserves
+                        them; older benchmark bundles may only expose TAR at fixed FAR targets.
                     </p>
                 </div>
             </div>
@@ -302,6 +338,7 @@ export default function BenchmarkEvidencePanel({
                     <TrustField label="Source" value={sourceLabel} />
                     <TrustField label="Run family" value={row.run_family ?? row.run} />
                     <TrustField label="Artifact source" value={provenance?.artifact_source ?? "results_summary.csv"} />
+                    {row.dpi ? <TrustField label="DPI" value={`${row.dpi}`} /> : null}
                     <TrustField label="Pairs source" value={basenameFromPath(provenance?.pairs_path)} title={provenance?.pairs_path ?? undefined} />
                     <TrustField label="Manifest" value={basenameFromPath(manifestDisplayPath)} title={manifestDisplayPath ?? undefined} />
                     <TrustField label="Validation" value={provenance?.validation_state ?? row.validation_state} />

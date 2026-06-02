@@ -1,3 +1,10 @@
+"""Historical diagnostic benchmark.
+
+This script is retained for reproducing the earlier Professor 1000 pos/neg
+diagnostic run. Final comparable plain-vs-roll evidence should be produced
+with `pipelines/benchmark/run_plain_roll_final_benchmark.py`.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -611,7 +618,13 @@ def verify_outputs(outdir: Path) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run Professor Menachem's NIST SD300B 1000 pos/neg benchmark.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "LEGACY historical diagnostic: run Professor Menachem's NIST SD300B 1000 pos/neg benchmark. "
+            "For final comparable plain-vs-roll evidence, use "
+            "pipelines/benchmark/run_plain_roll_final_benchmark.py."
+        )
+    )
     parser.add_argument("--mode", choices=["all", "prepare", "run", "verify"], default="all")
     parser.add_argument("--data_dir", default=DEFAULT_DATA_DIR)
     parser.add_argument("--outdir", default=DEFAULT_OUTDIR)

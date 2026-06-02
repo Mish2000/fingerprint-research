@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+import time
 from pathlib import Path
 from functools import lru_cache
 
@@ -382,15 +384,22 @@ def main():
         pairs = balanced_limit_by_label(pairs, label_col="label", limit=int(args.limit))
 
     rows = []
+    t0 = time.perf_counter()
     for _, r in pairs.iterrows():
+        pair_t0 = time.perf_counter()
         pa = str(r["path_a"])
         pb = str(r["path_b"])
         label = int(r["label"])
         row_split = str(r.get("split", args.split))
 
+        extract_a_t0 = time.perf_counter()
         kps1, des1, _ = extract(pa, args.detector, args.nfeatures, args.long_edge, args.target_size, args.blur_ksize)
+        extract_a_ms = (time.perf_counter() - extract_a_t0) * 1000.0
+        extract_b_t0 = time.perf_counter()
         kps2, des2, _ = extract(pb, args.detector, args.nfeatures, args.long_edge, args.target_size, args.blur_ksize)
+        extract_b_ms = (time.perf_counter() - extract_b_t0) * 1000.0
 
+        match_t0 = time.perf_counter()
         score, inliers, matches = match_and_score(
             des1, des2, kps1, kps2,
             score_mode=args.score_mode,
@@ -400,6 +409,8 @@ def main():
             normalization_k=args.nfeatures,
             ransac_model=args.ransac_model,
         )
+        match_ms = (time.perf_counter() - match_t0) * 1000.0
+        pair_total_ms = (time.perf_counter() - pair_t0) * 1000.0
 
         rows.append({
             "label": label,
@@ -411,16 +422,66 @@ def main():
             "matches": int(matches),
             "k1": len(kps1),
             "k2": len(kps2),
+            "extract_a_ms": float(extract_a_ms),
+            "extract_b_ms": float(extract_b_ms),
+            "match_ms": float(match_ms),
+            "pair_total_ms": float(pair_total_ms),
         })
 
     df = pd.DataFrame(rows)
     auc, eer = compute_auc_eer(df["label"].values, df["score"].values)
+    total_ms = (time.perf_counter() - t0) * 1000.0
+    pair_times = pd.to_numeric(df.get("pair_total_ms", pd.Series(dtype=float)), errors="coerce").dropna()
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
+    meta_path = Path(str(out_path) + ".meta.json")
+    cache_info = extract.cache_info()
+    meta_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "v1_classic_scores_meta",
+                "success": True,
+                "split": args.split,
+                "pairs_csv": str(pairs_path),
+                "N": int(len(df)),
+                "AUC": float(auc),
+                "EER": float(eer),
+                "avg_ms_pair": float(pair_times.mean()) if len(pair_times) else float("nan"),
+                "p50_ms_pair": float(pair_times.median()) if len(pair_times) else float("nan"),
+                "p95_ms_pair": float(pair_times.quantile(0.95)) if len(pair_times) else float("nan"),
+                "total_ms": float(total_ms),
+                "detector": args.detector,
+                "score_mode": args.score_mode,
+                "nfeatures": int(args.nfeatures),
+                "target_size": int(args.target_size),
+                "blur_ksize": int(args.blur_ksize),
+                "ransac_model": args.ransac_model,
+                "ransac_thresh": float(args.ransac_thresh),
+                "ratio": float(args.ratio),
+                "long_edge": int(args.long_edge),
+                "feature_cache": {
+                    "type": "functools.lru_cache",
+                    "scope": "in_process_feature_extraction",
+                    "hits": int(cache_info.hits),
+                    "misses": int(cache_info.misses),
+                    "maxsize": cache_info.maxsize,
+                    "currsize": int(cache_info.currsize),
+                },
+                "cache_note": (
+                    "Feature extraction uses an in-process functools.lru_cache keyed by image path and "
+                    "classic extraction configuration; timings include cache hits when repeated paths occur."
+                ),
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
     print(f"Split={args.split} | N={len(df)} | AUC={auc:.4f} | EER~{eer:.4f}")
     print("Saved:", out_path)
+    print("Meta :", meta_path)
 
 
 if __name__ == "__main__":

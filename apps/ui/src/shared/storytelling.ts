@@ -52,6 +52,10 @@ export function formatMethodLabel(value: string | null | undefined): string {
             return "Classic (Harris + ORB)";
         case "sift":
             return "Classic (SIFT)";
+        case "sift_plain_roll_v2":
+            return "SIFT Plain/Roll v2 (Experimental)";
+        case "sourceafis_open":
+            return "SourceAFIS Open Matcher";
         case "dl":
         case "dl_quick":
             return "Deep Learning (ResNet18)";

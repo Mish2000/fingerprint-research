@@ -1,3 +1,10 @@
+"""Historical SIFT plain-vs-roll v2 external validation diagnostic.
+
+This script is retained for reproducing earlier SIFT/SIFT-v2 diagnostic
+evidence. Final comparable plain-vs-roll evidence should be produced with
+`pipelines/benchmark/run_plain_roll_final_benchmark.py`.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -988,8 +995,10 @@ def write_outputs(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "External validation for experimental sift_plain_roll_v2 on compatible "
-            "full NIST SD300B/SD300C val/test plain-vs-roll pairs."
+            "LEGACY historical diagnostic: external validation for experimental sift_plain_roll_v2 "
+            "on compatible full NIST SD300B/SD300C val/test plain-vs-roll pairs. "
+            "For final comparable plain-vs-roll evidence, use "
+            "pipelines/benchmark/run_plain_roll_final_benchmark.py."
         )
     )
     parser.add_argument("--datasets", default=",".join(DEFAULT_DATASETS))

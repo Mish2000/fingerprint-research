@@ -74,6 +74,18 @@ export const METHOD_PROFILES: Record<Method, MethodProfile> = {
         captureHelp: "Capture metadata is currently ignored by the backend for SIFT requests.",
         overlayHelp: "Overlay is supported and often the most informative on SIFT runs.",
     },
+    sift_plain_roll_v2: {
+        value: "sift_plain_roll_v2",
+        label: "SIFT Plain/Roll v2 (Experimental)",
+        hint: "Custom plain-vs-roll research baseline retained for controlled comparison.",
+        defaultThreshold: 6.866327,
+        supportsOverlay: true,
+        captureMode: "ignored",
+        recommendedWarmUp: false,
+        thresholdHelp: "Backend default threshold: 6.866327.",
+        captureHelp: "Capture metadata is visible but this research SIFT path uses its fixed plain/roll preprocessing profile.",
+        overlayHelp: "Overlay is supported and is useful for visual audits of the research baseline.",
+    },
     dl: {
         value: "dl",
         label: "Deep Learning (ResNet18)",

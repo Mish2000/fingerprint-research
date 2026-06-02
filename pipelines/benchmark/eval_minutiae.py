@@ -132,6 +132,9 @@ def _meta_payload(
     auc: float,
     eer: float,
     avg_ms_pair: float,
+    p50_ms_pair: float,
+    p95_ms_pair: float,
+    total_ms: float,
     n_pairs: int,
     config_hash: str,
     cache: TemplateCache,
@@ -145,6 +148,11 @@ def _meta_payload(
         "auc": float(auc),
         "eer": float(eer),
         "avg_ms_pair": float(avg_ms_pair),
+        "p50_ms_pair": float(p50_ms_pair),
+        "p95_ms_pair": float(p95_ms_pair),
+        "total_ms": float(total_ms),
+        "cache_hits": int(cache.hits),
+        "cache_misses": int(cache.misses),
         "template_cache": {
             "enabled": bool(cache.enabled),
             "config_hash": str(config_hash),
@@ -235,10 +243,12 @@ def main() -> None:
         )
     template_cache = TemplateCache(cfg, config_hash, enabled=not bool(args.disable_template_cache))
     rows = []
+    pair_times: list[float] = []
     t0 = time.perf_counter()
     total_pairs = int(len(pairs))
     progress_every = max(0, int(args.progress_every))
     for index, (_, row) in enumerate(pairs.iterrows(), start=1):
+        pair_t0 = time.perf_counter()
         path_a = str(row["path_a"])
         path_b = str(row["path_b"])
         label = int(row["label"])
@@ -246,6 +256,8 @@ def main() -> None:
         template_a = template_cache.get(path_a)
         template_b = template_cache.get(path_b)
         result = match_minutiae_templates(template_a, template_b, cfg=cfg)
+        pair_total_ms = (time.perf_counter() - pair_t0) * 1000.0
+        pair_times.append(float(pair_total_ms))
         rows.append(
             {
                 "label": label,
@@ -253,6 +265,7 @@ def main() -> None:
                 "path_a": path_a,
                 "path_b": path_b,
                 "score": float(result.score),
+                "pair_total_ms": float(pair_total_ms),
                 "raw_alignment_score": float(result.raw_alignment_score),
                 "score_multiplier": float(result.score_multiplier),
                 "score_component_template_quality": float(
@@ -310,6 +323,7 @@ def main() -> None:
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
     df = pd.DataFrame(rows)
     auc, eer = compute_auc_eer(df["label"].values, df["score"].values)
+    pair_time_values = np.asarray(pair_times, dtype=float)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
@@ -321,7 +335,10 @@ def main() -> None:
                 args,
                 auc=auc,
                 eer=eer,
-                avg_ms_pair=elapsed_ms / max(len(df), 1),
+                avg_ms_pair=float(np.mean(pair_time_values)) if pair_time_values.size else elapsed_ms / max(len(df), 1),
+                p50_ms_pair=float(np.median(pair_time_values)) if pair_time_values.size else float("nan"),
+                p95_ms_pair=float(np.quantile(pair_time_values, 0.95)) if pair_time_values.size else float("nan"),
+                total_ms=elapsed_ms,
                 n_pairs=len(df),
                 config_hash=config_hash,
                 cache=template_cache,

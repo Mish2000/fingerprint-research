@@ -4,12 +4,15 @@ import {
     formatLatency,
     formatMethodLabel,
     formatMetric,
-    formatOperatingPoint,
-    formatTarAtFarLabel,
+    formatOperatingPointActualFar,
+    formatOperatingPointFrr,
+    formatOperatingPointTarget,
+    formatOperatingPointTar,
     highlightClassName,
     isChampionCandidateRow,
     isResearchRow,
     methodStatusBadges,
+    operatingPointsForRow,
     researchRunSourceLabel,
     statusLabel,
     statusToneClassName,
@@ -63,6 +66,41 @@ function groupedRows(rows: ComparisonRow[]) {
         { title: "Canonical / Showcase", rows: canonicalRows },
         { title: "Research / Experimental", rows: researchRows },
     ];
+}
+
+function OperatingPointRows({ row }: { row: ComparisonRow }) {
+    const points = operatingPointsForRow(row);
+    if (points.length === 0) {
+        return <span className="text-xs text-[var(--app-text-muted)]">N/A</span>;
+    }
+
+    return (
+        <div className="space-y-2 text-xs text-[var(--app-text-soft)]">
+            {points.map((point) => (
+                <div key={`${point.target_far}_${point.label}`} className="space-y-0.5">
+                    <div>
+                        <span className="text-[var(--app-text-muted)]">TAR @ {formatOperatingPointTarget(point)}</span>
+                        <span className="ml-2 font-semibold text-[var(--app-text)]">{formatOperatingPointTar(point)}</span>
+                    </div>
+                    {point.test_far != null || point.test_frr != null ? (
+                        <div className="text-[11px] text-[var(--app-text-muted)]">
+                            Actual FAR {formatOperatingPointActualFar(point)} / FRR {formatOperatingPointFrr(point)}
+                        </div>
+                    ) : null}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function formatSpeedCell(row: ComparisonRow): string {
+    if (typeof row.latency_ms === "number" && !Number.isNaN(row.latency_ms)) {
+        return formatLatency(row.latency_ms);
+    }
+    if (row.provenance?.source_type === "final_markdown" || row.available_artifacts.includes("final_markdown")) {
+        return "Not exported";
+    }
+    return formatLatency(row.latency_ms);
 }
 
 export function BenchmarkComparisonTable({
@@ -146,20 +184,11 @@ export function BenchmarkComparisonTable({
                                                 </div>
                                             </td>
                                             <td className="px-5 py-4 text-right">
-                                                <div className="space-y-1 text-xs text-[var(--app-text-soft)]">
-                                                    <div>
-                                                        <span className="text-[var(--app-text-muted)]">{formatTarAtFarLabel("1e-2")}</span>
-                                                        <span className="ml-2 font-semibold text-[var(--app-text)]">{formatOperatingPoint(row.tar_at_far_1e_2)}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[var(--app-text-muted)]">{formatTarAtFarLabel("1e-3")}</span>
-                                                        <span className="ml-2 font-semibold text-[var(--app-text)]">{formatOperatingPoint(row.tar_at_far_1e_3)}</span>
-                                                    </div>
-                                                </div>
+                                                <OperatingPointRows row={row} />
                                             </td>
                                             <td className="px-5 py-4 text-right">
                                                 <div className="space-y-2">
-                                                    <div className="text-[var(--app-text-soft)]">{formatLatency(row.latency_ms)}</div>
+                                                    <div className="text-[var(--app-text-soft)]">{formatSpeedCell(row)}</div>
                                                     {isChampionCandidateRow(row) && row.latency_rank === 1 ? <RankBadge>Fastest</RankBadge> : null}
                                                 </div>
                                             </td>

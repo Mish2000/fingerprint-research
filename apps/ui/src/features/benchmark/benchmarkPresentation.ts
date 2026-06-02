@@ -1,4 +1,4 @@
-import type { BenchmarkBestMetric, BenchmarkSortMode, BenchmarkViewMode, ComparisonRow } from "../../types";
+import type { BenchmarkBestMetric, BenchmarkOperatingPoint, BenchmarkSortMode, BenchmarkViewMode, ComparisonRow } from "../../types";
 
 const METHOD_LABELS: Record<string, string> = {
     classic: "Classic (ORB)",
@@ -8,6 +8,8 @@ const METHOD_LABELS: Record<string, string> = {
     minutiae: "Classic (Minutiae)",
     harris: "Classic (Harris + ORB)",
     sift: "Classic (SIFT)",
+    sift_plain_roll_v2: "SIFT Plain/Roll v2 (Experimental)",
+    sourceafis_open: "SourceAFIS Open Matcher",
     dl: "Deep Learning (ResNet18)",
     dl_quick: "Deep Learning (ResNet18)",
     dedicated: "Dedicated Patch AI",
@@ -37,6 +39,13 @@ export function formatOperatingPoint(value: number | null | undefined): string {
     return formatMetric(value);
 }
 
+export function formatPercentFromFraction(value: number | null | undefined, digits = 2): string {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+        return "N/A";
+    }
+    return `${(value * 100).toFixed(digits)}%`;
+}
+
 type FarTarget = "1e-2" | "1e-3";
 
 const FAR_TARGET_PERCENT_LABELS: Record<FarTarget, string> = {
@@ -50,6 +59,67 @@ export function formatFarTargetLabel(value: FarTarget): string {
 
 export function formatTarAtFarLabel(value: FarTarget): string {
     return `TAR @ ${formatFarTargetLabel(value)}`;
+}
+
+function legacyOperatingPoint(target: FarTarget, testTar: number | null | undefined): BenchmarkOperatingPoint | null {
+    if (typeof testTar !== "number" || Number.isNaN(testTar)) {
+        return null;
+    }
+    if (target === "1e-2") {
+        return {
+            target_far: 0.01,
+            label: "1.00% FAR",
+            test_tar: testTar,
+        };
+    }
+    return {
+        target_far: 0.001,
+        label: "0.10% FAR",
+        test_tar: testTar,
+    };
+}
+
+export function operatingPointsForRow(row: Pick<ComparisonRow, "operating_points" | "tar_at_far_1e_2" | "tar_at_far_1e_3">): BenchmarkOperatingPoint[] {
+    if (Array.isArray(row.operating_points) && row.operating_points.length > 0) {
+        return row.operating_points;
+    }
+
+    return [
+        legacyOperatingPoint("1e-2", row.tar_at_far_1e_2),
+        legacyOperatingPoint("1e-3", row.tar_at_far_1e_3),
+    ].filter((point): point is BenchmarkOperatingPoint => point != null);
+}
+
+export function formatOperatingPointTarget(point: BenchmarkOperatingPoint): string {
+    const label = point.label?.trim();
+    if (label) {
+        return label;
+    }
+    return `${formatPercentFromFraction(point.target_far)} FAR`;
+}
+
+export function formatOperatingPointTar(point: BenchmarkOperatingPoint): string {
+    return formatPercentFromFraction(point.test_tar);
+}
+
+export function formatOperatingPointActualFar(point: BenchmarkOperatingPoint): string {
+    return formatPercentFromFraction(point.test_far);
+}
+
+export function formatOperatingPointFrr(point: BenchmarkOperatingPoint): string {
+    return formatPercentFromFraction(point.test_frr);
+}
+
+export function formatOperatingPointThreshold(point: BenchmarkOperatingPoint): string {
+    return formatMetric(point.threshold, 4);
+}
+
+export function formatOperatingPointCounts(point: BenchmarkOperatingPoint): string | null {
+    const values = [point.ta, point.fr, point.fa, point.tr];
+    if (values.some((value) => typeof value !== "number" || Number.isNaN(value))) {
+        return null;
+    }
+    return `TA ${point.ta} / FR ${point.fr} / FA ${point.fa} / TR ${point.tr}`;
 }
 
 export function formatApproxEqualEer(value: number | null | undefined): string {

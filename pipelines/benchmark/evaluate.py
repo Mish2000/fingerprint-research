@@ -524,6 +524,50 @@ def maybe_load_meta(meta_path: Path) -> Dict[str, Any]:
     return {}
 
 
+def resolve_existing_meta_path(primary: Path, alternatives: List[Path]) -> Path:
+    if primary.exists():
+        return primary
+    for candidate in alternatives:
+        if candidate.exists():
+            return candidate
+    return primary
+
+
+def _float_or_none(value: Any) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        number = float(value)
+    except Exception:
+        return None
+    if not np.isfinite(number):
+        return None
+    return number
+
+
+def extract_reported_avg_ms_pair(meta_obj: Dict[str, Any]) -> Optional[float]:
+    candidates: List[Any] = [
+        meta_obj.get("avg_ms_pair"),
+        meta_obj.get("avg_ms_pair_reported"),
+        meta_obj.get("mean_ms_pair"),
+    ]
+    for nested_key in ("timing", "latency", "pair_timing"):
+        nested = meta_obj.get(nested_key)
+        if isinstance(nested, dict):
+            candidates.extend(
+                [
+                    nested.get("avg_ms_pair"),
+                    nested.get("avg_ms_pair_reported"),
+                    nested.get("mean_ms_pair"),
+                ]
+            )
+    for value in candidates:
+        number = _float_or_none(value)
+        if number is not None:
+            return number
+    return None
+
+
 def append_summary_row(summary_csv: Path, row: EvalRow) -> None:
     ensure_parent(summary_csv)
     write_header = not summary_csv.exists() or summary_csv.stat().st_size == 0
@@ -932,14 +976,14 @@ def main() -> None:
     # Load reported latency from meta if exists
     reported_avg = None
     meta_json_path_str = None
+    if args.method in {"classic_v2", "harris", "sift", "sift_plain_roll_v2"}:
+        meta_path = resolve_existing_meta_path(meta_path, [out_scores.with_suffix(".meta.json")])
+    else:
+        meta_path = resolve_existing_meta_path(meta_path, [Path(str(out_scores) + ".meta.json")])
     meta_obj = maybe_load_meta(meta_path)
     if meta_obj:
         meta_json_path_str = str(meta_path)
-        if "avg_ms_pair" in meta_obj:
-            try:
-                reported_avg = float(meta_obj["avg_ms_pair"])
-            except Exception:
-                reported_avg = None
+        reported_avg = extract_reported_avg_ms_pair(meta_obj)
 
     # Save ROC png only when the score file has both labels with finite scores.
     roc_reason = roc_skip_reason(y, s)

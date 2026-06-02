@@ -162,6 +162,22 @@ class BenchmarkArtifactLink(BaseModel):
     url: Optional[str] = None
 
 
+class BenchmarkOperatingPoint(BaseModel):
+    target_far: float
+    label: str
+    threshold: Optional[float] = None
+    test_tar: Optional[float] = None
+    test_far: Optional[float] = None
+    test_frr: Optional[float] = None
+    ta: Optional[int] = None
+    fr: Optional[int] = None
+    fa: Optional[int] = None
+    tr: Optional[int] = None
+    calibration_far: Optional[float] = None
+    calibration_false_accepts: Optional[int] = None
+    calibration_negatives: Optional[int] = None
+
+
 class BenchmarkProvenance(BaseModel):
     run: str
     run_label: str
@@ -205,8 +221,10 @@ class BenchmarkRow(BaseModel):
     n_pairs: int
     auc: float
     eer: float
+    dpi: Optional[int] = None
     tar_at_far_1e_2: Optional[float] = None
     tar_at_far_1e_3: Optional[float] = None
+    operating_points: List[BenchmarkOperatingPoint] = Field(default_factory=list)
     avg_ms_pair_reported: Optional[float] = None
     avg_ms_pair_wall: Optional[float] = None
 
@@ -281,8 +299,10 @@ class ComparisonRow(BaseModel):
     auc: float
     eer: float
     n_pairs: Optional[int] = None
+    dpi: Optional[int] = None
     tar_at_far_1e_2: Optional[float] = None
     tar_at_far_1e_3: Optional[float] = None
+    operating_points: List[BenchmarkOperatingPoint] = Field(default_factory=list)
     latency_ms: Optional[float] = None
     latency_source: Optional[str] = None
     auc_rank: Optional[int] = None

@@ -1,4 +1,4 @@
-import { act } from "react";
+﻿import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import BenchmarkWorkspace from "../src/features/benchmark/BenchmarkWorkspace.tsx";
@@ -14,6 +14,11 @@ const datasetInfos = {
         key: "nist_sd300b",
         label: "NIST SD300b",
         summary: "Rolled versus plain legacy benchmark at 1000 ppi.",
+    },
+    nist_sd300c: {
+        key: "nist_sd300c",
+        label: "NIST SD300c",
+        summary: "Rolled versus plain benchmark at 2000 ppi.",
     },
     polyu_cross: {
         key: "polyu_cross",
@@ -134,6 +139,23 @@ function availableArtifacts(
     ];
 }
 
+function finalMarkdownArtifacts(run: string, filename: string) {
+    return [
+        {
+            key: "final_markdown",
+            label: "Final Markdown Evidence",
+            available: true,
+            url: `/api/benchmark/artifacts/${run}/${filename}`,
+        },
+        {
+            key: "roc_png",
+            label: "ROC Preview",
+            available: false,
+            url: null,
+        },
+    ];
+}
+
 function createRow({
     dataset,
     split,
@@ -155,7 +177,7 @@ function createRow({
     status = "validated",
     validationState = "validated",
 }: {
-    dataset: "nist_sd300b" | "polyu_cross";
+    dataset: "nist_sd300b" | "nist_sd300c" | "polyu_cross";
     split: "val" | "test";
     method: string;
     benchmarkMethod?: string;
@@ -234,23 +256,153 @@ function createRow({
     };
 }
 
+const sourceAfisBOperatingPoints = [
+    {
+        target_far: 0.01,
+        label: "1.00% FAR",
+        threshold: 14.72326764987426,
+        test_tar: 0.7729,
+        test_far: 0.0086,
+        test_frr: 0.2271,
+        ta: 541,
+        fr: 159,
+        fa: 6,
+        tr: 694,
+        calibration_far: 0.01,
+        calibration_false_accepts: 7,
+        calibration_negatives: 700,
+    },
+    {
+        target_far: 0.005,
+        label: "0.50% FAR",
+        threshold: 17.393218350729448,
+        test_tar: 0.76,
+        test_far: 0.0043,
+        test_frr: 0.24,
+        ta: 532,
+        fr: 168,
+        fa: 3,
+        tr: 697,
+        calibration_far: 0.0043,
+        calibration_false_accepts: 3,
+        calibration_negatives: 700,
+    },
+];
+
+const sourceAfisCOperatingPoints = [
+    {
+        target_far: 0.01,
+        label: "1.00% FAR",
+        threshold: 14.483463789540309,
+        test_tar: 0.78,
+        test_far: 0.0129,
+        test_frr: 0.22,
+        ta: 546,
+        fr: 154,
+        fa: 9,
+        tr: 691,
+        calibration_far: 0.01,
+        calibration_false_accepts: 7,
+        calibration_negatives: 700,
+    },
+    {
+        target_far: 0.005,
+        label: "0.50% FAR",
+        threshold: 20.06041975470194,
+        test_tar: 0.7529,
+        test_far: 0.0057,
+        test_frr: 0.2471,
+        ta: 527,
+        fr: 173,
+        fa: 4,
+        tr: 696,
+        calibration_far: 0.0043,
+        calibration_false_accepts: 3,
+        calibration_negatives: 700,
+    },
+];
+
+const siftV2BOperatingPoints = [
+    { target_far: 0.01, label: "1.00% FAR", test_tar: 0.5021, test_far: 0.0103, test_frr: 0.4979 },
+    { target_far: 0.005, label: "0.50% FAR", test_tar: 0.4318, test_far: 0.0033, test_frr: 0.5682 },
+];
+
+const siftV2COperatingPoints = [
+    { target_far: 0.01, label: "1.00% FAR", test_tar: 0.4473, test_far: 0.0061, test_frr: 0.5527 },
+    { target_far: 0.005, label: "0.50% FAR", test_tar: 0.4205, test_far: 0.0038, test_frr: 0.5795 },
+];
+
 const canonicalBTestRows = [
-    createRow({
-        dataset: "nist_sd300b",
-        split: "test",
-        method: "sift",
-        run: "full_nist_sd300b_h6",
-        runLabel: "Canonical full benchmark",
-        auc: 0.6621,
-        eer: 0.3398,
-        latency: 32.15,
-        nPairs: 2800,
-        tarAtFar1e2: 0.1185,
-        tarAtFar1e3: 0.0462,
-        aucRank: 1,
-        eerRank: 1,
-        latencyRank: 3,
-    }),
+    {
+        ...createRow({
+            dataset: "nist_sd300b",
+            split: "test",
+            method: "sourceafis_open",
+            run: "sourceafis_sd300b_plain_roll_dpi1000_final",
+            runLabel: "SourceAFIS SD300B final evidence (DPI 1000)",
+            auc: 0.8902,
+            eer: 0.17,
+            latency: 272.902,
+            nPairs: 1400,
+            tarAtFar1e2: 0.7729,
+            aucRank: 1,
+            eerRank: 1,
+            latencyRank: 3,
+            artifacts: finalMarkdownArtifacts("sourceafis_sd300b_plain_roll_dpi1000_final", "sourceafis_sd300b_plain_roll_dpi1000_final.md"),
+        }),
+        dpi: 1000,
+        operating_points: sourceAfisBOperatingPoints,
+        summary_text: "Final SourceAFIS SD300B plain-vs-roll evidence at explicit 1000 DPI. Final markdown evidence is preserved.",
+        provenance: {
+            ...createRow({
+                dataset: "nist_sd300b",
+                split: "test",
+                method: "sourceafis_open",
+                run: "sourceafis_sd300b_plain_roll_dpi1000_final",
+                runLabel: "SourceAFIS SD300B final evidence (DPI 1000)",
+                auc: 0.8902,
+                eer: 0.17,
+                latency: 272.902,
+                nPairs: 1400,
+                aucRank: 1,
+                eerRank: 1,
+                latencyRank: 3,
+                artifacts: finalMarkdownArtifacts("sourceafis_sd300b_plain_roll_dpi1000_final", "sourceafis_sd300b_plain_roll_dpi1000_final.md"),
+            }).provenance,
+            source_type: "final_markdown",
+            artifact_source: "sourceafis_sd300b_plain_roll_dpi1000_final.md",
+            methods_in_run: ["sourceafis_open"],
+            benchmark_methods_in_run: ["sourceafis_open"],
+            benchmark_source_label: "Final curated evidence",
+        },
+    },
+    {
+        ...createRow({
+            dataset: "nist_sd300b",
+            split: "test",
+            method: "sift_plain_roll_v2",
+            run: "sift_v2_external_validation_sd300b_final",
+            runLabel: "SIFT v2 SD300B research baseline",
+            auc: 0.7963,
+            eer: 0.2932,
+            latency: 48,
+            nPairs: 2844,
+            tarAtFar1e2: 0.5021,
+            aucRank: 4,
+            eerRank: 4,
+            latencyRank: 4,
+            artifacts: finalMarkdownArtifacts("sift_v2_external_validation_sd300b_final", "sift_v2_external_validation_final.md"),
+        }),
+        method_status: "experimental",
+        presentation_tier: "research",
+        showcase_eligible: false,
+        research_track: true,
+        not_champion_candidate: true,
+        showcase_exclusion_note: "SIFT v2 remains a custom research baseline.",
+        operating_points: siftV2BOperatingPoints,
+        latency_ms: null,
+        latency_source: null,
+    },
     createRow({
         dataset: "nist_sd300b",
         split: "test",
@@ -264,7 +416,6 @@ const canonicalBTestRows = [
         aucRank: 3,
         eerRank: 3,
         latencyRank: 1,
-        artifacts: availableArtifacts("full_nist_sd300b_h6", "vit", "test", { meta: false, roc: false }),
     }),
     createRow({
         dataset: "nist_sd300b",
@@ -280,7 +431,59 @@ const canonicalBTestRows = [
         aucRank: 2,
         eerRank: 2,
         latencyRank: 2,
+        artifacts: availableArtifacts("full_nist_sd300b_h6", "dl_quick", "test", { meta: false, roc: false }),
     }),
+];
+
+const canonicalCTestRows = [
+    {
+        ...createRow({
+            dataset: "nist_sd300c",
+            split: "test",
+            method: "sourceafis_open",
+            run: "sourceafis_sd300c_plain_roll_dpi2000_final",
+            runLabel: "SourceAFIS SD300C final evidence (DPI 2000)",
+            auc: 0.8815,
+            eer: 0.1743,
+            latency: 249.966,
+            nPairs: 1400,
+            tarAtFar1e2: 0.78,
+            aucRank: 1,
+            eerRank: 1,
+            latencyRank: 1,
+            artifacts: finalMarkdownArtifacts("sourceafis_sd300c_plain_roll_dpi2000_final", "sourceafis_sd300c_plain_roll_dpi2000_final.md"),
+        }),
+        dpi: 2000,
+        operating_points: sourceAfisCOperatingPoints,
+        summary_text: "Final SourceAFIS SD300C plain-vs-roll evidence at explicit 2000 DPI. Final markdown evidence is preserved.",
+    },
+    {
+        ...createRow({
+            dataset: "nist_sd300c",
+            split: "test",
+            method: "sift_plain_roll_v2",
+            run: "sift_v2_external_validation_sd300c_final",
+            runLabel: "SIFT v2 SD300C research baseline",
+            auc: 0.7914,
+            eer: 0.2827,
+            latency: 48,
+            nPairs: 2844,
+            tarAtFar1e2: 0.4473,
+            aucRank: 2,
+            eerRank: 2,
+            latencyRank: 2,
+            artifacts: finalMarkdownArtifacts("sift_v2_external_validation_sd300c_final", "sift_v2_external_validation_final.md"),
+        }),
+        method_status: "experimental",
+        presentation_tier: "research",
+        showcase_eligible: false,
+        research_track: true,
+        not_champion_candidate: true,
+        showcase_exclusion_note: "SIFT v2 remains a custom research baseline.",
+        operating_points: siftV2COperatingPoints,
+        latency_ms: null,
+        latency_source: null,
+    },
 ];
 
 const canonicalBValRows = [
@@ -405,6 +608,9 @@ function applyViewMode(rows: ReturnType<typeof selectionRowsBase>, viewMode: str
 }
 
 function selectionRowsBase(dataset: string, split: string) {
+    if (dataset === "nist_sd300c") {
+        return canonicalCTestRows;
+    }
     if (dataset === "polyu_cross") {
         return canonicalPolyuTestRows;
     }
@@ -420,13 +626,15 @@ function selectionRows(dataset: string, split: string, viewMode = "canonical") {
 
 function sortRows(rows: ReturnType<typeof selectionRows>, sortMode: string) {
     const items = [...rows];
+    const rank = (row: (typeof items)[number], key: "auc_rank" | "eer_rank" | "latency_rank") =>
+        typeof row[key] === "number" ? row[key] : 999;
     if (sortMode === "lowest_eer") {
-        return items.sort((a, b) => a.eer_rank - b.eer_rank);
+        return items.sort((a, b) => rank(a, "eer_rank") - rank(b, "eer_rank"));
     }
     if (sortMode === "lowest_latency") {
-        return items.sort((a, b) => a.latency_rank - b.latency_rank);
+        return items.sort((a, b) => rank(a, "latency_rank") - rank(b, "latency_rank"));
     }
-    return items.sort((a, b) => a.auc_rank - b.auc_rank);
+    return items.sort((a, b) => rank(a, "auc_rank") - rank(b, "auc_rank"));
 }
 
 function bestEntriesFor(dataset: string, split: string, viewMode = "canonical") {
@@ -486,10 +694,10 @@ function bestEntriesFor(dataset: string, split: string, viewMode = "canonical") 
 }
 
 function summaryPayload(dataset: string, split: string, viewMode = "canonical") {
-    const effectiveDataset = dataset === "polyu_cross" ? "polyu_cross" : "nist_sd300b";
+    const effectiveDataset = dataset === "polyu_cross" || dataset === "nist_sd300c" ? dataset : "nist_sd300b";
     const effectiveSplit = viewMode === "smoke"
         ? "val"
-        : effectiveDataset === "polyu_cross"
+        : effectiveDataset === "polyu_cross" || effectiveDataset === "nist_sd300c"
             ? "test"
             : (split === "val" ? "val" : "test");
     const rows = selectionRows(effectiveDataset, effectiveSplit, viewMode);
@@ -510,7 +718,7 @@ function summaryPayload(dataset: string, split: string, viewMode = "canonical") 
         available_datasets: Object.values(datasetInfos),
         available_splits: viewMode === "smoke"
             ? [splitInfos.val]
-            : effectiveDataset === "polyu_cross"
+            : effectiveDataset === "polyu_cross" || effectiveDataset === "nist_sd300c"
             ? [splitInfos.test]
             : [splitInfos.val, splitInfos.test],
         available_view_modes: Object.values(viewInfos),
@@ -520,10 +728,10 @@ function summaryPayload(dataset: string, split: string, viewMode = "canonical") 
 }
 
 function comparisonPayload(dataset: string, split: string, sortMode: string, viewMode = "canonical") {
-    const effectiveDataset = dataset === "polyu_cross" ? "polyu_cross" : "nist_sd300b";
+    const effectiveDataset = dataset === "polyu_cross" || dataset === "nist_sd300c" ? dataset : "nist_sd300b";
     const effectiveSplit = viewMode === "smoke"
         ? "val"
-        : effectiveDataset === "polyu_cross"
+        : effectiveDataset === "polyu_cross" || effectiveDataset === "nist_sd300c"
             ? "test"
             : (split === "val" ? "val" : "test");
     const rows = sortRows(selectionRows(effectiveDataset, effectiveSplit, viewMode), sortMode);
@@ -531,7 +739,7 @@ function comparisonPayload(dataset: string, split: string, sortMode: string, vie
     return {
         rows,
         datasets: Object.keys(datasetInfos),
-        splits: viewMode === "smoke" ? ["val"] : effectiveDataset === "polyu_cross" ? ["test"] : ["val", "test"],
+        splits: viewMode === "smoke" ? ["val"] : effectiveDataset === "polyu_cross" || effectiveDataset === "nist_sd300c" ? ["test"] : ["val", "test"],
         default_dataset: effectiveDataset,
         default_split: effectiveSplit,
         view_mode: viewMode,
@@ -542,10 +750,10 @@ function comparisonPayload(dataset: string, split: string, sortMode: string, vie
 }
 
 function bestPayload(dataset: string, split: string, viewMode = "canonical") {
-    const effectiveDataset = dataset === "polyu_cross" ? "polyu_cross" : "nist_sd300b";
+    const effectiveDataset = dataset === "polyu_cross" || dataset === "nist_sd300c" ? dataset : "nist_sd300b";
     const effectiveSplit = viewMode === "smoke"
         ? "val"
-        : effectiveDataset === "polyu_cross"
+        : effectiveDataset === "polyu_cross" || effectiveDataset === "nist_sd300c"
             ? "test"
             : (split === "val" ? "val" : "test");
     return {
@@ -1000,20 +1208,28 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("Validated fingerprint matching benchmark");
             expect(normalizeText(container.textContent)).toContain("Benchmark Story");
             expect(normalizeText(container.textContent)).toContain("Current benchmark finding");
-            expect(normalizeText(container.textContent)).toContain("SIFT is currently the strongest verified method on NIST SD300b/c");
-            expect(normalizeText(container.textContent)).toContain("DL and ViT are retained as AI baselines and future fine-tuning directions");
-            expect(normalizeText(container.textContent)).toContain("PolyU Cross highlights domain-shift difficulty");
-            expect(normalizeText(container.textContent)).toContain("Dedicated Patch AI is experimental/research-only and is not part of the canonical showcase");
-            expect(normalizeText(container.textContent)).toContain("Classic (SIFT)");
+            expect(normalizeText(container.textContent)).toContain("SourceAFIS is the current strongest validated plain-vs-roll evidence");
+            expect(normalizeText(container.textContent)).toContain("SIFT v2 remains the custom research baseline");
+            expect(normalizeText(container.textContent)).toContain("not a default interactive runtime method");
+            expect(normalizeText(container.textContent)).not.toContain("SIFT is currently the strongest verified method");
+            expect(normalizeText(container.textContent)).toContain("SourceAFIS Open Matcher");
+            expect(normalizeText(container.textContent)).toContain("SIFT Plain/Roll v2 (Experimental)");
             expect(normalizeText(container.textContent)).toContain("Trust & provenance");
-            expect(normalizeText(container.textContent)).toContain("full_nist_sd300b_h6");
-            expect(normalizeText(container.textContent)).toContain("FAR≈FRR @ EER");
+            expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final");
+            expect(normalizeText(container.textContent)).toContain("DPI 1000");
+            expect(normalizeText(container.textContent)).toContain("FAR ~= FRR @ EER");
             expect(normalizeText(container.textContent)).toContain("EER is the point where FAR and FRR are approximately equal");
-            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 1% (1e-2)");
-            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 0.1% (1e-3)");
-            expect(normalizeText(container.textContent)).toContain("target operating points");
-            expect(normalizeText(container.textContent)).toContain("exact raw score thresholds are not exported");
-            expect(normalizeText(container.textContent)).toContain("no production threshold is claimed");
+            expect(normalizeText(container.textContent)).toContain("TAR @ 1.00% FAR");
+            expect(normalizeText(container.textContent)).toContain("TAR @ 0.50% FAR");
+            expect(normalizeText(container.textContent)).toContain("Actual FAR 0.86%");
+            expect(normalizeText(container.textContent)).toContain("FRR 22.71%");
+            expect(normalizeText(container.textContent)).toContain("VAL FAR 1.00%");
+            expect(normalizeText(container.textContent)).toContain("7/700");
+            expect(normalizeText(container.textContent)).toContain("3/700");
+            expect(normalizeText(container.textContent)).toContain("Not exported");
+            expect(normalizeText(container.textContent)).toContain("Final Markdown Evidence");
+            expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final.md");
+            expect(normalizeText(container.textContent)).not.toContain("TAR @ 0.10% FAR");
             expect(normalizeText(container.textContent)).not.toContain("TAR@FAR=1e-2");
             expect(normalizeText(container.textContent)).not.toContain("TAR@FAR=1e-3");
             expect(normalizeText(container.textContent)).not.toContain("TAR@1e-2");
@@ -1033,12 +1249,21 @@ describe("Benchmark workspace showcase", () => {
 
         expect(Array.from(datasetField.options).map((option) => option.textContent)).toEqual([
             "NIST SD300b",
+            "NIST SD300c",
             "PolyU Cross",
         ]);
         expect(Array.from(splitField.options).map((option) => option.textContent)).toEqual([
             "Validation",
             "Test",
         ]);
+
+        await changeSelect(datasetField, "nist_sd300c");
+        await waitFor(() => {
+            expect(normalizeText(container.textContent)).toContain("SourceAFIS SD300C final evidence (DPI 2000)");
+            expect(normalizeText(container.textContent)).toContain("DPI 2000");
+            expect(normalizeText(container.textContent)).toContain("Actual FAR 1.29%");
+            expect(normalizeText(container.textContent)).toContain("Final Markdown Evidence");
+        });
 
         await unmountWorkspace(root);
     });
@@ -1103,17 +1328,15 @@ describe("Benchmark workspace showcase", () => {
         const { container, root } = await renderWorkspace();
 
         await waitFor(() => {
-            expect(normalizeText(container.textContent)).toContain("full_nist_sd300b_h6");
-            expect(normalizeText(container.textContent)).toContain("Deep Learning (ViT)");
+            expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final");
+            expect(normalizeText(container.textContent)).toContain("Deep Learning (ResNet18)");
             expect(normalizeText(container.textContent)).not.toContain("dl_quick");
         });
 
-        await clickRowByText(container, "Deep Learning (ViT)");
+        await clickRowByText(container, "Deep Learning (ResNet18)");
         await waitFor(() => {
             expect(normalizeText(container.textContent)).toContain("ROC preview is not available for this row");
             expect(normalizeText(container.textContent)).toContain("Meta JSON unavailable");
-            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 1% (1e-2)");
-            expect(normalizeText(container.textContent)).toContain("TAR @ FAR 0.1% (1e-3)");
             expect(normalizeText(container.textContent)).toContain("N/A");
         });
 
@@ -1132,6 +1355,7 @@ describe("Benchmark workspace showcase", () => {
         installBenchmarkFetchMock();
         const { container, root } = await renderWorkspace();
 
+        await clickRowByText(container, "Deep Learning (ViT)");
         await waitFor(() => {
             expect(container.querySelector("img[aria-label*='ROC preview']")).not.toBeNull();
         });

@@ -335,10 +335,9 @@ function CurrentBenchmarkFindingPanel() {
             <div className="inline-banner__body">
                 <p className="inline-banner__title">Current benchmark finding</p>
                 <p>
-                    SIFT is currently the strongest verified method on NIST SD300b/c. DL and ViT are retained as AI baselines
-                    and future fine-tuning directions; the current benchmark evidence does not show them as the strongest
-                    performers. PolyU Cross highlights domain-shift difficulty. Dedicated Patch AI is experimental/research-only
-                    and is not part of the canonical showcase.
+                    SourceAFIS is the current strongest validated plain-vs-roll evidence on NIST SD300B/SD300C. SIFT v2
+                    remains the custom research baseline. SourceAFIS evidence comes from the fingerprint-engine HTTP
+                    sidecar path and is not a default interactive runtime method.
                 </p>
             </div>
         </div>

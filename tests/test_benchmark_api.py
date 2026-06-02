@@ -333,6 +333,67 @@ def write_minimal_valid_run(
     return run_dir
 
 
+def create_final_markdown_benchmark_root(tmp_path: Path) -> Path:
+    bench_root = tmp_path / "artifacts" / "reports" / "benchmark"
+    bench_root.mkdir(parents=True, exist_ok=True)
+    for filename in (
+        "sourceafis_sd300b_plain_roll_dpi1000_final.md",
+        "sourceafis_sd300c_plain_roll_dpi2000_final.md",
+        "sift_v2_external_validation_final.md",
+    ):
+        (bench_root / filename).write_text(f"# {filename}\n", encoding="utf-8")
+    return bench_root
+
+
+def test_loose_final_markdown_evidence_surfaces_sourceafis_and_sift_v2_baseline(tmp_path: Path) -> None:
+    bench_root = create_final_markdown_benchmark_root(tmp_path)
+
+    comparison = load_comparison(
+        dataset="nist_sd300b",
+        split="test",
+        view_mode="canonical",
+        root=bench_root,
+    )
+
+    rows_by_method = {row.benchmark_method: row for row in comparison.rows}
+    assert set(rows_by_method) == {"sourceafis_open", "sift_plain_roll_v2"}
+
+    sourceafis = rows_by_method["sourceafis_open"]
+    assert sourceafis.method == "sourceafis_open"
+    assert sourceafis.method_label == "SourceAFIS Open Matcher"
+    assert sourceafis.dpi == 1000
+    assert sourceafis.auc_rank == 1
+    assert sourceafis.eer_rank == 1
+    assert [point.label for point in sourceafis.operating_points] == ["1.00% FAR", "0.50% FAR"]
+    assert sourceafis.operating_points[1].target_far == 0.005
+    assert sourceafis.operating_points[1].test_far == 0.0043
+    assert sourceafis.provenance is not None
+    assert sourceafis.provenance.source_type == "final_markdown"
+    assert sourceafis.provenance.artifact_source == "sourceafis_sd300b_plain_roll_dpi1000_final.md"
+    assert "final_markdown" in sourceafis.available_artifacts
+
+    sift_v2 = rows_by_method["sift_plain_roll_v2"]
+    assert sift_v2.research_track is True
+    assert sift_v2.not_champion_candidate is True
+    assert sift_v2.auc_rank is None
+
+    best = load_best_methods(
+        dataset="nist_sd300b",
+        split="test",
+        view_mode="canonical",
+        root=bench_root,
+    )
+    assert best.entries
+    assert {entry.benchmark_method for entry in best.entries} == {"sourceafis_open"}
+
+    target = resolve_benchmark_artifact(
+        sourceafis.run,
+        "sourceafis_sd300b_plain_roll_dpi1000_final.md",
+        root=bench_root,
+    )
+    assert target == bench_root / "sourceafis_sd300b_plain_roll_dpi1000_final.md"
+
+
 def test_h5_full_runs_are_accepted_as_canonical_without_dedicated(tmp_path: Path) -> None:
     bench_root = tmp_path / "artifacts" / "reports" / "benchmark"
     write_minimal_valid_run(bench_root, run_name=H5_FULL_NIST_B, dataset="nist_sd300b", split="test")

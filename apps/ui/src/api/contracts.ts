@@ -5,6 +5,7 @@ import {
     BENCHMARK_RUN_KIND_VALUES,
     type BenchmarkBestMetric,
     type BenchmarkArtifactLink,
+    type BenchmarkOperatingPoint,
     type BenchmarkProvenance,
     type BenchmarkRunInfo,
     type BenchmarkRunKind,
@@ -279,6 +280,25 @@ function normalizeBenchmarkArtifactLink(payload: unknown): BenchmarkArtifactLink
         label: expectString(record, "label", "BenchmarkArtifactLink"),
         available: expectBoolean(record, "available", "BenchmarkArtifactLink"),
         url: maybeString(record, "url"),
+    };
+}
+
+function normalizeBenchmarkOperatingPoint(payload: unknown, label = "BenchmarkOperatingPoint"): BenchmarkOperatingPoint {
+    const record = expectObject(payload, label);
+    return {
+        target_far: expectNumber(record, "target_far", label),
+        label: expectString(record, "label", label),
+        threshold: maybeNumber(record, "threshold"),
+        test_tar: maybeNumber(record, "test_tar"),
+        test_far: maybeNumber(record, "test_far"),
+        test_frr: maybeNumber(record, "test_frr"),
+        ta: maybeNumber(record, "ta"),
+        fr: maybeNumber(record, "fr"),
+        fa: maybeNumber(record, "fa"),
+        tr: maybeNumber(record, "tr"),
+        calibration_far: maybeNumber(record, "calibration_far"),
+        calibration_false_accepts: maybeNumber(record, "calibration_false_accepts"),
+        calibration_negatives: maybeNumber(record, "calibration_negatives"),
     };
 }
 
@@ -705,8 +725,11 @@ function normalizeComparisonRow(payload: unknown): ComparisonRow {
         auc: expectNumber(record, "auc", "ComparisonRow"),
         eer: expectNumber(record, "eer", "ComparisonRow"),
         n_pairs: maybeNumber(record, "n_pairs"),
+        dpi: maybeNumber(record, "dpi"),
         tar_at_far_1e_2: maybeNumber(record, "tar_at_far_1e_2"),
         tar_at_far_1e_3: maybeNumber(record, "tar_at_far_1e_3"),
+        operating_points: expectArray(record.operating_points ?? [], "ComparisonRow.operating_points")
+            .map((item, index) => normalizeBenchmarkOperatingPoint(item, `ComparisonRow.operating_points[${index}]`)),
         latency_ms: maybeNumber(record, "latency_ms"),
         latency_source: maybeString(record, "latency_source") as "reported" | "wall" | null,
         auc_rank: maybeNumber(record, "auc_rank"),

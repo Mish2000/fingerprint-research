@@ -1,4 +1,4 @@
-export const METHOD_VALUES = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit", "dedicated"] as const;
+export const METHOD_VALUES = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "sift_plain_roll_v2", "dl", "vit", "dedicated"] as const;
 export type Method = (typeof METHOD_VALUES)[number];
 
 const METHOD_ALIAS_MAP = {
@@ -129,6 +129,22 @@ export type BenchmarkArtifactLink = {
     url?: string | null;
 };
 
+export type BenchmarkOperatingPoint = {
+    target_far: number;
+    label: string;
+    threshold?: number | null;
+    test_tar?: number | null;
+    test_far?: number | null;
+    test_frr?: number | null;
+    ta?: number | null;
+    fr?: number | null;
+    fa?: number | null;
+    tr?: number | null;
+    calibration_far?: number | null;
+    calibration_false_accepts?: number | null;
+    calibration_negatives?: number | null;
+};
+
 export type BenchmarkProvenance = {
     run: string;
     run_label: string;
@@ -172,8 +188,10 @@ export type BenchmarkRow = {
     n_pairs: number;
     auc: number;
     eer: number;
+    dpi?: number | null;
     tar_at_far_1e_2?: number | null;
     tar_at_far_1e_3?: number | null;
+    operating_points?: BenchmarkOperatingPoint[];
     avg_ms_pair_reported?: number | null;
     avg_ms_pair_wall?: number | null;
 };
@@ -267,8 +285,10 @@ export type ComparisonRow = {
     auc: number;
     eer: number;
     n_pairs?: number | null;
+    dpi?: number | null;
     tar_at_far_1e_2?: number | null;
     tar_at_far_1e_3?: number | null;
+    operating_points?: BenchmarkOperatingPoint[];
     latency_ms?: number | null;
     latency_source?: "reported" | "wall" | null;
     auc_rank?: number | null;

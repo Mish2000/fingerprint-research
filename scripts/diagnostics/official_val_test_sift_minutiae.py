@@ -1,3 +1,10 @@
+"""Historical SIFT/minutiae VAL/TEST diagnostic.
+
+This script is retained for reproducing earlier diagnostic reports. Final
+comparable plain-vs-roll evidence should be produced with
+`pipelines/benchmark/run_plain_roll_final_benchmark.py`.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -275,7 +282,13 @@ def write_outputs(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Official val-calibrated/test-evaluated SIFT and minutiae report.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "LEGACY historical diagnostic: val-calibrated/test-evaluated SIFT and minutiae report. "
+            "For final comparable plain-vs-roll evidence, use "
+            "pipelines/benchmark/run_plain_roll_final_benchmark.py."
+        )
+    )
     parser.add_argument("--benchmark_dir", default=str(DEFAULT_BENCHMARK_DIR))
     parser.add_argument("--outdir", default=str(DEFAULT_OUTDIR))
     parser.add_argument("--target_far", type=float, nargs="*", default=list(TARGET_FARS))

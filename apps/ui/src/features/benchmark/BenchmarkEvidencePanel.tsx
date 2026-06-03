@@ -32,8 +32,9 @@ type Props = {
 };
 
 const ARTIFACT_GROUPS = [
-    { title: "Data", keys: ["summary_csv", "scores_csv"] },
-    { title: "Metadata", keys: ["meta_json", "run_manifest"] },
+    { title: "Data", keys: ["summary_csv", "thresholds_csv", "scores_csv", "latency_summary"] },
+    { title: "Metrics", keys: ["positive_only_metrics", "negative_only_metrics"] },
+    { title: "Metadata", keys: ["meta_json", "run_manifest", "failures_csv"] },
     { title: "Report", keys: ["final_markdown", "markdown_summary", "run_log"] },
 ] as const;
 
@@ -203,15 +204,20 @@ function RocPreview({ artifact, row }: { artifact: BenchmarkArtifactLink | null;
 }
 
 function OperatingPointTile({ point }: { point: ReturnType<typeof operatingPointsForRow>[number] }) {
+    const calibrationCounts =
+        point.calibration_negatives != null || point.calibration_positives != null
+            ? [
+                point.calibration_false_accepts != null && point.calibration_negatives != null
+                    ? `${point.calibration_false_accepts}/${point.calibration_negatives} FA`
+                    : null,
+                point.calibration_positives != null ? `${point.calibration_positives} positives` : null,
+            ].filter((item): item is string => Boolean(item)).join("; ")
+            : null;
     const calibrationDetail =
         point.calibration_far != null
-            ? `VAL FAR ${formatPercentFromFraction(point.calibration_far)}${
-                point.calibration_false_accepts != null && point.calibration_negatives != null
-                    ? ` (${point.calibration_false_accepts}/${point.calibration_negatives} FA)`
-                    : ""
-            }`
+            ? `VAL FAR ${formatPercentFromFraction(point.calibration_far)}${calibrationCounts ? ` (${calibrationCounts})` : ""}`
             : point.calibration_false_accepts != null && point.calibration_negatives != null
-                ? `VAL FA ${point.calibration_false_accepts}/${point.calibration_negatives}`
+                ? `VAL FA ${point.calibration_false_accepts}/${point.calibration_negatives}${point.calibration_positives != null ? `; ${point.calibration_positives} positives` : ""}`
                 : null;
     const details = [
         point.test_far != null ? `Actual FAR ${formatOperatingPointActualFar(point)}` : null,
@@ -259,6 +265,8 @@ export default function BenchmarkEvidencePanel({
     const manifestDisplayPath = provenance?.manifest_path ?? runManifestArtifact?.url;
     const showcaseExclusionNote = row.showcase_exclusion_note ?? provenance?.showcase_exclusion_note ?? null;
     const operatingPoints = operatingPointsForRow(row);
+    const baselineOnly = row.presentation_tier === "baseline"
+        || (row.not_champion_candidate && row.showcase_eligible !== false && !row.research_track);
 
     return (
         <section className="surface-card p-6">
@@ -304,7 +312,7 @@ export default function BenchmarkEvidencePanel({
             {showcaseExclusionNote ? (
                 <div className="mt-5 inline-banner inline-banner--warning">
                     <div className="inline-banner__body">
-                        <p className="font-semibold">Research-only method</p>
+                        <p className="font-semibold">{baselineOnly ? "Baseline evidence" : "Research-only method"}</p>
                         <p>{showcaseExclusionNote}</p>
                     </div>
                 </div>

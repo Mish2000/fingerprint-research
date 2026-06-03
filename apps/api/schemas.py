@@ -176,6 +176,7 @@ class BenchmarkOperatingPoint(BaseModel):
     calibration_far: Optional[float] = None
     calibration_false_accepts: Optional[int] = None
     calibration_negatives: Optional[int] = None
+    calibration_positives: Optional[int] = None
 
 
 class BenchmarkProvenance(BaseModel):

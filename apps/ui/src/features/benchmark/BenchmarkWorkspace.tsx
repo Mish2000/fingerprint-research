@@ -335,9 +335,12 @@ function CurrentBenchmarkFindingPanel() {
             <div className="inline-banner__body">
                 <p className="inline-banner__title">Current benchmark finding</p>
                 <p>
-                    SourceAFIS is the current strongest validated plain-vs-roll evidence on NIST SD300B/SD300C. SIFT v2
-                    remains the custom research baseline. SourceAFIS evidence comes from the fingerprint-engine HTTP
-                    sidecar path and is not a default interactive runtime method.
+                    SourceAFIS remains the strongest validated plain-vs-roll evidence on NIST SD300B/SD300C. SIFT v2
+                    is now the strongest custom research baseline with exported latency, and the table includes final
+                    classical baselines produced under the same strict pair-audited VAL-to-TEST protocol. Positive-only
+                    and negative-only evidence is reported separately in final markdown and metrics artifacts. SourceAFIS
+                    evidence still comes from the fingerprint-engine HTTP sidecar path and is not a default interactive
+                    runtime method.
                 </p>
             </div>
         </div>

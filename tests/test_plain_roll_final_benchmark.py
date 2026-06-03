@@ -363,6 +363,15 @@ def test_final_runner_uses_selected_pairs_and_val_threshold_for_test(
     assert int(test_metric["fa"]) == 1
     assert int(test_metric["tr"]) == 1
 
+    positive_only = pd.read_csv(paths["positive_only_metrics"])
+    negative_only = pd.read_csv(paths["negative_only_metrics"])
+    for _, row in positive_only.iterrows():
+        assert int(row["true_accepts"]) + int(row["false_rejects"]) == int(row["n_positive"])
+        assert row["tar"] == pytest.approx(row["true_accepts"] / row["n_positive"])
+    for _, row in negative_only.iterrows():
+        assert int(row["false_accepts"]) + int(row["true_rejects"]) == int(row["n_negative"])
+        assert row["far"] == pytest.approx(row["false_accepts"] / row["n_negative"])
+
     pair_flags = [cmd[cmd.index("--pairs_file") + 1] for cmd in calls]
     assert pair_flags
     assert all(Path(path).parent.name == "selected_pairs" for path in pair_flags)
@@ -374,8 +383,23 @@ def test_final_runner_uses_selected_pairs_and_val_threshold_for_test(
     assert manifest["sample_seed"] == 13
     assert manifest["output_schema"] == final.output_schema()
     assert paths["metrics"].name == "plain_roll_final_metrics.csv"
+    assert paths["positive_only_metrics"].name == "plain_roll_final_positive_only_metrics.csv"
+    assert paths["negative_only_metrics"].name == "plain_roll_final_negative_only_metrics.csv"
     assert paths["thresholds"].name == "plain_roll_final_thresholds.csv"
-    assert (tmp_path / "out" / "final_markdown" / "toy_sift_plain_roll_final.md").exists()
+    markdown_path = tmp_path / "out" / "final_markdown" / "toy_sift_plain_roll_final.md"
+    assert markdown_path.exists()
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "Positive-only verification evidence" in markdown
+    assert "Negative-only impostor evidence" in markdown
+    summary = paths["summary"].read_text(encoding="utf-8")
+    assert "TAR/FRR are computed only from positive pairs" in summary
+    assert "FAR/TNR are computed only from negative pairs" in summary
+
+    score_csv = pd.read_csv(tmp_path / "out" / "scores_toy_sift_val.csv")
+    assert "pair_id" in score_csv.columns
+    assert "finger_position" in score_csv.columns
+    assert score_csv["pair_id"].tolist() == [row["pair_id"] for row in val_rows]
+    assert score_csv["finger_position"].astype(str).tolist() == ["3", "3", "3", "3"]
 
 
 def test_latency_columns_from_classic_and_minutiae_are_surfaced(

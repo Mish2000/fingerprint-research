@@ -339,13 +339,151 @@ def create_final_markdown_benchmark_root(tmp_path: Path) -> Path:
     for filename in (
         "sourceafis_sd300b_plain_roll_dpi1000_final.md",
         "sourceafis_sd300c_plain_roll_dpi2000_final.md",
-        "sift_v2_external_validation_final.md",
     ):
         (bench_root / filename).write_text(f"# {filename}\n", encoding="utf-8")
+
+    bundle = bench_root / "plain_roll_final_sift_v1"
+    final_markdown_dir = bundle / "final_markdown"
+    selected_pairs_dir = bundle / "selected_pairs"
+    final_markdown_dir.mkdir(parents=True, exist_ok=True)
+    selected_pairs_dir.mkdir(parents=True, exist_ok=True)
+    (bundle / "plain_roll_final_summary.md").write_text(
+        "# Final classical benchmark\n\nPositive-only and negative-only evidence is reported separately.\n",
+        encoding="utf-8",
+    )
+    (bundle / "plain_roll_final_failures.csv").write_text(
+        "method,dataset,split,status,error_type,error_message,returncode,command,scores_csv,run_meta_json\n",
+        encoding="utf-8",
+    )
+    (bundle / "plain_roll_final_positive_only_metrics.csv").write_text(
+        "method,dataset,split,target_far,threshold,n_positive,true_accepts,false_rejects,tar,frr,auc,eer,avg_ms_pair_reported,scores_csv\n",
+        encoding="utf-8",
+    )
+    (bundle / "plain_roll_final_negative_only_metrics.csv").write_text(
+        "method,dataset,split,target_far,threshold,threshold_val_far,threshold_val_false_accepts,n_negative,false_accepts,true_rejects,far,tnr,auc,eer,avg_ms_pair_reported,scores_csv\n",
+        encoding="utf-8",
+    )
+    (bundle / "plain_roll_final_latency_summary.csv").write_text(
+        "method,dataset,split,n_pairs,avg_ms_pair_reported,avg_ms_pair_wall,scores_csv,run_meta_json,method_meta_json\n",
+        encoding="utf-8",
+    )
+    (bundle / "plain_roll_final_manifest.json").write_text(
+        json.dumps(
+            {
+                "created_at": "2026-06-03T07:39:15Z",
+                "git": {
+                    "commit": "6d2d9fc3f28f167e6c3a24d162bed20de56457a7",
+                    "is_dirty": False,
+                },
+                "failure_count": 0,
+                "pair_audits": [
+                    {"dataset": "nist_sd300b", "split": "test", "pass": True},
+                    {"dataset": "nist_sd300c", "split": "test", "pass": True},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    reference_1pct = {
+        ("nist_sd300b", "sift_plain_roll_v2"): (0.7882, 0.2957, 121.3818579294353, 0.50, 0.0157, 0.50, 350, 350, 11, 689, 6.654212933375476, 0.01, 7),
+        ("nist_sd300b", "sift"): (0.8049, 0.2757, 61.30681642904944, 0.28, 0.0071, 0.72, 196, 504, 5, 695, 0.0086666666666666, 0.01, 7),
+        ("nist_sd300b", "minutiae"): (0.5230, 0.4807, 1135.2125217152727, 0.0086, 0.0, 0.9914, 6, 694, 0, 700, 0.2432432432432432, 0.01, 7),
+        ("nist_sd300b", "harris"): (0.5034, 0.4936, 561.3511191424083, 0.0057, 0.0029, 0.9943, 4, 696, 2, 698, 0.0103703703703703, 0.01, 7),
+        ("nist_sd300b", "classic_v2"): (0.5048, 0.4971, 29.041971928257095, 0.0043, 0.0029, 0.9957, 3, 697, 2, 698, 0.0066666666666666, 0.005714285714285714, 4),
+        ("nist_sd300c", "sift_plain_roll_v2"): (0.7859, 0.2879, 155.3244766428335, 0.4314, 0.0043, 0.5686, 302, 398, 3, 697, 7.892200932146438, 0.01, 7),
+        ("nist_sd300c", "sift"): (0.7912, 0.2936, 86.19373192669757, 0.2957, 0.0086, 0.7043, 207, 493, 6, 694, 0.0086666666666666, 0.01, 7),
+        ("nist_sd300c", "minutiae"): (0.5285, 0.4764, 1160.7680758554488, 0.0143, 0.01, 0.9857, 10, 690, 7, 693, 0.2352941176470588, 0.01, 7),
+        ("nist_sd300c", "harris"): (0.4960, 0.5071, 576.1259360012731, 0.0043, 0.0043, 0.9957, 3, 697, 3, 697, 0.0097777777777777, 0.01, 7),
+        ("nist_sd300c", "classic_v2"): (0.4776, 0.5250, 51.953797144150094, 0.0057, 0.01, 0.9943, 4, 696, 7, 693, 0.0046666666666666, 0.01, 7),
+    }
+    metric_fields = [
+        "method", "dataset", "split", "target_far", "threshold", "threshold_val_far",
+        "threshold_val_false_accepts", "tar", "far", "frr", "ta", "fr", "fa", "tr",
+        "n_positive", "n_negative", "n_scored", "n_unscored", "auc", "eer",
+        "avg_ms_pair_reported", "scores_csv", "run_meta_json", "method_meta_json", "selected_pairs_csv",
+    ]
+    threshold_fields = [
+        "method", "dataset", "target_far", "threshold", "calibration_split",
+        "calibration_negative_count", "calibration_positive_count", "calibration_false_accepts",
+        "calibration_far", "scores_csv",
+    ]
+    metric_rows = []
+    threshold_rows = []
+    for (dataset, method), values in reference_1pct.items():
+        auc, eer, latency, tar, far, frr, ta, fr, fa, tr, threshold, val_far, val_fa = values
+        final_name = final_markdown_dir / f"{dataset}_{method}_plain_roll_final.md"
+        final_name.write_text(f"# {dataset} {method}\n", encoding="utf-8")
+        scores_csv = bundle / f"scores_{dataset}_{method}_test.csv"
+        run_meta_json = bundle / f"run_{dataset}_{method}_test.meta.json"
+        method_meta_json = bundle / f"scores_{dataset}_{method}_test.csv.meta.json"
+        selected_pairs_csv = selected_pairs_dir / f"pairs_{dataset}_test.csv"
+        scores_csv.write_text("label,score\n1,1.0\n0,0.0\n", encoding="utf-8")
+        run_meta_json.write_text("{}", encoding="utf-8")
+        method_meta_json.write_text("{}", encoding="utf-8")
+        selected_pairs_csv.write_text("label\n1\n0\n", encoding="utf-8")
+        write_png(bundle / f"roc_{dataset}_{method}_test.png")
+        for target_far, target_threshold, target_val_far, target_val_fa, scale in (
+            (0.01, threshold, val_far, val_fa, 1.0),
+            (0.005, threshold * 1.2, min(val_far, 0.004285714285714286), min(val_fa, 3), 0.8),
+        ):
+            reported_fa = fa if target_far == 0.01 else min(fa, int(target_far * 700) + 1)
+            metric_rows.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "split": "test",
+                    "target_far": target_far,
+                    "threshold": target_threshold,
+                    "threshold_val_far": target_val_far,
+                    "threshold_val_false_accepts": target_val_fa,
+                    "tar": tar * scale,
+                    "far": min(far, target_far),
+                    "frr": min(1.0, frr + (1.0 - scale) * 0.1),
+                    "ta": int(ta * scale),
+                    "fr": 700 - int(ta * scale),
+                    "fa": reported_fa,
+                    "tr": 700 - reported_fa,
+                    "n_positive": 700,
+                    "n_negative": 700,
+                    "n_scored": 1400,
+                    "n_unscored": 0,
+                    "auc": auc,
+                    "eer": eer,
+                    "avg_ms_pair_reported": latency,
+                    "scores_csv": str(scores_csv),
+                    "run_meta_json": str(run_meta_json),
+                    "method_meta_json": str(method_meta_json),
+                    "selected_pairs_csv": str(selected_pairs_csv),
+                }
+            )
+            threshold_rows.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "target_far": target_far,
+                    "threshold": target_threshold,
+                    "calibration_split": "val",
+                    "calibration_negative_count": 700,
+                    "calibration_positive_count": 700,
+                    "calibration_false_accepts": target_val_fa,
+                    "calibration_far": target_val_far,
+                    "scores_csv": str(scores_csv),
+                }
+            )
+
+    with (bundle / "plain_roll_final_metrics.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=metric_fields)
+        writer.writeheader()
+        writer.writerows(metric_rows)
+    with (bundle / "plain_roll_final_thresholds.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=threshold_fields)
+        writer.writeheader()
+        writer.writerows(threshold_rows)
     return bench_root
 
 
-def test_loose_final_markdown_evidence_surfaces_sourceafis_and_sift_v2_baseline(tmp_path: Path) -> None:
+def test_final_benchmark_evidence_surfaces_sourceafis_and_classical_baselines(tmp_path: Path) -> None:
     bench_root = create_final_markdown_benchmark_root(tmp_path)
 
     comparison = load_comparison(
@@ -356,7 +494,7 @@ def test_loose_final_markdown_evidence_surfaces_sourceafis_and_sift_v2_baseline(
     )
 
     rows_by_method = {row.benchmark_method: row for row in comparison.rows}
-    assert set(rows_by_method) == {"sourceafis_open", "sift_plain_roll_v2"}
+    assert list(rows_by_method) == ["sourceafis_open", "sift_plain_roll_v2", "sift", "minutiae", "harris", "classic_v2"]
 
     sourceafis = rows_by_method["sourceafis_open"]
     assert sourceafis.method == "sourceafis_open"
@@ -376,6 +514,27 @@ def test_loose_final_markdown_evidence_surfaces_sourceafis_and_sift_v2_baseline(
     assert sift_v2.research_track is True
     assert sift_v2.not_champion_candidate is True
     assert sift_v2.auc_rank is None
+    assert abs((sift_v2.latency_ms or 0.0) - 121.3818579294353) < 1e-9
+    assert [point.label for point in sift_v2.operating_points] == ["1.00% FAR", "0.50% FAR"]
+    assert sift_v2.operating_points[0].calibration_negatives == 700
+    assert sift_v2.operating_points[0].calibration_positives == 700
+    assert sift_v2.operating_points[0].ta == 350
+    assert sift_v2.operating_points[0].fa == 11
+    assert sift_v2.status == "validated"
+    assert "0 recorded failures" in sift_v2.summary_text
+    assert "positive_only_metrics" in sift_v2.available_artifacts
+    assert "negative_only_metrics" in sift_v2.available_artifacts
+    assert "failures_csv" in sift_v2.available_artifacts
+    assert any(
+        artifact.key == "final_markdown"
+        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_sift_v1_nist_sd300b_final/plain_roll_final_sift_v1/final_markdown/nist_sd300b_sift_plain_roll_v2_plain_roll_final.md"
+        for artifact in sift_v2.artifacts
+    )
+
+    classic = rows_by_method["classic_v2"]
+    assert classic.presentation_tier == "baseline"
+    assert classic.not_champion_candidate is True
+    assert classic.status == "validated"
 
     best = load_best_methods(
         dataset="nist_sd300b",
@@ -392,6 +551,13 @@ def test_loose_final_markdown_evidence_surfaces_sourceafis_and_sift_v2_baseline(
         root=bench_root,
     )
     assert target == bench_root / "sourceafis_sd300b_plain_roll_dpi1000_final.md"
+
+    final_markdown = resolve_benchmark_artifact(
+        sift_v2.run,
+        "plain_roll_final_sift_v1/final_markdown/nist_sd300b_sift_plain_roll_v2_plain_roll_final.md",
+        root=bench_root,
+    )
+    assert final_markdown == bench_root / "plain_roll_final_sift_v1" / "final_markdown" / "nist_sd300b_sift_plain_roll_v2_plain_roll_final.md"
 
 
 def test_h5_full_runs_are_accepted_as_canonical_without_dedicated(tmp_path: Path) -> None:

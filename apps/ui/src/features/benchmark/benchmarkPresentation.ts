@@ -244,15 +244,22 @@ export function isChampionCandidateRow(row: Pick<ComparisonRow, "showcase_eligib
     return row.showcase_eligible !== false && !row.not_champion_candidate;
 }
 
+function isBaselineRow(row: Pick<ComparisonRow, "presentation_tier" | "showcase_eligible" | "research_track" | "not_champion_candidate">): boolean {
+    return row.presentation_tier === "baseline"
+        || (row.not_champion_candidate && row.showcase_eligible !== false && !row.research_track);
+}
+
 export function methodStatusBadges(row: Pick<ComparisonRow, "method_status" | "presentation_tier" | "showcase_eligible" | "research_track" | "not_champion_candidate" | "method" | "benchmark_method">): string[] {
     const badges: string[] = [];
     if ((row.method_status ?? "").toLowerCase() === "experimental" || row.method === "dedicated" || row.benchmark_method === "dedicated") {
         badges.push("Experimental");
     }
-    if (isResearchRow(row)) {
+    if (isBaselineRow(row)) {
+        badges.push("Baseline");
+    } else if (isResearchRow(row)) {
         badges.push("Research");
     }
-    if (row.showcase_eligible === false || row.not_champion_candidate) {
+    if (row.showcase_eligible === false) {
         badges.push("Not showcase eligible");
     }
     return [...new Set(badges)];

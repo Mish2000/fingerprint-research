@@ -156,6 +156,84 @@ function finalMarkdownArtifacts(run: string, filename: string) {
     ];
 }
 
+function finalBundleArtifacts(run: string, dataset: string, method: string) {
+    const prefix = `/api/benchmark/artifacts/${run}/plain_roll_final_sift_v1`;
+    return [
+        {
+            key: "summary_csv",
+            label: "Summary CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_metrics.csv`,
+        },
+        {
+            key: "thresholds_csv",
+            label: "Thresholds CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_thresholds.csv`,
+        },
+        {
+            key: "scores_csv",
+            label: "Scores CSV",
+            available: true,
+            url: `${prefix}/scores_${dataset}_${method}_test.csv`,
+        },
+        {
+            key: "meta_json",
+            label: "Meta JSON",
+            available: true,
+            url: `${prefix}/run_${dataset}_${method}_test.meta.json`,
+        },
+        {
+            key: "roc_png",
+            label: "ROC Preview",
+            available: true,
+            url: `${prefix}/roc_${dataset}_${method}_test.png`,
+        },
+        {
+            key: "markdown_summary",
+            label: "Markdown Summary",
+            available: true,
+            url: `${prefix}/plain_roll_final_summary.md`,
+        },
+        {
+            key: "final_markdown",
+            label: "Final Markdown Evidence",
+            available: true,
+            url: `${prefix}/final_markdown/${dataset}_${method}_plain_roll_final.md`,
+        },
+        {
+            key: "run_manifest",
+            label: "Run Manifest",
+            available: true,
+            url: `${prefix}/plain_roll_final_manifest.json`,
+        },
+        {
+            key: "latency_summary",
+            label: "Latency Summary",
+            available: true,
+            url: `${prefix}/plain_roll_final_latency_summary.csv`,
+        },
+        {
+            key: "positive_only_metrics",
+            label: "Positive-only Metrics",
+            available: true,
+            url: `${prefix}/plain_roll_final_positive_only_metrics.csv`,
+        },
+        {
+            key: "negative_only_metrics",
+            label: "Negative-only Metrics",
+            available: true,
+            url: `${prefix}/plain_roll_final_negative_only_metrics.csv`,
+        },
+        {
+            key: "failures_csv",
+            label: "Failures CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_failures.csv`,
+        },
+    ];
+}
+
 function createRow({
     dataset,
     split,
@@ -256,6 +334,154 @@ function createRow({
     };
 }
 
+function finalClassicalRow({
+    dataset,
+    method,
+    benchmarkMethod,
+    runLabel,
+    auc,
+    eer,
+    latency,
+    operatingPoints,
+    note,
+}: {
+    dataset: "nist_sd300b" | "nist_sd300c";
+    method: string;
+    benchmarkMethod?: string;
+    runLabel: string;
+    auc: number;
+    eer: number;
+    latency: number;
+    operatingPoints: ReturnType<typeof createOperatingPoints>;
+    note: string;
+}) {
+    const rawBenchmarkMethod = benchmarkMethod ?? method;
+    const run = `plain_roll_final_sift_v1_${dataset}_final`;
+    const base = createRow({
+        dataset,
+        split: "test",
+        method,
+        benchmarkMethod: rawBenchmarkMethod,
+        run,
+        runLabel,
+        auc,
+        eer,
+        latency,
+        nPairs: 1400,
+        tarAtFar1e2: operatingPoints[0]?.test_tar ?? null,
+        aucRank: 9,
+        eerRank: 9,
+        latencyRank: 9,
+        artifacts: finalBundleArtifacts(run, dataset, rawBenchmarkMethod),
+    });
+    const isSiftV2 = rawBenchmarkMethod === "sift_plain_roll_v2";
+    const finalMarkdown = `final_markdown/${dataset}_${rawBenchmarkMethod}_plain_roll_final.md`;
+    return {
+        ...base,
+        method_status: isSiftV2 ? "experimental" : "active",
+        presentation_tier: isSiftV2 ? "research" : "baseline",
+        showcase_eligible: !isSiftV2,
+        research_track: isSiftV2,
+        not_champion_candidate: true,
+        showcase_exclusion_note: note,
+        operating_points: operatingPoints,
+        latency_ms: latency,
+        latency_source: "reported",
+        auc_rank: null,
+        eer_rank: null,
+        latency_rank: null,
+        run_family: "plain_roll_final_sift_v1",
+        summary_text: `${note} TEST pair audit passed with 700 positive / 700 negative pairs. VAL calibration used 700 positive / 700 negative pairs. 0 recorded failures. Positive-only and negative-only metrics are available as separate final artifacts.`,
+        provenance: {
+            ...base.provenance,
+            source_type: "plain_roll_final",
+            artifact_source: finalMarkdown,
+            methods_in_run: ["sift_plain_roll_v2", "sift", "minutiae", "harris", "classic_gftt_orb"],
+            benchmark_methods_in_run: ["sift_plain_roll_v2", "sift", "minutiae", "harris", "classic_v2"],
+            method_status: isSiftV2 ? "experimental" : "active",
+            presentation_tier: isSiftV2 ? "research" : "baseline",
+            showcase_eligible: !isSiftV2,
+            research_track: isSiftV2,
+            not_champion_candidate: true,
+            run_family: "plain_roll_final_sift_v1",
+            timestamp_utc: "2026-06-03T07:39:15Z",
+            manifest_path: "plain_roll_final_manifest.json",
+            data_dir: "artifacts/reports/benchmark/plain_roll_final_sift_v1",
+            git_commit: "6d2d9fc3f28f167e6c3a24d162bed20de56457a7",
+            available_artifacts: base.available_artifacts,
+            benchmark_source_root: "live",
+            benchmark_source_label: "Final curated evidence",
+            showcase_exclusion_note: note,
+        },
+    };
+}
+
+type OperatingPointSeed = {
+    threshold?: number;
+    tar: number;
+    far: number;
+    frr: number;
+    ta: number;
+    fr: number;
+    fa: number;
+    tr: number;
+    calibrationFar?: number;
+    calibrationFalseAccepts?: number;
+};
+
+function createOperatingPoints(
+    onePct: OperatingPointSeed,
+    halfPct?: Partial<OperatingPointSeed>,
+) {
+    const second = {
+        threshold: onePct.threshold,
+        tar: Math.max(0, onePct.tar * 0.8),
+        far: Math.min(onePct.far, 0.005),
+        frr: Math.min(1, onePct.frr + 0.08),
+        ta: Math.floor(onePct.ta * 0.8),
+        fr: 700 - Math.floor(onePct.ta * 0.8),
+        fa: Math.min(onePct.fa, 3),
+        tr: 700 - Math.min(onePct.fa, 3),
+        calibrationFar: Math.min(onePct.calibrationFar ?? 0.01, 0.0043),
+        calibrationFalseAccepts: Math.min(onePct.calibrationFalseAccepts ?? 7, 3),
+        ...halfPct,
+    };
+    return [
+        {
+            target_far: 0.01,
+            label: "1.00% FAR",
+            threshold: onePct.threshold,
+            test_tar: onePct.tar,
+            test_far: onePct.far,
+            test_frr: onePct.frr,
+            ta: onePct.ta,
+            fr: onePct.fr,
+            fa: onePct.fa,
+            tr: onePct.tr,
+            calibration_far: onePct.calibrationFar ?? 0.01,
+            calibration_false_accepts: onePct.calibrationFalseAccepts ?? 7,
+            calibration_negatives: 700,
+            calibration_positives: 700,
+        },
+        {
+            target_far: 0.005,
+            label: "0.50% FAR",
+            threshold: second.threshold,
+            test_tar: second.tar,
+            test_far: second.far,
+            test_frr: second.frr,
+            ta: second.ta,
+            fr: second.fr,
+            fa: second.fa,
+            tr: second.tr,
+            calibration_far: second.calibrationFar,
+            calibration_false_accepts: second.calibrationFalseAccepts,
+            calibration_negatives: 700,
+            calibration_positives: 700,
+        },
+    ];
+}
+
 const sourceAfisBOperatingPoints = [
     {
         target_far: 0.01,
@@ -322,15 +548,48 @@ const sourceAfisCOperatingPoints = [
     },
 ];
 
-const siftV2BOperatingPoints = [
-    { target_far: 0.01, label: "1.00% FAR", test_tar: 0.5021, test_far: 0.0103, test_frr: 0.4979 },
-    { target_far: 0.005, label: "0.50% FAR", test_tar: 0.4318, test_far: 0.0033, test_frr: 0.5682 },
-];
+const siftV2BOperatingPoints = createOperatingPoints(
+    { threshold: 6.6542, tar: 0.5, far: 0.0157, frr: 0.5, ta: 350, fr: 350, fa: 11, tr: 689 },
+    { threshold: 8.1246, tar: 0.4318, far: 0.0033, frr: 0.5682, ta: 302, fr: 398, fa: 3, tr: 697 },
+);
 
-const siftV2COperatingPoints = [
-    { target_far: 0.01, label: "1.00% FAR", test_tar: 0.4473, test_far: 0.0061, test_frr: 0.5527 },
-    { target_far: 0.005, label: "0.50% FAR", test_tar: 0.4205, test_far: 0.0038, test_frr: 0.5795 },
-];
+const siftBOperatingPoints = createOperatingPoints(
+    { threshold: 0.0087, tar: 0.28, far: 0.0071, frr: 0.72, ta: 196, fr: 504, fa: 5, tr: 695 },
+    { threshold: 0.0107, tar: 0.2271, far: 0.0057, frr: 0.7729, ta: 159, fr: 541, fa: 4, tr: 696 },
+);
+
+const minutiaeBOperatingPoints = createOperatingPoints(
+    { threshold: 0.2432, tar: 0.0086, far: 0, frr: 0.9914, ta: 6, fr: 694, fa: 0, tr: 700 },
+);
+
+const harrisBOperatingPoints = createOperatingPoints(
+    { threshold: 0.0104, tar: 0.0057, far: 0.0029, frr: 0.9943, ta: 4, fr: 696, fa: 2, tr: 698 },
+);
+
+const classicBOperatingPoints = createOperatingPoints(
+    { threshold: 0.0067, tar: 0.0043, far: 0.0029, frr: 0.9957, ta: 3, fr: 697, fa: 2, tr: 698, calibrationFar: 0.0057, calibrationFalseAccepts: 4 },
+);
+
+const siftV2COperatingPoints = createOperatingPoints(
+    { threshold: 7.8922, tar: 0.4314, far: 0.0043, frr: 0.5686, ta: 302, fr: 398, fa: 3, tr: 697 },
+    { threshold: 10.2580, tar: 0.38, far: 0.0029, frr: 0.62, ta: 266, fr: 434, fa: 2, tr: 698 },
+);
+
+const siftCOperatingPoints = createOperatingPoints(
+    { threshold: 0.0087, tar: 0.2957, far: 0.0086, frr: 0.7043, ta: 207, fr: 493, fa: 6, tr: 694 },
+);
+
+const minutiaeCOperatingPoints = createOperatingPoints(
+    { threshold: 0.2353, tar: 0.0143, far: 0.01, frr: 0.9857, ta: 10, fr: 690, fa: 7, tr: 693 },
+);
+
+const harrisCOperatingPoints = createOperatingPoints(
+    { threshold: 0.0098, tar: 0.0043, far: 0.0043, frr: 0.9957, ta: 3, fr: 697, fa: 3, tr: 697 },
+);
+
+const classicCOperatingPoints = createOperatingPoints(
+    { threshold: 0.0047, tar: 0.0057, far: 0.01, frr: 0.9943, ta: 4, fr: 696, fa: 7, tr: 693 },
+);
 
 const canonicalBTestRows = [
     {
@@ -347,7 +606,7 @@ const canonicalBTestRows = [
             tarAtFar1e2: 0.7729,
             aucRank: 1,
             eerRank: 1,
-            latencyRank: 3,
+            latencyRank: 1,
             artifacts: finalMarkdownArtifacts("sourceafis_sd300b_plain_roll_dpi1000_final", "sourceafis_sd300b_plain_roll_dpi1000_final.md"),
         }),
         dpi: 1000,
@@ -366,7 +625,7 @@ const canonicalBTestRows = [
                 nPairs: 1400,
                 aucRank: 1,
                 eerRank: 1,
-                latencyRank: 3,
+                latencyRank: 1,
                 artifacts: finalMarkdownArtifacts("sourceafis_sd300b_plain_roll_dpi1000_final", "sourceafis_sd300b_plain_roll_dpi1000_final.md"),
             }).provenance,
             source_type: "final_markdown",
@@ -376,62 +635,56 @@ const canonicalBTestRows = [
             benchmark_source_label: "Final curated evidence",
         },
     },
-    {
-        ...createRow({
-            dataset: "nist_sd300b",
-            split: "test",
-            method: "sift_plain_roll_v2",
-            run: "sift_v2_external_validation_sd300b_final",
-            runLabel: "SIFT v2 SD300B research baseline",
-            auc: 0.7963,
-            eer: 0.2932,
-            latency: 48,
-            nPairs: 2844,
-            tarAtFar1e2: 0.5021,
-            aucRank: 4,
-            eerRank: 4,
-            latencyRank: 4,
-            artifacts: finalMarkdownArtifacts("sift_v2_external_validation_sd300b_final", "sift_v2_external_validation_final.md"),
-        }),
-        method_status: "experimental",
-        presentation_tier: "research",
-        showcase_eligible: false,
-        research_track: true,
-        not_champion_candidate: true,
-        showcase_exclusion_note: "SIFT v2 remains a custom research baseline.",
-        operating_points: siftV2BOperatingPoints,
-        latency_ms: null,
-        latency_source: null,
-    },
-    createRow({
+    finalClassicalRow({
         dataset: "nist_sd300b",
-        split: "test",
-        method: "vit",
-        run: "full_nist_sd300b_h6",
-        runLabel: "Canonical full benchmark",
-        auc: 0.5956,
-        eer: 0.4360,
-        latency: 0.36,
-        nPairs: 2800,
-        aucRank: 3,
-        eerRank: 3,
-        latencyRank: 1,
+        method: "sift_plain_roll_v2",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300b)",
+        auc: 0.7882,
+        eer: 0.2957,
+        latency: 121.3818579294353,
+        operatingPoints: siftV2BOperatingPoints,
+        note: "SIFT Plain/Roll v2 is the strongest custom research baseline with exported latency.",
     }),
-    createRow({
+    finalClassicalRow({
         dataset: "nist_sd300b",
-        split: "test",
-        method: "dl",
-        benchmarkMethod: "dl_quick",
-        run: "full_nist_sd300b_h6",
-        runLabel: "Canonical full benchmark",
-        auc: 0.6045,
-        eer: 0.4257,
-        latency: 0.39,
-        nPairs: 2800,
-        aucRank: 2,
-        eerRank: 2,
-        latencyRank: 2,
-        artifacts: availableArtifacts("full_nist_sd300b_h6", "dl_quick", "test", { meta: false, roc: false }),
+        method: "sift",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300b)",
+        auc: 0.8049,
+        eer: 0.2757,
+        latency: 61.30681642904944,
+        operatingPoints: siftBOperatingPoints,
+        note: "Standard feature baseline under the strict pair-audited plain-vs-roll protocol.",
+    }),
+    finalClassicalRow({
+        dataset: "nist_sd300b",
+        method: "minutiae",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300b)",
+        auc: 0.5230,
+        eer: 0.4807,
+        latency: 1135.2125217152727,
+        operatingPoints: minutiaeBOperatingPoints,
+        note: "Weak custom minutiae baseline under the strict plain-vs-roll protocol.",
+    }),
+    finalClassicalRow({
+        dataset: "nist_sd300b",
+        method: "harris",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300b)",
+        auc: 0.5034,
+        eer: 0.4936,
+        latency: 561.3511191424083,
+        operatingPoints: harrisBOperatingPoints,
+        note: "Weak classical baseline under the strict plain-vs-roll protocol.",
+    }),
+    finalClassicalRow({
+        dataset: "nist_sd300b",
+        method: "classic_gftt_orb",
+        benchmarkMethod: "classic_v2",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300b)",
+        auc: 0.5048,
+        eer: 0.4971,
+        latency: 29.041971928257095,
+        operatingPoints: classicBOperatingPoints,
+        note: "Weak classical baseline under the strict plain-vs-roll protocol.",
     }),
 ];
 
@@ -457,33 +710,57 @@ const canonicalCTestRows = [
         operating_points: sourceAfisCOperatingPoints,
         summary_text: "Final SourceAFIS SD300C plain-vs-roll evidence at explicit 2000 DPI. Final markdown evidence is preserved.",
     },
-    {
-        ...createRow({
-            dataset: "nist_sd300c",
-            split: "test",
-            method: "sift_plain_roll_v2",
-            run: "sift_v2_external_validation_sd300c_final",
-            runLabel: "SIFT v2 SD300C research baseline",
-            auc: 0.7914,
-            eer: 0.2827,
-            latency: 48,
-            nPairs: 2844,
-            tarAtFar1e2: 0.4473,
-            aucRank: 2,
-            eerRank: 2,
-            latencyRank: 2,
-            artifacts: finalMarkdownArtifacts("sift_v2_external_validation_sd300c_final", "sift_v2_external_validation_final.md"),
-        }),
-        method_status: "experimental",
-        presentation_tier: "research",
-        showcase_eligible: false,
-        research_track: true,
-        not_champion_candidate: true,
-        showcase_exclusion_note: "SIFT v2 remains a custom research baseline.",
-        operating_points: siftV2COperatingPoints,
-        latency_ms: null,
-        latency_source: null,
-    },
+    finalClassicalRow({
+        dataset: "nist_sd300c",
+        method: "sift_plain_roll_v2",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300c)",
+        auc: 0.7859,
+        eer: 0.2879,
+        latency: 155.3244766428335,
+        operatingPoints: siftV2COperatingPoints,
+        note: "SIFT Plain/Roll v2 is the strongest custom research baseline with exported latency.",
+    }),
+    finalClassicalRow({
+        dataset: "nist_sd300c",
+        method: "sift",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300c)",
+        auc: 0.7912,
+        eer: 0.2936,
+        latency: 86.19373192669757,
+        operatingPoints: siftCOperatingPoints,
+        note: "Standard feature baseline under the strict pair-audited plain-vs-roll protocol.",
+    }),
+    finalClassicalRow({
+        dataset: "nist_sd300c",
+        method: "minutiae",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300c)",
+        auc: 0.5285,
+        eer: 0.4764,
+        latency: 1160.7680758554488,
+        operatingPoints: minutiaeCOperatingPoints,
+        note: "Weak custom minutiae baseline under the strict plain-vs-roll protocol.",
+    }),
+    finalClassicalRow({
+        dataset: "nist_sd300c",
+        method: "harris",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300c)",
+        auc: 0.4960,
+        eer: 0.5071,
+        latency: 576.1259360012731,
+        operatingPoints: harrisCOperatingPoints,
+        note: "Weak classical baseline under the strict plain-vs-roll protocol.",
+    }),
+    finalClassicalRow({
+        dataset: "nist_sd300c",
+        method: "classic_gftt_orb",
+        benchmarkMethod: "classic_v2",
+        runLabel: "Final classical plain-vs-roll evidence (nist_sd300c)",
+        auc: 0.4776,
+        eer: 0.5250,
+        latency: 51.953797144150094,
+        operatingPoints: classicCOperatingPoints,
+        note: "Weak classical baseline under the strict plain-vs-roll protocol.",
+    }),
 ];
 
 const canonicalBValRows = [
@@ -535,6 +812,7 @@ const canonicalPolyuTestRows = [
         aucRank: 1,
         eerRank: 1,
         latencyRank: 2,
+        artifacts: availableArtifacts("full_polyu_cross_h5", "dl_quick", "test", { meta: false, roc: false }),
     }),
     createRow({
         dataset: "polyu_cross",
@@ -1208,12 +1486,18 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("Validated fingerprint matching benchmark");
             expect(normalizeText(container.textContent)).toContain("Benchmark Story");
             expect(normalizeText(container.textContent)).toContain("Current benchmark finding");
-            expect(normalizeText(container.textContent)).toContain("SourceAFIS is the current strongest validated plain-vs-roll evidence");
-            expect(normalizeText(container.textContent)).toContain("SIFT v2 remains the custom research baseline");
+            expect(normalizeText(container.textContent)).toContain("SourceAFIS remains the strongest validated plain-vs-roll evidence");
+            expect(normalizeText(container.textContent)).toContain("SIFT v2 is now the strongest custom research baseline with exported latency");
+            expect(normalizeText(container.textContent)).toContain("final classical baselines produced under the same strict pair-audited VAL-to-TEST protocol");
+            expect(normalizeText(container.textContent)).toContain("Positive-only and negative-only evidence is reported separately");
             expect(normalizeText(container.textContent)).toContain("not a default interactive runtime method");
             expect(normalizeText(container.textContent)).not.toContain("SIFT is currently the strongest verified method");
             expect(normalizeText(container.textContent)).toContain("SourceAFIS Open Matcher");
             expect(normalizeText(container.textContent)).toContain("SIFT Plain/Roll v2 (Experimental)");
+            expect(normalizeText(container.textContent)).toContain("Baselines / Research");
+            expect(normalizeText(container.textContent)).toContain("Classic (ROI GFTT+ORB)");
+            expect(normalizeText(container.textContent)).toContain("Baseline");
+            expect(normalizeText(container.textContent)).toContain("121.38 ms");
             expect(normalizeText(container.textContent)).toContain("Trust & provenance");
             expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final");
             expect(normalizeText(container.textContent)).toContain("DPI 1000");
@@ -1226,7 +1510,7 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("VAL FAR 1.00%");
             expect(normalizeText(container.textContent)).toContain("7/700");
             expect(normalizeText(container.textContent)).toContain("3/700");
-            expect(normalizeText(container.textContent)).toContain("Not exported");
+            expect(normalizeText(container.textContent)).not.toContain("Not exported");
             expect(normalizeText(container.textContent)).toContain("Final Markdown Evidence");
             expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final.md");
             expect(normalizeText(container.textContent)).not.toContain("TAR @ 0.10% FAR");
@@ -1235,6 +1519,18 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).not.toContain("TAR@1e-2");
             expect(normalizeText(container.textContent)).not.toContain("TAR@1e-3");
             expect(normalizeText(container.textContent)).toContain("Operating points");
+        });
+
+        await clickRowByText(container, "SIFT Plain/Roll v2");
+        await waitFor(() => {
+            const text = normalizeText(container.textContent);
+            expect(text).toContain("121.38 ms");
+            expect(text).toContain("700 positive / 700 negative pairs");
+            expect(text).toContain("Positive-only Metrics");
+            expect(text).toContain("Negative-only Metrics");
+            expect(text).toContain("Failures CSV");
+            expect(text).toContain("nist_sd300b_sift_plain_roll_v2_plain_roll_final.md");
+            expect(text).toContain("0 recorded failures");
         });
 
         const viewField = getLabelField<HTMLSelectElement>(container, "View");
@@ -1327,8 +1623,8 @@ describe("Benchmark workspace showcase", () => {
         installBenchmarkFetchMock();
         const { container, root } = await renderWorkspace();
 
+        await changeSelect(getLabelField<HTMLSelectElement>(container, "Dataset"), "polyu_cross");
         await waitFor(() => {
-            expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final");
             expect(normalizeText(container.textContent)).toContain("Deep Learning (ResNet18)");
             expect(normalizeText(container.textContent)).not.toContain("dl_quick");
         });
@@ -1355,7 +1651,7 @@ describe("Benchmark workspace showcase", () => {
         installBenchmarkFetchMock();
         const { container, root } = await renderWorkspace();
 
-        await clickRowByText(container, "Deep Learning (ViT)");
+        await clickRowByText(container, "SIFT Plain/Roll v2");
         await waitFor(() => {
             expect(container.querySelector("img[aria-label*='ROC preview']")).not.toBeNull();
         });
@@ -1384,7 +1680,7 @@ describe("Benchmark workspace showcase", () => {
         await waitFor(() => {
             const text = normalizeText(container.textContent);
             expect(text).toContain("Dedicated Patch AI");
-            expect(text).toContain("Research / Experimental");
+            expect(text).toContain("Baselines / Research");
             expect(text).toContain("Experimental");
             expect(text).toContain("Research");
             expect(text).toContain("Not showcase eligible");

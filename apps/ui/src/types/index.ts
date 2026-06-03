@@ -143,6 +143,7 @@ export type BenchmarkOperatingPoint = {
     calibration_far?: number | null;
     calibration_false_accepts?: number | null;
     calibration_negatives?: number | null;
+    calibration_positives?: number | null;
 };
 
 export type BenchmarkProvenance = {

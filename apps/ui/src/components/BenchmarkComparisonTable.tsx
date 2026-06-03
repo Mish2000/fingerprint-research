@@ -60,11 +60,11 @@ function groupedRows(rows: ComparisonRow[]) {
     const canonicalRows = rows.filter((row) => !isResearchRow(row));
     const researchRows = rows.filter((row) => isResearchRow(row));
     if (canonicalRows.length === 0 || researchRows.length === 0) {
-        return [{ title: researchRows.length > 0 ? "Research / Experimental" : "Canonical / Showcase", rows }];
+        return [{ title: researchRows.length > 0 ? "Baselines / Research" : "Canonical / Showcase", rows }];
     }
     return [
         { title: "Canonical / Showcase", rows: canonicalRows },
-        { title: "Research / Experimental", rows: researchRows },
+        { title: "Baselines / Research", rows: researchRows },
     ];
 }
 

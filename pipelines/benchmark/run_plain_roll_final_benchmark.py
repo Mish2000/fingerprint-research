@@ -38,6 +38,8 @@ DEFAULT_SAMPLE_SEED = 13
 DEFAULT_LIMIT_PER_SPLIT = 1400
 OUTPUT_SCHEMA_VERSION = "plain_roll_final_benchmark_v1"
 PAIR_AUDIT_SCHEMA_VERSION = "plain_roll_pair_audit_v1"
+RUNTIME_ESTIMATE_SCHEMA_VERSION = "plain_roll_runtime_estimate_v1"
+DEFAULT_ESTIMATE_SAFETY_FACTOR = 1.25
 
 THRESHOLD_COLUMNS = [
     "method",
@@ -100,6 +102,42 @@ METRICS_COLUMNS = [
     "selected_pairs_csv",
 ]
 
+POSITIVE_ONLY_METRICS_COLUMNS = [
+    "method",
+    "dataset",
+    "split",
+    "target_far",
+    "threshold",
+    "n_positive",
+    "true_accepts",
+    "false_rejects",
+    "tar",
+    "frr",
+    "auc",
+    "eer",
+    "avg_ms_pair_reported",
+    "scores_csv",
+]
+
+NEGATIVE_ONLY_METRICS_COLUMNS = [
+    "method",
+    "dataset",
+    "split",
+    "target_far",
+    "threshold",
+    "threshold_val_far",
+    "threshold_val_false_accepts",
+    "n_negative",
+    "false_accepts",
+    "true_rejects",
+    "far",
+    "tnr",
+    "auc",
+    "eer",
+    "avg_ms_pair_reported",
+    "scores_csv",
+]
+
 LATENCY_COLUMNS = [
     "method",
     "dataset",
@@ -133,6 +171,15 @@ FAILURE_COLUMNS = [
     "command",
     "scores_csv",
     "run_meta_json",
+]
+
+SCORE_TRACEABILITY_COLUMNS = [
+    "dataset",
+    "pair_id",
+    "subject_a",
+    "subject_b",
+    "finger_position",
+    "frgp",
 ]
 
 
@@ -174,6 +221,32 @@ class PairAuditReport:
     json_path: Path
     markdown_path: Path
     summary: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class RuntimeHistorySample:
+    method: str
+    dataset: str
+    split: str
+    elapsed_seconds: float
+    n_pairs: int | None
+    source_manifest: str
+
+
+@dataclass(frozen=True)
+class RuntimeEstimateRow:
+    method: str
+    dataset: str
+    split: str
+    n_pairs: int
+    status: str
+    estimate_seconds: float | None
+    estimate_seconds_with_safety: float | None
+    estimate_source: str
+    confidence: str
+    history_samples: int
+    reused_existing_scores: bool
+    scores_csv: str
 
 
 def parse_file_uri(raw: str | Path, *, repo_root: Path = REPO_ROOT) -> Path:
@@ -831,6 +904,40 @@ def build_evaluate_command(
     )
 
 
+def ensure_score_csv_traceability(*, selected_pairs_csv: Path, scores_csv: Path) -> None:
+    selected = pd.read_csv(selected_pairs_csv)
+    scores = pd.read_csv(scores_csv)
+    if len(selected) != len(scores):
+        raise PlainRollFinalBenchmarkError(
+            f"Score CSV row count does not match selected pairs for {scores_csv}: "
+            f"scores={len(scores)} selected_pairs={len(selected)}"
+        )
+
+    trace_columns = [column for column in SCORE_TRACEABILITY_COLUMNS if column in selected.columns]
+    if not trace_columns:
+        return
+
+    updated = scores.copy()
+    for column in trace_columns:
+        updated[column] = selected[column].to_numpy()
+    updated.to_csv(scores_csv, index=False)
+
+
+def _traceability_failure_row(run: ScoreRun, exc: Exception) -> dict[str, Any]:
+    return {
+        "method": run.method,
+        "dataset": run.dataset,
+        "split": run.split,
+        "status": "traceability_failed",
+        "error_type": type(exc).__name__,
+        "error_message": str(exc),
+        "returncode": 0,
+        "command": " ".join(run.command),
+        "scores_csv": str(run.scores_csv),
+        "run_meta_json": str(run.run_meta_json),
+    }
+
+
 def run_selected_methods(
     *,
     methods: tuple[str, ...],
@@ -856,6 +963,17 @@ def run_selected_methods(
                     repo_root=repo_root,
                 )
                 if reuse_existing_scores and run.scores_csv.exists():
+                    try:
+                        ensure_score_csv_traceability(
+                            selected_pairs_csv=run.selected_pairs_csv,
+                            scores_csv=run.scores_csv,
+                        )
+                    except PlainRollFinalBenchmarkError as exc:
+                        row = _traceability_failure_row(run, exc)
+                        failures.append(row)
+                        if not continue_on_method_failure:
+                            raise
+                        continue
                     score_runs.append(
                         ScoreRun(
                             method=run.method,
@@ -911,6 +1029,17 @@ def run_selected_methods(
                     failures.append(row)
                     if not continue_on_method_failure:
                         raise PlainRollFinalBenchmarkError(str(row["error_message"]))
+                    continue
+                try:
+                    ensure_score_csv_traceability(
+                        selected_pairs_csv=run.selected_pairs_csv,
+                        scores_csv=run.scores_csv,
+                    )
+                except PlainRollFinalBenchmarkError as exc:
+                    row = _traceability_failure_row(run, exc)
+                    failures.append(row)
+                    if not continue_on_method_failure:
+                        raise
                     continue
                 score_runs.append(
                     ScoreRun(
@@ -1267,6 +1396,69 @@ def build_metrics_table(
     return pd.DataFrame(rows, columns=METRICS_COLUMNS)
 
 
+def _safe_rate(numerator: Any, denominator: Any) -> float:
+    denom = _safe_float(denominator)
+    if not math.isfinite(denom) or denom == 0:
+        return float("nan")
+    num = _safe_float(numerator)
+    return float(num / denom) if math.isfinite(num) else float("nan")
+
+
+def build_positive_only_metrics_table(metrics: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    if metrics.empty:
+        return pd.DataFrame(columns=POSITIVE_ONLY_METRICS_COLUMNS)
+    for row in metrics.itertuples(index=False):
+        rows.append(
+            {
+                "method": row.method,
+                "dataset": row.dataset,
+                "split": row.split,
+                "target_far": float(row.target_far),
+                "threshold": float(row.threshold),
+                "n_positive": int(row.n_positive),
+                "true_accepts": int(row.ta),
+                "false_rejects": int(row.fr),
+                "tar": float(row.tar),
+                "frr": float(row.frr),
+                "auc": float(row.auc),
+                "eer": float(row.eer),
+                "avg_ms_pair_reported": row.avg_ms_pair_reported,
+                "scores_csv": row.scores_csv,
+            }
+        )
+    return pd.DataFrame(rows, columns=POSITIVE_ONLY_METRICS_COLUMNS)
+
+
+def build_negative_only_metrics_table(metrics: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    if metrics.empty:
+        return pd.DataFrame(columns=NEGATIVE_ONLY_METRICS_COLUMNS)
+    for row in metrics.itertuples(index=False):
+        tnr = _safe_rate(row.tr, row.n_negative)
+        rows.append(
+            {
+                "method": row.method,
+                "dataset": row.dataset,
+                "split": row.split,
+                "target_far": float(row.target_far),
+                "threshold": float(row.threshold),
+                "threshold_val_far": float(row.threshold_val_far),
+                "threshold_val_false_accepts": int(row.threshold_val_false_accepts),
+                "n_negative": int(row.n_negative),
+                "false_accepts": int(row.fa),
+                "true_rejects": int(row.tr),
+                "far": float(row.far),
+                "tnr": float(tnr),
+                "auc": float(row.auc),
+                "eer": float(row.eer),
+                "avg_ms_pair_reported": row.avg_ms_pair_reported,
+                "scores_csv": row.scores_csv,
+            }
+        )
+    return pd.DataFrame(rows, columns=NEGATIVE_ONLY_METRICS_COLUMNS)
+
+
 def _write_csv(path: Path, df: pd.DataFrame, columns: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if df.empty:
@@ -1318,6 +1510,8 @@ def render_combined_markdown(
         "- Labels: positive pairs must share subject, negative pairs must use different subjects.",
         "- Finger protocol: selected pairs preserve `frgp` or `finger_id` as `finger_position`.",
         "- Thresholds: calibrated on VAL negative scores only and applied unchanged to VAL and TEST.",
+        "",
+        "Although scoring may be executed on one selected-pair CSV for reproducibility, positive and negative outcomes are audited and reported separately. TAR/FRR are computed only from positive pairs, and FAR/TNR are computed only from negative pairs.",
         "",
         "## TEST Operating Points",
         "",
@@ -1435,6 +1629,40 @@ def render_method_dataset_markdown(
             f"{int(row['ta'])}/{int(row['fr'])}/{int(row['fa'])}/{int(row['tr'])} | "
             f"{_fmt_float(row['auc'])} | {_fmt_float(row['eer'])} |"
         )
+
+    lines.extend(
+        [
+            "",
+            "## Positive-only verification evidence",
+            "",
+            "| split | target FAR | threshold | positive pairs | true accepts | false rejects | TAR | FRR |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for _, row in sub_metrics.sort_values(["split", "target_far"]).iterrows():
+        lines.append(
+            f"| {row['split']} | {_fmt_pct(row['target_far'])} | {_fmt_float(row['threshold'], 6)} | "
+            f"{int(row['n_positive'])} | {int(row['ta'])} | {int(row['fr'])} | "
+            f"{_fmt_pct(row['tar'])} | {_fmt_pct(row['frr'])} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Negative-only impostor evidence",
+            "",
+            "| split | target FAR | threshold | VAL FAR | VAL false accepts | negative pairs | false accepts | true rejects | FAR | TNR |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for _, row in sub_metrics.sort_values(["split", "target_far"]).iterrows():
+        tnr = _safe_rate(row["tr"], row["n_negative"])
+        lines.append(
+            f"| {row['split']} | {_fmt_pct(row['target_far'])} | {_fmt_float(row['threshold'], 6)} | "
+            f"{_fmt_pct(row['threshold_val_far'])} | {int(row['threshold_val_false_accepts'])} | "
+            f"{int(row['n_negative'])} | {int(row['fa'])} | {int(row['tr'])} | "
+            f"{_fmt_pct(row['far'])} | {_fmt_pct(tnr)} |"
+        )
     lines.extend(["", "## Thresholds", ""])
     for _, row in sub_thresholds.sort_values("target_far").iterrows():
         lines.append(
@@ -1449,6 +1677,353 @@ def render_method_dataset_markdown(
             f"p95 {_fmt_float(row['p95_ms_pair_score_csv'], 3)} ms."
         )
     return "\n".join(lines) + "\n"
+
+
+def _duration_seconds_to_text(value: float | None) -> str:
+    number = _safe_float(value)
+    if not math.isfinite(number):
+        return "unknown"
+    seconds = max(int(round(number)), 0)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+def _runtime_history_pairs_by_split(payload: dict[str, Any]) -> dict[tuple[str, str], int]:
+    out: dict[tuple[str, str], int] = {}
+    for row in payload.get("selected_pair_sets", []) or []:
+        if not isinstance(row, dict):
+            continue
+        dataset = str(row.get("dataset", "")).strip()
+        split = str(row.get("split", "")).strip().lower()
+        n_pairs = _safe_int(row.get("n_pairs"))
+        if dataset and split and n_pairs is not None and n_pairs > 0:
+            out[(dataset, split)] = int(n_pairs)
+    return out
+
+
+def load_runtime_history(manifest_path: Path | None, *, repo_root: Path = REPO_ROOT) -> list[RuntimeHistorySample]:
+    """Load measured score-run runtimes from a previous final benchmark manifest.
+
+    Only positive, finite elapsed_seconds values are used. Existing-score reuse rows
+    are intentionally skipped because they describe cache hits, not scoring cost.
+    """
+
+    if manifest_path is None:
+        return []
+    path = parse_file_uri(manifest_path, repo_root=repo_root)
+    if not path.exists():
+        raise PlainRollFinalBenchmarkError(f"Runtime estimate manifest does not exist: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise PlainRollFinalBenchmarkError(f"Runtime estimate manifest is not valid JSON: {path}") from exc
+
+    n_pairs_by_split = _runtime_history_pairs_by_split(payload)
+    samples: list[RuntimeHistorySample] = []
+    for row in payload.get("score_runs", []) or []:
+        if not isinstance(row, dict):
+            continue
+        if bool(row.get("reused_existing_scores")):
+            continue
+        elapsed = _safe_float(row.get("elapsed_seconds"))
+        if not math.isfinite(elapsed) or elapsed <= 0:
+            continue
+        method = str(row.get("method", "")).strip()
+        dataset = str(row.get("dataset", "")).strip()
+        split = str(row.get("split", "")).strip().lower()
+        if not method or not dataset or not split:
+            continue
+        n_pairs = _safe_int(row.get("n_pairs"))
+        if n_pairs is None:
+            n_pairs = n_pairs_by_split.get((dataset, split))
+        samples.append(
+            RuntimeHistorySample(
+                method=method,
+                dataset=dataset,
+                split=split,
+                elapsed_seconds=float(elapsed),
+                n_pairs=int(n_pairs) if n_pairs is not None and n_pairs > 0 else None,
+                source_manifest=str(path),
+            )
+        )
+    return samples
+
+
+def _scaled_history_seconds(sample: RuntimeHistorySample, current_n_pairs: int) -> float:
+    if sample.n_pairs is None or sample.n_pairs <= 0 or current_n_pairs <= 0:
+        return float(sample.elapsed_seconds)
+    return float(sample.elapsed_seconds) * (float(current_n_pairs) / float(sample.n_pairs))
+
+
+def _mean_runtime_from_samples(samples: list[RuntimeHistorySample], current_n_pairs: int) -> float | None:
+    values = [_scaled_history_seconds(sample, current_n_pairs) for sample in samples]
+    values = [value for value in values if math.isfinite(value) and value > 0]
+    if not values:
+        return None
+    return float(sum(values) / len(values))
+
+
+def estimate_seconds_for_score_run(
+    *,
+    method: str,
+    dataset: str,
+    split: str,
+    n_pairs: int,
+    history: list[RuntimeHistorySample],
+) -> tuple[float | None, str, str, int]:
+    """Estimate one score run with progressively weaker fallbacks.
+
+    Returns: (seconds, source_label, confidence, sample_count).
+    """
+
+    candidates: tuple[tuple[str, str, list[RuntimeHistorySample]], ...] = (
+        (
+            "exact_method_dataset_split",
+            "high",
+            [s for s in history if s.method == method and s.dataset == dataset and s.split == split],
+        ),
+        (
+            "method_dataset_average",
+            "medium",
+            [s for s in history if s.method == method and s.dataset == dataset],
+        ),
+        (
+            "method_average",
+            "medium",
+            [s for s in history if s.method == method],
+        ),
+        (
+            "dataset_average_weak_fallback",
+            "low",
+            [s for s in history if s.dataset == dataset],
+        ),
+        (
+            "global_average_weak_fallback",
+            "low",
+            list(history),
+        ),
+    )
+    for source, confidence, samples in candidates:
+        estimated = _mean_runtime_from_samples(samples, n_pairs)
+        if estimated is not None:
+            return estimated, source, confidence, len(samples)
+    return None, "no_history", "unknown", 0
+
+
+def _dataset_status_n_pairs(dataset_statuses: list[dict[str, Any]]) -> dict[tuple[str, str], int]:
+    out: dict[tuple[str, str], int] = {}
+    for status in dataset_statuses:
+        dataset = str(status.get("dataset", "")).strip()
+        split = str(status.get("split", "")).strip().lower()
+        n_pairs = _safe_int(status.get("n_pairs"))
+        if dataset and split and n_pairs is not None:
+            out[(dataset, split)] = int(n_pairs)
+    return out
+
+
+def build_score_run_plan(
+    *,
+    methods: tuple[str, ...],
+    datasets: tuple[str, ...],
+    splits: tuple[str, ...],
+    selected_pairs: dict[tuple[str, str], Path],
+    outdir: Path,
+    repo_root: Path,
+) -> list[ScoreRun]:
+    runs: list[ScoreRun] = []
+    for method in methods:
+        for dataset in datasets:
+            for split in splits:
+                runs.append(
+                    build_evaluate_command(
+                        method=method,
+                        dataset=dataset,
+                        split=split,
+                        selected_pairs_csv=selected_pairs[(dataset, split)],
+                        outdir=outdir,
+                        repo_root=repo_root,
+                    )
+                )
+    return runs
+
+
+def build_runtime_estimate(
+    *,
+    methods: tuple[str, ...],
+    datasets: tuple[str, ...],
+    splits: tuple[str, ...],
+    selected_pairs: dict[tuple[str, str], Path],
+    dataset_statuses: list[dict[str, Any]],
+    outdir: Path,
+    repo_root: Path,
+    reuse_existing_scores: bool,
+    estimate_from_manifest: Path | None,
+    estimate_safety_factor: float,
+) -> dict[str, Any]:
+    if estimate_safety_factor <= 0:
+        raise PlainRollFinalBenchmarkError("estimate_safety_factor must be positive.")
+
+    history = load_runtime_history(estimate_from_manifest, repo_root=repo_root)
+    n_pairs_lookup = _dataset_status_n_pairs(dataset_statuses)
+    rows: list[RuntimeEstimateRow] = []
+    for run in build_score_run_plan(
+        methods=methods,
+        datasets=datasets,
+        splits=splits,
+        selected_pairs=selected_pairs,
+        outdir=outdir,
+        repo_root=repo_root,
+    ):
+        n_pairs = int(n_pairs_lookup.get((run.dataset, run.split), 0))
+        if reuse_existing_scores and run.scores_csv.exists():
+            rows.append(
+                RuntimeEstimateRow(
+                    method=run.method,
+                    dataset=run.dataset,
+                    split=run.split,
+                    n_pairs=n_pairs,
+                    status="reuse_existing_scores",
+                    estimate_seconds=0.0,
+                    estimate_seconds_with_safety=0.0,
+                    estimate_source="existing_scores_csv",
+                    confidence="high",
+                    history_samples=0,
+                    reused_existing_scores=True,
+                    scores_csv=str(run.scores_csv),
+                )
+            )
+            continue
+
+        estimated, source, confidence, sample_count = estimate_seconds_for_score_run(
+            method=run.method,
+            dataset=run.dataset,
+            split=run.split,
+            n_pairs=n_pairs,
+            history=history,
+        )
+        if estimated is None:
+            status = "unknown"
+            safe_estimated = None
+        else:
+            status = "estimated" if confidence != "low" else "estimated_low_confidence"
+            safe_estimated = float(estimated) * float(estimate_safety_factor)
+        rows.append(
+            RuntimeEstimateRow(
+                method=run.method,
+                dataset=run.dataset,
+                split=run.split,
+                n_pairs=n_pairs,
+                status=status,
+                estimate_seconds=float(estimated) if estimated is not None else None,
+                estimate_seconds_with_safety=float(safe_estimated) if safe_estimated is not None else None,
+                estimate_source=source,
+                confidence=confidence,
+                history_samples=sample_count,
+                reused_existing_scores=False,
+                scores_csv=str(run.scores_csv),
+            )
+        )
+
+    known_base = sum(row.estimate_seconds or 0.0 for row in rows)
+    known_safe = sum(row.estimate_seconds_with_safety or 0.0 for row in rows)
+    summary = {
+        "schema_version": RUNTIME_ESTIMATE_SCHEMA_VERSION,
+        "created_at": _utc_now(),
+        "estimate_from_manifest": str(parse_file_uri(estimate_from_manifest, repo_root=repo_root))
+        if estimate_from_manifest is not None
+        else "",
+        "estimate_safety_factor": float(estimate_safety_factor),
+        "history_sample_count": int(len(history)),
+        "planned_score_runs": int(len(rows)),
+        "reused_existing_score_runs": int(sum(1 for row in rows if row.reused_existing_scores)),
+        "estimated_score_runs": int(sum(1 for row in rows if row.estimate_seconds is not None and not row.reused_existing_scores)),
+        "low_confidence_score_runs": int(sum(1 for row in rows if row.confidence == "low")),
+        "unknown_score_runs": int(sum(1 for row in rows if row.estimate_seconds is None)),
+        "estimated_seconds_base_known": float(known_base),
+        "estimated_seconds_with_safety_known": float(known_safe),
+        "estimated_duration_base_known": _duration_seconds_to_text(known_base),
+        "estimated_duration_with_safety_known": _duration_seconds_to_text(known_safe),
+    }
+    return {
+        "summary": summary,
+        "rows": [row.__dict__ for row in rows],
+    }
+
+
+def render_runtime_estimate_markdown(estimate: dict[str, Any]) -> str:
+    summary = estimate.get("summary", {})
+    rows = estimate.get("rows", []) or []
+    lines = [
+        "# Plain/Roll Final Benchmark Runtime Estimate",
+        "",
+        f"Created: `{summary.get('created_at', '')}`",
+        f"Runtime history manifest: `{summary.get('estimate_from_manifest', '') or 'none'}`",
+        f"History samples used: `{int(summary.get('history_sample_count', 0))}`",
+        f"Safety factor: `{float(summary.get('estimate_safety_factor', 1.0)):.2f}`",
+        "",
+        "## Summary",
+        "",
+        f"- Planned score runs: `{int(summary.get('planned_score_runs', 0))}`",
+        f"- Reused existing score runs: `{int(summary.get('reused_existing_score_runs', 0))}`",
+        f"- Estimated new score runs: `{int(summary.get('estimated_score_runs', 0))}`",
+        f"- Low-confidence estimates: `{int(summary.get('low_confidence_score_runs', 0))}`",
+        f"- Unknown runs: `{int(summary.get('unknown_score_runs', 0))}`",
+        f"- Base known ETA: `{summary.get('estimated_duration_base_known', 'unknown')}`",
+        f"- Safety-factor ETA: `{summary.get('estimated_duration_with_safety_known', 'unknown')}`",
+        "",
+    ]
+    if int(summary.get("unknown_score_runs", 0)):
+        lines.extend(
+            [
+                "> Some runs have no runtime history. Run a small pilot such as `--limit_per_split 100` first if you need a tighter ETA.",
+                "",
+            ]
+        )
+    if int(summary.get("low_confidence_score_runs", 0)):
+        lines.extend(
+            [
+                "> Low-confidence rows use dataset/global fallback history from other methods, so treat them as rough upper/lower planning hints only.",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "## Planned Runs",
+            "",
+            "| method | dataset | split | pairs | status | confidence | source | samples | base ETA | safety ETA |",
+            "| --- | --- | --- | ---: | --- | --- | --- | ---: | ---: | ---: |",
+        ]
+    )
+    for row in rows:
+        base = _duration_seconds_to_text(row.get("estimate_seconds"))
+        safe = _duration_seconds_to_text(row.get("estimate_seconds_with_safety"))
+        lines.append(
+            f"| {row.get('method')} | {row.get('dataset')} | {row.get('split')} | "
+            f"{int(row.get('n_pairs') or 0)} | {row.get('status')} | {row.get('confidence')} | "
+            f"{row.get('estimate_source')} | {int(row.get('history_samples') or 0)} | {base} | {safe} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def write_runtime_estimate_artifacts(
+    *,
+    estimate: dict[str, Any],
+    outdir: Path,
+) -> dict[str, Path]:
+    json_path = outdir / "plain_roll_runtime_estimate.json"
+    markdown_path = outdir / "plain_roll_runtime_estimate.md"
+    json_path.write_text(json.dumps(estimate, indent=2, ensure_ascii=True), encoding="utf-8")
+    markdown_path.write_text(render_runtime_estimate_markdown(estimate), encoding="utf-8")
+    return {
+        "runtime_estimate_json": json_path,
+        "runtime_estimate_markdown": markdown_path,
+    }
 
 
 def _git_info(repo_root: Path) -> dict[str, Any]:
@@ -1471,6 +2046,8 @@ def output_schema() -> dict[str, list[str]]:
     return {
         "plain_roll_final_thresholds.csv": THRESHOLD_COLUMNS,
         "plain_roll_final_metrics.csv": METRICS_COLUMNS,
+        "plain_roll_final_positive_only_metrics.csv": POSITIVE_ONLY_METRICS_COLUMNS,
+        "plain_roll_final_negative_only_metrics.csv": NEGATIVE_ONLY_METRICS_COLUMNS,
         "plain_roll_final_latency_summary.csv": LATENCY_COLUMNS,
         "plain_roll_final_failures.csv": FAILURE_COLUMNS,
     }
@@ -1495,6 +2072,10 @@ def write_manifest(
     sample_seed: int,
     select_pairs_only: bool,
     strict_pair_audit: bool,
+    estimate_only: bool = False,
+    estimate_from_manifest: Path | None = None,
+    estimate_safety_factor: float = DEFAULT_ESTIMATE_SAFETY_FACTOR,
+    runtime_estimate: dict[str, Any] | None = None,
 ) -> None:
     payload = {
         "schema_version": OUTPUT_SCHEMA_VERSION,
@@ -1511,6 +2092,9 @@ def write_manifest(
         "sample_strategy": sample_strategy,
         "sample_seed": int(sample_seed),
         "select_pairs_only": bool(select_pairs_only),
+        "estimate_only": bool(estimate_only),
+        "estimate_from_manifest": str(estimate_from_manifest) if estimate_from_manifest is not None else "",
+        "estimate_safety_factor": float(estimate_safety_factor),
         "strict_pair_audit": bool(strict_pair_audit),
         "pair_protocol": {
             "plain_roll_filter": "exactly one path contains plain and the other contains roll/rolled",
@@ -1573,6 +2157,8 @@ def write_manifest(
         "output_schema": output_schema(),
         "total_runtime_s": float(total_runtime_s),
     }
+    if runtime_estimate is not None:
+        payload["runtime_estimate"] = runtime_estimate.get("summary", {})
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
 
 
@@ -1589,6 +2175,9 @@ def run_benchmark(
     reuse_existing_scores: bool = False,
     continue_on_method_failure: bool = False,
     select_pairs_only: bool = False,
+    estimate_only: bool = False,
+    estimate_from_manifest: Path | None = None,
+    estimate_safety_factor: float = DEFAULT_ESTIMATE_SAFETY_FACTOR,
     strict_pair_audit: bool = False,
     pair_audit_out: Path | None = None,
     repo_root: Path = REPO_ROOT,
@@ -1634,6 +2223,54 @@ def run_benchmark(
         paths[f"pair_audit_json_{report.dataset}_{report.split}"] = report.json_path
         paths[f"pair_audit_markdown_{report.dataset}_{report.split}"] = report.markdown_path
 
+    if estimate_only:
+        runtime_estimate = build_runtime_estimate(
+            methods=methods,
+            datasets=datasets,
+            splits=splits,
+            selected_pairs=selected_pairs,
+            dataset_statuses=dataset_statuses,
+            outdir=output,
+            repo_root=repo_root,
+            reuse_existing_scores=bool(reuse_existing_scores),
+            estimate_from_manifest=estimate_from_manifest,
+            estimate_safety_factor=float(estimate_safety_factor),
+        )
+        estimate_paths = write_runtime_estimate_artifacts(
+            estimate=runtime_estimate,
+            outdir=output,
+        )
+        paths.update(estimate_paths)
+        total_runtime_s = time.perf_counter() - start
+        empty_failures = pd.DataFrame(columns=FAILURE_COLUMNS)
+        write_manifest(
+            paths["manifest"],
+            datasets=datasets,
+            methods=methods,
+            splits=splits,
+            target_fars=tuple(float(x) for x in target_fars),
+            dataset_statuses=dataset_statuses,
+            pair_audit_reports=pair_audit_reports,
+            score_runs=[],
+            failures=empty_failures,
+            output_paths=paths,
+            total_runtime_s=total_runtime_s,
+            repo_root=repo_root,
+            limit_per_split=int(limit_per_split),
+            sample_strategy=sample_strategy,
+            sample_seed=int(sample_seed),
+            select_pairs_only=False,
+            strict_pair_audit=bool(strict_pair_audit),
+            estimate_only=True,
+            estimate_from_manifest=parse_file_uri(estimate_from_manifest, repo_root=repo_root)
+            if estimate_from_manifest is not None
+            else None,
+            estimate_safety_factor=float(estimate_safety_factor),
+            runtime_estimate=runtime_estimate,
+        )
+        print(render_runtime_estimate_markdown(runtime_estimate))
+        return paths
+
     if select_pairs_only:
         total_runtime_s = time.perf_counter() - start
         empty_failures = pd.DataFrame(columns=FAILURE_COLUMNS)
@@ -1674,12 +2311,16 @@ def run_benchmark(
     latency = build_latency_rows(score_runs)
     thresholds = build_threshold_table(score_runs, tuple(float(x) for x in target_fars))
     metrics = build_metrics_table(score_runs, thresholds, latency)
+    positive_only_metrics = build_positive_only_metrics_table(metrics)
+    negative_only_metrics = build_negative_only_metrics_table(metrics)
     failures = pd.DataFrame(failure_rows, columns=FAILURE_COLUMNS)
 
     paths.update(
         {
             "thresholds": output / "plain_roll_final_thresholds.csv",
             "metrics": output / "plain_roll_final_metrics.csv",
+            "positive_only_metrics": output / "plain_roll_final_positive_only_metrics.csv",
+            "negative_only_metrics": output / "plain_roll_final_negative_only_metrics.csv",
             "latency_summary": output / "plain_roll_final_latency_summary.csv",
             "failures": output / "plain_roll_final_failures.csv",
             "summary": output / "plain_roll_final_summary.md",
@@ -1688,6 +2329,8 @@ def run_benchmark(
 
     _write_csv(paths["thresholds"], thresholds, THRESHOLD_COLUMNS)
     _write_csv(paths["metrics"], metrics, METRICS_COLUMNS)
+    _write_csv(paths["positive_only_metrics"], positive_only_metrics, POSITIVE_ONLY_METRICS_COLUMNS)
+    _write_csv(paths["negative_only_metrics"], negative_only_metrics, NEGATIVE_ONLY_METRICS_COLUMNS)
     _write_csv(paths["latency_summary"], latency, LATENCY_COLUMNS)
     _write_csv(paths["failures"], failures, FAILURE_COLUMNS)
 
@@ -1764,6 +2407,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--sample_seed", type=int, default=DEFAULT_SAMPLE_SEED)
     parser.add_argument("--reuse_existing_scores", action="store_true")
+    parser.add_argument("--estimate_only", action="store_true", help="Write pair audits and a runtime ETA, then exit before scoring.")
+    parser.add_argument(
+        "--estimate_from_manifest",
+        default="",
+        help="Previous plain_roll_final_manifest.json to use as runtime history for --estimate_only.",
+    )
+    parser.add_argument(
+        "--estimate_safety_factor",
+        type=float,
+        default=DEFAULT_ESTIMATE_SAFETY_FACTOR,
+        help="Multiplier applied to known runtime estimates in --estimate_only output.",
+    )
     parser.add_argument("--continue_on_method_failure", action="store_true")
     parser.add_argument(
         "--select_pairs_only",
@@ -1798,6 +2453,11 @@ def main(argv: list[str] | None = None) -> int:
             reuse_existing_scores=bool(args.reuse_existing_scores),
             continue_on_method_failure=bool(args.continue_on_method_failure),
             select_pairs_only=bool(args.select_pairs_only),
+            estimate_only=bool(args.estimate_only),
+            estimate_from_manifest=parse_file_uri(args.estimate_from_manifest)
+            if str(args.estimate_from_manifest).strip()
+            else None,
+            estimate_safety_factor=float(args.estimate_safety_factor),
             strict_pair_audit=bool(args.strict_pair_audit),
             pair_audit_out=parse_file_uri(args.pair_audit_out) if str(args.pair_audit_out).strip() else None,
             repo_root=REPO_ROOT,

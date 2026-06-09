@@ -65,6 +65,12 @@ artifacts/**
 !artifacts/reports/benchmark/smoke_polyu_cross_h5/
 !artifacts/reports/benchmark/smoke_polyu_cross_h5/**
 
+# Curated final plain-vs-roll evidence bundles used by README and Benchmark UI.
+!artifacts/reports/benchmark/plain_roll_final_baselines_v1/
+!artifacts/reports/benchmark/plain_roll_final_baselines_v1/**
+!artifacts/reports/benchmark/plain_roll_final_sourceafis_v1/
+!artifacts/reports/benchmark/plain_roll_final_sourceafis_v1/**
+
 !artifacts/reports/benchmark/*_final.md
 !artifacts/reports/identification/*_final.md
 

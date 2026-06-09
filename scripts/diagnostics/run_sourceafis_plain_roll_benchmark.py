@@ -75,7 +75,7 @@ DEFAULT_FINAL_SELECTED_PAIRS_DIR = (
     / "artifacts"
     / "reports"
     / "benchmark"
-    / "plain_roll_final_sift_v1"
+    / "plain_roll_final_baselines_v1"
     / "selected_pairs"
 )
 
@@ -2258,7 +2258,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help=(
             "Optional directory containing audited pairs_<dataset>_<split>.csv files. "
-            "Use this for final evidence parity with the classical plain_roll_final_sift_v1 selected pairs."
+            "Use this for final evidence parity with the classical plain_roll_final_baselines_v1 selected pairs."
         ),
     )
     return parser

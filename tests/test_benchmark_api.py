@@ -342,7 +342,7 @@ def create_final_markdown_benchmark_root(tmp_path: Path) -> Path:
     ):
         (bench_root / filename).write_text(f"# {filename}\n", encoding="utf-8")
 
-    bundle = bench_root / "plain_roll_final_sift_v1"
+    bundle = bench_root / "plain_roll_final_baselines_v1"
     final_markdown_dir = bundle / "final_markdown"
     selected_pairs_dir = bundle / "selected_pairs"
     final_markdown_dir.mkdir(parents=True, exist_ok=True)
@@ -777,17 +777,17 @@ def test_final_benchmark_evidence_surfaces_sourceafis_and_classical_baselines(tm
     assert "failures_csv" in sift_v2.available_artifacts
     assert any(
         artifact.key == "threshold_sweep_csv"
-        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_sift_v1_nist_sd300b_final/plain_roll_final_sift_v1/plain_roll_final_threshold_sweep.csv"
+        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_baselines_v1_nist_sd300b_final/plain_roll_final_baselines_v1/plain_roll_final_threshold_sweep.csv"
         for artifact in sift_v2.artifacts
     )
     assert any(
         artifact.key == "tar_far_distribution_csv"
-        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_sift_v1_nist_sd300b_final/plain_roll_final_sift_v1/plain_roll_final_tar_far_distribution.csv"
+        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_baselines_v1_nist_sd300b_final/plain_roll_final_baselines_v1/plain_roll_final_tar_far_distribution.csv"
         for artifact in sift_v2.artifacts
     )
     assert any(
         artifact.key == "final_markdown"
-        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_sift_v1_nist_sd300b_final/plain_roll_final_sift_v1/final_markdown/nist_sd300b_sift_plain_roll_v2_plain_roll_final.md"
+        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_baselines_v1_nist_sd300b_final/plain_roll_final_baselines_v1/final_markdown/nist_sd300b_sift_plain_roll_v2_plain_roll_final.md"
         for artifact in sift_v2.artifacts
     )
 
@@ -814,10 +814,10 @@ def test_final_benchmark_evidence_surfaces_sourceafis_and_classical_baselines(tm
 
     final_markdown = resolve_benchmark_artifact(
         sift_v2.run,
-        "plain_roll_final_sift_v1/final_markdown/nist_sd300b_sift_plain_roll_v2_plain_roll_final.md",
+        "plain_roll_final_baselines_v1/final_markdown/nist_sd300b_sift_plain_roll_v2_plain_roll_final.md",
         root=bench_root,
     )
-    assert final_markdown == bench_root / "plain_roll_final_sift_v1" / "final_markdown" / "nist_sd300b_sift_plain_roll_v2_plain_roll_final.md"
+    assert final_markdown == bench_root / "plain_roll_final_baselines_v1" / "final_markdown" / "nist_sd300b_sift_plain_roll_v2_plain_roll_final.md"
 
 
 def test_h5_full_runs_are_accepted_as_canonical_without_dedicated(tmp_path: Path) -> None:

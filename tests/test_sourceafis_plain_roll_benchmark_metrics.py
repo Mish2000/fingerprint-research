@@ -21,6 +21,7 @@ from scripts.diagnostics.run_sourceafis_plain_roll_benchmark import (
     compute_auc_eer,
     compute_confusion,
     ensure_sourceafis_available,
+    file_sha256,
     infer_dpi_from_path,
     load_plain_roll_pairs,
     output_schema,
@@ -440,6 +441,39 @@ def test_mocked_provider_generates_output_schema_without_sidecar(tmp_path: Path)
     assert "sourceafis_plain_roll_scores_val.csv" in summary
 
 
+def test_selected_pairs_dir_is_scored_exactly_without_resampling(tmp_path: Path) -> None:
+    _write_pair_fixture(tmp_path, "val")
+    source_pairs = pd.read_csv(tmp_path / "data" / "manifests" / "toy" / "pairs_val.csv")
+    selected = source_pairs.iloc[[2, 0, 3, 1]].reset_index(drop=True)
+    selected_dir = tmp_path / "selected_pairs"
+    selected_dir.mkdir()
+    selected_path = selected_dir / "pairs_toy_val.csv"
+    selected.to_csv(selected_path, index=False)
+
+    paths = run_benchmark(
+        datasets=("toy",),
+        splits=("val",),
+        outdir=tmp_path / "reports" / "sourceafis",
+        target_fars=(0.50,),
+        engine=MockSourceAfisEngine(),
+        require_enabled_env=False,
+        repo_root=tmp_path,
+        template_cache_dir=tmp_path / "cache",
+        selected_pairs_dir=selected_dir,
+    )
+
+    scores_val = pd.read_csv(paths["scores_val"])
+    manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+    status = manifest["datasets"][0]
+
+    assert scores_val["pair_id"].astype(str).tolist() == selected["pair_id"].astype(str).tolist()
+    assert scores_val["label"].astype(int).tolist() == selected["label"].astype(int).tolist()
+    assert status["source_is_selected_pairs"] is True
+    assert status["selected_pairs_csv"] == str(selected_path)
+    assert status["selected_pairs_row_count"] == len(selected)
+    assert status["selected_pairs_sha256"] == file_sha256(selected_path)
+
+
 def test_cli_parses_runtime_hardening_args() -> None:
     args = build_parser().parse_args(
         [
@@ -461,6 +495,8 @@ def test_cli_parses_runtime_hardening_args() -> None:
             "explicit",
             "--image_dpi",
             "1000",
+            "--selected_pairs_dir",
+            "artifacts/reports/benchmark/plain_roll_final_sift_v1/selected_pairs",
         ]
     )
 
@@ -473,6 +509,7 @@ def test_cli_parses_runtime_hardening_args() -> None:
     assert args.sample_seed == 21
     assert args.dpi_strategy == "explicit"
     assert args.image_dpi == 1000
+    assert args.selected_pairs_dir == "artifacts/reports/benchmark/plain_roll_final_sift_v1/selected_pairs"
 
 
 def test_balanced_spread_sampling_is_deterministic_and_spread(tmp_path: Path) -> None:

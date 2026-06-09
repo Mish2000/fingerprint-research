@@ -179,6 +179,21 @@ class BenchmarkOperatingPoint(BaseModel):
     calibration_positives: Optional[int] = None
 
 
+class BenchmarkTarFarDistributionRow(BaseModel):
+    far_ceiling: float
+    threshold: Optional[float] = None
+    actual_far: Optional[float] = None
+    tar: Optional[float] = None
+    frr: Optional[float] = None
+    tnr: Optional[float] = None
+    ta: Optional[int] = None
+    fr: Optional[int] = None
+    fa: Optional[int] = None
+    tr: Optional[int] = None
+    n_positive: Optional[int] = None
+    n_negative: Optional[int] = None
+
+
 class BenchmarkProvenance(BaseModel):
     run: str
     run_label: str
@@ -304,6 +319,7 @@ class ComparisonRow(BaseModel):
     tar_at_far_1e_2: Optional[float] = None
     tar_at_far_1e_3: Optional[float] = None
     operating_points: List[BenchmarkOperatingPoint] = Field(default_factory=list)
+    tar_far_distribution: List[BenchmarkTarFarDistributionRow] = Field(default_factory=list)
     latency_ms: Optional[float] = None
     latency_source: Optional[str] = None
     auc_rank: Optional[int] = None

@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from pipelines.benchmark import run_plain_roll_final_benchmark as final
+from pipelines.benchmark import run_sourceafis_plain_roll_final_benchmark as sourceafis_final
 from scripts.diagnostics import run_sourceafis_plain_roll_benchmark as sourceafis
 
 
@@ -448,6 +449,115 @@ def test_final_runner_uses_selected_pairs_and_val_threshold_for_test(
     assert len(calls) == call_count_after_scoring
     assert reuse_paths["threshold_sweep"].exists()
     assert reuse_paths["tar_far_distribution"].exists()
+
+
+def _write_sourceafis_raw_scores(raw_dir: Path, rows_by_split: dict[str, list[dict[str, Any]]]) -> None:
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    for split, rows in rows_by_split.items():
+        out_rows = []
+        for row in rows:
+            out_rows.append(
+                {
+                    "dataset": "toy",
+                    "split": split,
+                    "pair_id": row["pair_id"],
+                    "label": row["label"],
+                    "is_positive": int(row["label"]) == 1,
+                    "subject_a": row["subject_a"],
+                    "subject_b": row["subject_b"],
+                    "finger_position": row["frgp"],
+                    "path_a": row["path_a"],
+                    "path_b": row["path_b"],
+                    "dpi_a": "",
+                    "dpi_b": "",
+                    "raw_score": row["fixture_score"],
+                    "score_semantics": "sourceafis_raw_similarity_score",
+                    "higher_is_more_similar": True,
+                    "provider_id": "sourceafis_open",
+                    "provider_version": "fixture",
+                    "template_format": "sourceafis",
+                    "template_version": "fixture",
+                    "extraction_cache_hit_a": False,
+                    "extraction_cache_hit_b": False,
+                    "extraction_latency_ms_a": 1.0,
+                    "extraction_latency_ms_b": 2.0,
+                    "verification_latency_ms": 3.0,
+                    "verification_wall_latency_ms": 4.0,
+                    "warnings": "",
+                    "error": "",
+                }
+            )
+        pd.DataFrame(out_rows).to_csv(raw_dir / f"sourceafis_plain_roll_scores_{split}.csv", index=False)
+    (raw_dir / "sourceafis_plain_roll_thresholds.csv").write_text("dataset,target_far,threshold\n", encoding="utf-8")
+    (raw_dir / "sourceafis_plain_roll_metrics.csv").write_text("dataset,split,target_far,tar\n", encoding="utf-8")
+    (raw_dir / "sourceafis_plain_roll_latency_summary.csv").write_text("dataset,split,operation,status,count\n", encoding="utf-8")
+    (raw_dir / "sourceafis_plain_roll_failures.csv").write_text(
+        "dataset,split,pair_id,operation,path,subject_a,subject_b,finger_position,retry_count,cached_failure,failure_category,error_type,error_message\n",
+        encoding="utf-8",
+    )
+    (raw_dir / "sourceafis_plain_roll_manifest.json").write_text("{}", encoding="utf-8")
+
+
+def test_sourceafis_final_bundle_reuses_raw_scores_and_exports_expert_evidence(tmp_path: Path) -> None:
+    selected_dir = tmp_path / "selected_pairs"
+    selected_dir.mkdir()
+    val_rows = [
+        {**_existing_pair(tmp_path, "val-neg-low", 0, "val"), "fixture_score": 0.2},
+        {**_existing_pair(tmp_path, "val-neg-high", 0, "val"), "fixture_score": 0.8},
+        {**_existing_pair(tmp_path, "val-pos-low", 1, "val"), "fixture_score": 0.1},
+        {**_existing_pair(tmp_path, "val-pos-high", 1, "val"), "fixture_score": 0.95},
+    ]
+    test_rows = [
+        {**_existing_pair(tmp_path, "test-neg-high", 0, "test"), "fixture_score": 0.9},
+        {**_existing_pair(tmp_path, "test-neg-low", 0, "test"), "fixture_score": 0.1},
+        {**_existing_pair(tmp_path, "test-pos-mid", 1, "test"), "fixture_score": 0.7},
+        {**_existing_pair(tmp_path, "test-pos-high", 1, "test"), "fixture_score": 0.85},
+    ]
+    pd.DataFrame(val_rows).to_csv(selected_dir / "pairs_toy_val.csv", index=False)
+    pd.DataFrame(test_rows).to_csv(selected_dir / "pairs_toy_test.csv", index=False)
+    raw_dir = tmp_path / "raw_sourceafis"
+    _write_sourceafis_raw_scores(raw_dir, {"val": val_rows, "test": test_rows})
+
+    paths = sourceafis_final.run_benchmark(
+        datasets=("toy",),
+        splits=("val", "test"),
+        outdir=tmp_path / "out",
+        selected_pairs_dir=selected_dir,
+        pair_audit_dir=tmp_path / "missing_pair_audit",
+        sourceafis_outdir=raw_dir,
+        target_fars=(0.5,),
+        repo_root=tmp_path,
+    )
+
+    metrics = pd.read_csv(paths["metrics"])
+    positive_only = pd.read_csv(paths["positive_only_metrics"])
+    negative_only = pd.read_csv(paths["negative_only_metrics"])
+    distribution = pd.read_csv(paths["tar_far_distribution"])
+    source_scores = pd.read_csv(tmp_path / "out" / "scores" / "scores_toy_sourceafis_open_test.csv")
+    manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+    markdown = (tmp_path / "out" / "final_markdown" / "toy_sourceafis_open_plain_roll_final.md").read_text(encoding="utf-8")
+
+    test_metric = metrics[(metrics["split"] == "test") & (metrics["target_far"] == 0.5)].iloc[0]
+    assert test_metric["method"] == "sourceafis_open"
+    assert test_metric["threshold"] == pytest.approx(0.8)
+    assert test_metric["tar"] == pytest.approx(0.5)
+    assert test_metric["far"] == pytest.approx(0.5)
+    assert int(test_metric["ta"]) == 1
+    assert int(test_metric["fr"]) == 1
+    assert int(test_metric["fa"]) == 1
+    assert int(test_metric["tr"]) == 1
+    assert not positive_only.empty
+    assert not negative_only.empty
+    assert "sourceafis_open" in set(distribution["method"])
+    assert source_scores["pair_id"].astype(str).tolist() == [row["pair_id"] for row in test_rows]
+    assert source_scores["score"].tolist() == [row["fixture_score"] for row in test_rows]
+    assert manifest["schema_version"] == sourceafis_final.OUTPUT_SCHEMA_VERSION
+    assert manifest["sourceafis_final_bundle"]["sourceafis_raw_reused"] is True
+    assert manifest["sourceafis_final_bundle"]["sourceafis_rerun_required"] is False
+    assert manifest["sourceafis_final_bundle"]["selected_pair_validation"][0]["status"] == "match"
+    assert "TAR vs FAR Distribution" in markdown
+    assert "Positive-only verification evidence" in markdown
+    assert "Negative-only impostor evidence" in markdown
 
 
 def test_latency_columns_from_classic_and_minutiae_are_surfaced(

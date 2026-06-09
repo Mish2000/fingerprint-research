@@ -70,6 +70,14 @@ DEFAULT_OUTDIR = (
     / "benchmark"
     / "sourceafis_open_plain_roll_v1"
 )
+DEFAULT_FINAL_SELECTED_PAIRS_DIR = (
+    REPO_ROOT
+    / "artifacts"
+    / "reports"
+    / "benchmark"
+    / "plain_roll_final_sift_v1"
+    / "selected_pairs"
+)
 
 SCORES_COLUMNS = [
     "dataset",
@@ -810,6 +818,104 @@ def load_plain_roll_pairs(
         "path_b",
     ]
     return filtered[columns].reset_index(drop=True), status
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _selected_pairs_path(selected_pairs_dir: Path, dataset: str, split: str) -> Path:
+    return selected_pairs_dir / f"pairs_{dataset}_{split}.csv"
+
+
+def load_selected_plain_roll_pairs(
+    dataset: str,
+    split: str,
+    *,
+    selected_pairs_dir: Path,
+    repo_root: Path = REPO_ROOT,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    pairs_csv = _selected_pairs_path(parse_file_uri(selected_pairs_dir, repo_root=repo_root), dataset, split)
+    if not pairs_csv.exists():
+        return pd.DataFrame(), {
+            "dataset": dataset,
+            "split": split,
+            "pairs_csv": str(pairs_csv),
+            "compatible": False,
+            "reason": "selected pairs CSV not found",
+        }
+
+    df = pd.read_csv(pairs_csv)
+    required = {"pair_id", "label", "split", "subject_a", "subject_b", "path_a", "path_b"}
+    missing = sorted(required - set(df.columns))
+    if missing:
+        raise SourceAfisBenchmarkError(f"Selected pairs CSV {pairs_csv} is missing required columns: {missing}")
+
+    finger_col = (
+        "finger_position"
+        if "finger_position" in df.columns
+        else "frgp"
+        if "frgp" in df.columns
+        else "finger_id"
+        if "finger_id" in df.columns
+        else None
+    )
+    if finger_col is None:
+        raise SourceAfisBenchmarkError(f"Selected pairs CSV {pairs_csv} is missing finger_position/frgp/finger_id.")
+
+    normalized = df.copy()
+    normalized["label"] = pd.to_numeric(normalized["label"], errors="coerce").fillna(-1).astype(int)
+    normalized["split"] = normalized["split"].astype(str).str.strip().str.lower()
+    normalized["subject_a"] = normalized["subject_a"].astype(str)
+    normalized["subject_b"] = normalized["subject_b"].astype(str)
+    normalized["finger_position"] = normalized[finger_col].astype(str)
+    normalized["dataset"] = dataset
+
+    split_mask = normalized["split"] == split.lower()
+    label_mask = normalized["label"].isin([0, 1])
+    finger_mask = normalized["finger_position"].astype(str).str.strip() != ""
+    plain_roll_mask = normalized.apply(lambda row: _one_plain_one_roll(row["path_a"], row["path_b"]), axis=1)
+    same_subject = normalized["subject_a"] == normalized["subject_b"]
+    protocol_mask = ((normalized["label"] == 1) & same_subject) | ((normalized["label"] == 0) & ~same_subject)
+    compatible_mask = split_mask & label_mask & finger_mask & plain_roll_mask & protocol_mask
+    if not bool(compatible_mask.all()):
+        raise SourceAfisBenchmarkError(
+            f"Selected pairs CSV {pairs_csv} is not a valid audited plain-vs-roll {dataset}/{split} set: "
+            f"split mismatches={int((~split_mask).sum())}, invalid labels={int((~label_mask).sum())}, "
+            f"missing fingers={int((~finger_mask).sum())}, modality mismatches={int((~plain_roll_mask).sum())}, "
+            f"protocol mismatches={int((~protocol_mask).sum())}."
+        )
+
+    status = {
+        "dataset": dataset,
+        "split": split,
+        "pairs_csv": str(pairs_csv),
+        "compatible": bool(len(normalized)),
+        "reason": "externally selected audited plain-vs-roll pairs",
+        "n_pairs": int(len(normalized)),
+        "n_positive": int((normalized["label"] == 1).sum()) if len(normalized) else 0,
+        "n_negative": int((normalized["label"] == 0).sum()) if len(normalized) else 0,
+        "selected_pairs_csv": str(pairs_csv),
+        "selected_pairs_row_count": int(len(normalized)),
+        "selected_pairs_sha256": file_sha256(pairs_csv),
+        "source_is_selected_pairs": True,
+    }
+    columns = [
+        "dataset",
+        "split",
+        "pair_id",
+        "label",
+        "subject_a",
+        "subject_b",
+        "finger_position",
+        "path_a",
+        "path_b",
+    ]
+    return normalized[columns].reset_index(drop=True), status
 
 
 def _image_mime_type(path: Path) -> str | None:
@@ -1911,11 +2017,18 @@ def run_benchmark(
     sample_seed: int = DEFAULT_SAMPLE_SEED,
     dpi_strategy: str = DEFAULT_DPI_STRATEGY,
     image_dpi: int | None = None,
+    selected_pairs_dir: Path | None = None,
 ) -> dict[str, Path]:
     start = time.perf_counter()
     if sample_strategy not in {"first", "balanced_spread"}:
         raise SourceAfisBenchmarkError(f"Unsupported sample_strategy: {sample_strategy!r}")
     validate_dpi_settings(dpi_strategy=dpi_strategy, image_dpi=image_dpi)
+    selected_dir = parse_file_uri(selected_pairs_dir, repo_root=repo_root) if selected_pairs_dir is not None else None
+    if selected_dir is not None:
+        if int(limit_per_split) != 0:
+            raise SourceAfisBenchmarkError("--selected_pairs_dir requires --limit_per_split 0 so the audited pair set is unchanged.")
+        if not selected_dir.exists():
+            raise SourceAfisBenchmarkError(f"Selected pairs directory does not exist: {selected_dir}")
     output = validate_output_directory(outdir, repo_root=repo_root)
     output.mkdir(parents=True, exist_ok=True)
     timeout_overrides = _timeout_env_overrides(
@@ -1971,14 +2084,22 @@ def run_benchmark(
 
         for dataset in datasets:
             for split in splits:
-                pairs, status = load_plain_roll_pairs(
-                    dataset,
-                    split,
-                    repo_root=repo_root,
-                    limit=int(limit_per_split),
-                    sample_strategy=sample_strategy,
-                    sample_seed=int(sample_seed),
-                )
+                if selected_dir is not None:
+                    pairs, status = load_selected_plain_roll_pairs(
+                        dataset,
+                        split,
+                        selected_pairs_dir=selected_dir,
+                        repo_root=repo_root,
+                    )
+                else:
+                    pairs, status = load_plain_roll_pairs(
+                        dataset,
+                        split,
+                        repo_root=repo_root,
+                        limit=int(limit_per_split),
+                        sample_strategy=sample_strategy,
+                        sample_seed=int(sample_seed),
+                    )
                 dataset_statuses.append(status)
                 if pairs.empty:
                     continue
@@ -2132,6 +2253,14 @@ def build_parser() -> argparse.ArgumentParser:
             "or omitted for sidecar default exploratory runs."
         ),
     )
+    parser.add_argument(
+        "--selected_pairs_dir",
+        default="",
+        help=(
+            "Optional directory containing audited pairs_<dataset>_<split>.csv files. "
+            "Use this for final evidence parity with the classical plain_roll_final_sift_v1 selected pairs."
+        ),
+    )
     return parser
 
 
@@ -2140,6 +2269,7 @@ def main(argv: list[str] | None = None) -> int:
     datasets = tuple(item.strip() for item in str(args.datasets).split(",") if item.strip())
     splits = tuple(item.strip().lower() for item in str(args.splits).split(",") if item.strip())
     template_cache_dir = parse_file_uri(args.template_cache_dir) if str(args.template_cache_dir).strip() else None
+    selected_pairs_dir = parse_file_uri(args.selected_pairs_dir) if str(args.selected_pairs_dir).strip() else None
     try:
         paths = run_benchmark(
             datasets=datasets,
@@ -2157,6 +2287,7 @@ def main(argv: list[str] | None = None) -> int:
             sample_seed=int(args.sample_seed),
             dpi_strategy=str(args.dpi_strategy),
             image_dpi=args.image_dpi,
+            selected_pairs_dir=selected_pairs_dir,
         )
     except (FingerprintEngineError, SourceAfisBenchmarkError) as exc:
         print(f"SourceAFIS Plain/Roll benchmark unavailable: {exc}", file=sys.stderr)

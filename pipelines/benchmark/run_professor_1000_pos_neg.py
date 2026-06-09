@@ -1,4 +1,4 @@
-"""Historical diagnostic benchmark.
+"""Superseded historical diagnostic benchmark.
 
 This script is retained for reproducing the earlier Professor 1000 pos/neg
 diagnostic run. Final comparable plain-vs-roll evidence should be produced
@@ -44,6 +44,12 @@ DEFAULT_SEED = 20260518
 DEFAULT_N_PER_LABEL = 1000
 TARGET_FAR = 0.01
 METHODS = ["classic_v2", "minutiae", "harris", "sift", "dl_quick"]
+DEPRECATION_NOTICE = (
+    "SUPERSEDED LEGACY DIAGNOSTIC: kept only for reproducing the earlier "
+    "Professor 1000 positive / 1000 negative artifact family. Use "
+    "pipelines/benchmark/run_plain_roll_final_benchmark.py for current "
+    "advisor-requested plain-vs-roll evidence."
+)
 PAIR_SETS = {
     "positive_1000": {"filename": "positive_1000.csv", "label": 1},
     "negative_1000": {"filename": "negative_1000.csv", "label": 0},
@@ -642,6 +648,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    print(f"WARNING: {DEPRECATION_NOTICE}", file=sys.stderr)
     args = build_parser().parse_args(argv)
     data_dir = resolve_path(args.data_dir)
     outdir = resolve_path(args.outdir)

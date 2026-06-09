@@ -32,6 +32,7 @@ DEFAULT_DATASETS = ("nist_sd300b", "nist_sd300c")
 DEFAULT_METHODS = ("sift_plain_roll_v2", "sift", "harris", "classic_v2", "minutiae")
 DEFAULT_SPLITS = ("val", "test")
 DEFAULT_TARGET_FARS = (0.01, 0.005)
+DEFAULT_TAR_FAR_CEILINGS = (0.0, 0.001, 0.0025, 0.005, 0.01, 0.02, 0.05, 0.10)
 DEFAULT_OUTDIR = REPO_ROOT / "artifacts" / "reports" / "benchmark" / "plain_roll_final_v1"
 DEFAULT_SAMPLE_STRATEGY = "balanced_spread"
 DEFAULT_SAMPLE_SEED = 13
@@ -135,6 +136,47 @@ NEGATIVE_ONLY_METRICS_COLUMNS = [
     "auc",
     "eer",
     "avg_ms_pair_reported",
+    "scores_csv",
+]
+
+THRESHOLD_SWEEP_COLUMNS = [
+    "method",
+    "dataset",
+    "split",
+    "threshold",
+    "n_positive",
+    "n_negative",
+    "true_accepts",
+    "false_rejects",
+    "false_accepts",
+    "true_rejects",
+    "tar",
+    "far",
+    "frr",
+    "tnr",
+    "score_count",
+    "avg_ms_pair_reported",
+    "scores_csv",
+]
+
+TAR_FAR_DISTRIBUTION_COLUMNS = [
+    "method",
+    "dataset",
+    "split",
+    "far_ceiling",
+    "threshold",
+    "actual_far",
+    "tar",
+    "frr",
+    "tnr",
+    "ta",
+    "fr",
+    "fa",
+    "tr",
+    "n_positive",
+    "n_negative",
+    "selection_status",
+    "selection_rule",
     "scores_csv",
 ]
 
@@ -1140,10 +1182,12 @@ def compute_confusion(labels: Any, scores: Any, threshold: float) -> dict[str, A
     n_negative = int(np.sum(negatives))
     tar = float(ta / n_positive) if n_positive else float("nan")
     far = float(fa / n_negative) if n_negative else float("nan")
+    tnr = float(tr / n_negative) if n_negative else float("nan")
     return {
         "tar": tar,
         "far": far,
         "frr": float(1.0 - tar) if math.isfinite(tar) else float("nan"),
+        "tnr": tnr,
         "ta": ta,
         "fr": fr,
         "fa": fa,
@@ -1396,6 +1440,135 @@ def build_metrics_table(
     return pd.DataFrame(rows, columns=METRICS_COLUMNS)
 
 
+def _candidate_thresholds(scores: Any) -> list[float]:
+    values = np.asarray(scores, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return []
+    unique_scores = sorted((float(value) for value in np.unique(values)), reverse=True)
+    no_accept_threshold = math.nextafter(float(np.max(values)), math.inf)
+    return [float(no_accept_threshold), *unique_scores]
+
+
+def build_threshold_sweep_table(score_runs: list[ScoreRun], latency: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    latency_lookup = {
+        (str(row.method), str(row.dataset), str(row.split)): row
+        for row in latency.itertuples(index=False)
+    }
+    for run in sorted(score_runs, key=lambda item: (item.method, item.dataset, item.split)):
+        score_df = pd.read_csv(run.scores_csv)
+        labels_all = pd.to_numeric(score_df["label"], errors="coerce").fillna(-1).to_numpy(dtype=int)
+        scores_all = pd.to_numeric(score_df["score"], errors="coerce").to_numpy(dtype=float)
+        labels, scores = _finite_labels_scores(labels_all, scores_all)
+        score_count = int(scores.size)
+        timing = latency_lookup.get((run.method, run.dataset, run.split))
+        for threshold in _candidate_thresholds(scores):
+            counts = compute_confusion(labels, scores, float(threshold))
+            rows.append(
+                {
+                    "method": run.method,
+                    "dataset": run.dataset,
+                    "split": run.split,
+                    "threshold": float(threshold),
+                    "n_positive": int(counts["n_positive"]),
+                    "n_negative": int(counts["n_negative"]),
+                    "true_accepts": int(counts["ta"]),
+                    "false_rejects": int(counts["fr"]),
+                    "false_accepts": int(counts["fa"]),
+                    "true_rejects": int(counts["tr"]),
+                    "tar": float(counts["tar"]),
+                    "far": float(counts["far"]),
+                    "frr": float(counts["frr"]),
+                    "tnr": float(counts["tnr"]),
+                    "score_count": score_count,
+                    "avg_ms_pair_reported": getattr(timing, "avg_ms_pair_reported", float("nan")),
+                    "scores_csv": str(run.scores_csv),
+                }
+            )
+    return pd.DataFrame(rows, columns=THRESHOLD_SWEEP_COLUMNS)
+
+
+def build_tar_far_distribution_table(
+    threshold_sweep: pd.DataFrame,
+    far_ceilings: tuple[float, ...] = DEFAULT_TAR_FAR_CEILINGS,
+) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    selection_rule = "highest TAR with actual FAR <= ceiling; ties choose the highest threshold (more conservative)"
+    if threshold_sweep.empty:
+        return pd.DataFrame(columns=TAR_FAR_DISTRIBUTION_COLUMNS)
+
+    sort_columns = ["method", "dataset", "split", "threshold"]
+    sweep = threshold_sweep.copy().sort_values(sort_columns, ascending=[True, True, True, False])
+    for (method, dataset, split), group in sweep.groupby(["method", "dataset", "split"], sort=True):
+        group = group.copy()
+        group["_far"] = pd.to_numeric(group["far"], errors="coerce")
+        group["_tar"] = pd.to_numeric(group["tar"], errors="coerce")
+        group["_threshold"] = pd.to_numeric(group["threshold"], errors="coerce")
+        first = group.iloc[0]
+        for ceiling in far_ceilings:
+            ceiling = float(ceiling)
+            eligible = group[np.isfinite(group["_far"]) & (group["_far"] <= ceiling + 1e-15)].copy()
+            if eligible.empty:
+                rows.append(
+                    {
+                        "method": method,
+                        "dataset": dataset,
+                        "split": split,
+                        "far_ceiling": ceiling,
+                        "threshold": float("nan"),
+                        "actual_far": float("nan"),
+                        "tar": float("nan"),
+                        "frr": float("nan"),
+                        "tnr": float("nan"),
+                        "ta": None,
+                        "fr": None,
+                        "fa": None,
+                        "tr": None,
+                        "n_positive": _safe_int(first.get("n_positive")),
+                        "n_negative": _safe_int(first.get("n_negative")),
+                        "selection_status": "no_threshold",
+                        "selection_rule": selection_rule,
+                        "scores_csv": str(first.get("scores_csv", "")),
+                    }
+                )
+                continue
+
+            finite_tar = eligible[np.isfinite(eligible["_tar"])].copy()
+            if finite_tar.empty:
+                chosen = eligible.sort_values(["_threshold", "_far"], ascending=[False, True]).iloc[0]
+                status = "selected_no_positive_pairs"
+            else:
+                best_tar = float(finite_tar["_tar"].max())
+                tied = finite_tar[np.isclose(finite_tar["_tar"], best_tar, rtol=0.0, atol=1e-15)].copy()
+                chosen = tied.sort_values(["_threshold", "_far"], ascending=[False, True]).iloc[0]
+                status = "selected"
+
+            rows.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "split": split,
+                    "far_ceiling": ceiling,
+                    "threshold": float(chosen["threshold"]),
+                    "actual_far": float(chosen["far"]),
+                    "tar": float(chosen["tar"]),
+                    "frr": float(chosen["frr"]),
+                    "tnr": float(chosen["tnr"]),
+                    "ta": int(chosen["true_accepts"]),
+                    "fr": int(chosen["false_rejects"]),
+                    "fa": int(chosen["false_accepts"]),
+                    "tr": int(chosen["true_rejects"]),
+                    "n_positive": int(chosen["n_positive"]),
+                    "n_negative": int(chosen["n_negative"]),
+                    "selection_status": status,
+                    "selection_rule": selection_rule,
+                    "scores_csv": str(chosen["scores_csv"]),
+                }
+            )
+    return pd.DataFrame(rows, columns=TAR_FAR_DISTRIBUTION_COLUMNS)
+
+
 def _safe_rate(numerator: Any, denominator: Any) -> float:
     denom = _safe_float(denominator)
     if not math.isfinite(denom) or denom == 0:
@@ -1485,10 +1658,16 @@ def _fmt_pct(value: Any) -> str:
     return f"{100.0 * number:.2f}%"
 
 
+def _fmt_int(value: Any) -> str:
+    number = _safe_int(value)
+    return str(number) if number is not None else "NA"
+
+
 def render_combined_markdown(
     *,
     metrics: pd.DataFrame,
     thresholds: pd.DataFrame,
+    tar_far_distribution: pd.DataFrame,
     latency: pd.DataFrame,
     failures: pd.DataFrame,
     dataset_statuses: list[dict[str, Any]],
@@ -1513,11 +1692,41 @@ def render_combined_markdown(
         "",
         "Although scoring may be executed on one selected-pair CSV for reproducibility, positive and negative outcomes are audited and reported separately. TAR/FRR are computed only from positive pairs, and FAR/TNR are computed only from negative pairs.",
         "",
-        "## TEST Operating Points",
+        "## Expert TAR/FAR Distribution Summary",
         "",
-        "| method | dataset | target FAR | threshold | TAR | FAR | FRR | TA/FR/FA/TR | AUC | EER | avg ms/pair |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "- Fixed operating points show selected calibrated thresholds from VAL negatives applied unchanged to VAL and TEST.",
+        "- The threshold sweep shows the full behavior across candidate thresholds from each score CSV.",
+        "- TAR/FRR are computed only from positive pairs.",
+        "- FAR/TNR are computed only from negative pairs.",
+        "- FA means negative pairs incorrectly accepted as matches.",
+        "- TR means negative pairs correctly rejected.",
+        "- TAR/FAR distribution rows maximize TAR within each FAR ceiling; tied TAR rows use the highest threshold as the more conservative operating point.",
+        "",
+        "| method | dataset | split | FAR ceiling | threshold | actual FAR | TAR | TA | FR | FA | TR |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
+    test_distribution = (
+        tar_far_distribution[tar_far_distribution["split"].astype(str).str.lower() == "test"].copy()
+        if not tar_far_distribution.empty
+        else tar_far_distribution
+    )
+    if test_distribution.empty:
+        lines.append("| NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA |")
+    for _, row in test_distribution.sort_values(["method", "dataset", "far_ceiling"]).iterrows():
+        lines.append(
+            f"| {row['method']} | {row['dataset']} | {row['split']} | {_fmt_pct(row['far_ceiling'])} | "
+            f"{_fmt_float(row['threshold'], 6)} | {_fmt_pct(row['actual_far'])} | {_fmt_pct(row['tar'])} | "
+            f"{_fmt_int(row['ta'])} | {_fmt_int(row['fr'])} | {_fmt_int(row['fa'])} | {_fmt_int(row['tr'])} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## TEST Operating Points",
+            "",
+            "| method | dataset | target FAR | threshold | TAR | FAR | FRR | TA/FR/FA/TR | AUC | EER | avg ms/pair |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
     test_metrics = metrics[metrics["split"].astype(str).str.lower() == "test"].copy() if not metrics.empty else metrics
     for _, row in test_metrics.sort_values(["method", "dataset", "target_far"]).iterrows():
         lines.append(
@@ -1607,17 +1816,23 @@ def render_method_dataset_markdown(
     dataset: str,
     metrics: pd.DataFrame,
     thresholds: pd.DataFrame,
+    tar_far_distribution: pd.DataFrame,
     latency: pd.DataFrame,
+    pair_audit_reports: list[PairAuditReport],
 ) -> str:
     sub_metrics = metrics[(metrics["method"] == method) & (metrics["dataset"] == dataset)].copy()
     sub_thresholds = thresholds[(thresholds["method"] == method) & (thresholds["dataset"] == dataset)].copy()
+    sub_distribution = tar_far_distribution[
+        (tar_far_distribution["method"] == method) & (tar_far_distribution["dataset"] == dataset)
+    ].copy()
     sub_latency = latency[(latency["method"] == method) & (latency["dataset"] == dataset)].copy()
+    sub_audits = [report for report in pair_audit_reports if report.dataset == dataset]
     lines = [
         f"# {method} {dataset} Plain/Roll Final",
         "",
         "Final comparable evidence produced by `pipelines/benchmark/run_plain_roll_final_benchmark.py`.",
         "",
-        "## Operating Points",
+        "## Fixed operating points",
         "",
         "| split | target FAR | threshold | TAR | FAR | FRR | TA/FR/FA/TR | AUC | EER |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -1628,6 +1843,29 @@ def render_method_dataset_markdown(
             f"{_fmt_pct(row['tar'])} | {_fmt_pct(row['far'])} | {_fmt_pct(row['frr'])} | "
             f"{int(row['ta'])}/{int(row['fr'])}/{int(row['fa'])}/{int(row['tr'])} | "
             f"{_fmt_float(row['auc'])} | {_fmt_float(row['eer'])} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## TAR vs FAR Distribution",
+            "",
+            "| FAR ceiling | threshold | actual FAR | TAR | TA | FR | FA | TR |",
+            "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    test_distribution = (
+        sub_distribution[sub_distribution["split"].astype(str).str.lower() == "test"].copy()
+        if not sub_distribution.empty
+        else sub_distribution
+    )
+    if test_distribution.empty:
+        lines.append("| NA | NA | NA | NA | NA | NA | NA | NA |")
+    for _, row in test_distribution.sort_values("far_ceiling").iterrows():
+        lines.append(
+            f"| {_fmt_pct(row['far_ceiling'])} | {_fmt_float(row['threshold'], 6)} | "
+            f"{_fmt_pct(row['actual_far'])} | {_fmt_pct(row['tar'])} | "
+            f"{_fmt_int(row['ta'])} | {_fmt_int(row['fr'])} | {_fmt_int(row['fa'])} | {_fmt_int(row['tr'])} |"
         )
 
     lines.extend(
@@ -1675,6 +1913,26 @@ def render_method_dataset_markdown(
             f"- {row['split']}: reported avg {_fmt_float(row['avg_ms_pair_reported'], 3)} ms/pair, "
             f"score CSV p50 {_fmt_float(row['p50_ms_pair_score_csv'], 3)} ms, "
             f"p95 {_fmt_float(row['p95_ms_pair_score_csv'], 3)} ms."
+        )
+    lines.extend(
+        [
+            "",
+            "## Pair audit summary",
+            "",
+            "| split | pass | pairs | positives | negatives | invalid positives | invalid negatives | missing files | duplicates | modality mismatches | finger mismatches |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    if not sub_audits:
+        lines.append("| NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA |")
+    for report in sorted(sub_audits, key=lambda item: item.split):
+        s = report.summary
+        lines.append(
+            f"| {report.split} | {bool(s['pass'])} | {int(s['total_pairs'])} | "
+            f"{int(s['positive_count'])} | {int(s['negative_count'])} | "
+            f"{int(s['invalid_positive_count'])} | {int(s['invalid_negative_count'])} | "
+            f"{int(s['missing_file_count'])} | {int(s['duplicate_pair_count'])} | "
+            f"{int(s['modality_mismatch_count'])} | {int(s['finger_mismatch_count'])} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -2048,6 +2306,8 @@ def output_schema() -> dict[str, list[str]]:
         "plain_roll_final_metrics.csv": METRICS_COLUMNS,
         "plain_roll_final_positive_only_metrics.csv": POSITIVE_ONLY_METRICS_COLUMNS,
         "plain_roll_final_negative_only_metrics.csv": NEGATIVE_ONLY_METRICS_COLUMNS,
+        "plain_roll_final_threshold_sweep.csv": THRESHOLD_SWEEP_COLUMNS,
+        "plain_roll_final_tar_far_distribution.csv": TAR_FAR_DISTRIBUTION_COLUMNS,
         "plain_roll_final_latency_summary.csv": LATENCY_COLUMNS,
         "plain_roll_final_failures.csv": FAILURE_COLUMNS,
     }
@@ -2135,6 +2395,8 @@ def write_manifest(
             "higher_score_more_similar": True,
             "threshold_calibration": "VAL negative scores only",
             "threshold_application": "unchanged threshold applied to VAL and TEST",
+            "threshold_sweep": "candidate thresholds are the finite score values plus a no-accept threshold above the maximum finite score",
+            "tar_far_distribution": "highest TAR with actual FAR <= ceiling; tied TAR rows choose the highest threshold as the more conservative operating point",
         },
         "selected_pair_sets": dataset_statuses,
         "score_runs": [
@@ -2313,6 +2575,8 @@ def run_benchmark(
     metrics = build_metrics_table(score_runs, thresholds, latency)
     positive_only_metrics = build_positive_only_metrics_table(metrics)
     negative_only_metrics = build_negative_only_metrics_table(metrics)
+    threshold_sweep = build_threshold_sweep_table(score_runs, latency)
+    tar_far_distribution = build_tar_far_distribution_table(threshold_sweep)
     failures = pd.DataFrame(failure_rows, columns=FAILURE_COLUMNS)
 
     paths.update(
@@ -2321,6 +2585,8 @@ def run_benchmark(
             "metrics": output / "plain_roll_final_metrics.csv",
             "positive_only_metrics": output / "plain_roll_final_positive_only_metrics.csv",
             "negative_only_metrics": output / "plain_roll_final_negative_only_metrics.csv",
+            "threshold_sweep": output / "plain_roll_final_threshold_sweep.csv",
+            "tar_far_distribution": output / "plain_roll_final_tar_far_distribution.csv",
             "latency_summary": output / "plain_roll_final_latency_summary.csv",
             "failures": output / "plain_roll_final_failures.csv",
             "summary": output / "plain_roll_final_summary.md",
@@ -2331,6 +2597,8 @@ def run_benchmark(
     _write_csv(paths["metrics"], metrics, METRICS_COLUMNS)
     _write_csv(paths["positive_only_metrics"], positive_only_metrics, POSITIVE_ONLY_METRICS_COLUMNS)
     _write_csv(paths["negative_only_metrics"], negative_only_metrics, NEGATIVE_ONLY_METRICS_COLUMNS)
+    _write_csv(paths["threshold_sweep"], threshold_sweep, THRESHOLD_SWEEP_COLUMNS)
+    _write_csv(paths["tar_far_distribution"], tar_far_distribution, TAR_FAR_DISTRIBUTION_COLUMNS)
     _write_csv(paths["latency_summary"], latency, LATENCY_COLUMNS)
     _write_csv(paths["failures"], failures, FAILURE_COLUMNS)
 
@@ -2345,7 +2613,9 @@ def run_benchmark(
                     dataset=dataset,
                     metrics=metrics,
                     thresholds=thresholds,
+                    tar_far_distribution=tar_far_distribution,
                     latency=latency,
+                    pair_audit_reports=pair_audit_reports,
                 ),
                 encoding="utf-8",
             )
@@ -2356,6 +2626,7 @@ def run_benchmark(
         render_combined_markdown(
             metrics=metrics,
             thresholds=thresholds,
+            tar_far_distribution=tar_far_distribution,
             latency=latency,
             failures=failures,
             dataset_statuses=dataset_statuses,

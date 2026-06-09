@@ -365,12 +365,43 @@ def test_final_runner_uses_selected_pairs_and_val_threshold_for_test(
 
     positive_only = pd.read_csv(paths["positive_only_metrics"])
     negative_only = pd.read_csv(paths["negative_only_metrics"])
+    threshold_sweep = pd.read_csv(paths["threshold_sweep"])
+    tar_far_distribution = pd.read_csv(paths["tar_far_distribution"])
+    assert paths["threshold_sweep"].name == "plain_roll_final_threshold_sweep.csv"
+    assert paths["tar_far_distribution"].name == "plain_roll_final_tar_far_distribution.csv"
+    assert paths["threshold_sweep"].exists()
+    assert paths["tar_far_distribution"].exists()
     for _, row in positive_only.iterrows():
         assert int(row["true_accepts"]) + int(row["false_rejects"]) == int(row["n_positive"])
         assert row["tar"] == pytest.approx(row["true_accepts"] / row["n_positive"])
     for _, row in negative_only.iterrows():
         assert int(row["false_accepts"]) + int(row["true_rejects"]) == int(row["n_negative"])
         assert row["far"] == pytest.approx(row["false_accepts"] / row["n_negative"])
+    for _, row in threshold_sweep.iterrows():
+        assert int(row["true_accepts"]) + int(row["false_rejects"]) == int(row["n_positive"])
+        assert int(row["false_accepts"]) + int(row["true_rejects"]) == int(row["n_negative"])
+        assert row["tar"] == pytest.approx(row["true_accepts"] / row["n_positive"])
+        assert row["far"] == pytest.approx(row["false_accepts"] / row["n_negative"])
+        assert row["frr"] == pytest.approx(row["false_rejects"] / row["n_positive"])
+        assert row["tnr"] == pytest.approx(row["true_rejects"] / row["n_negative"])
+    selected_distribution = tar_far_distribution[tar_far_distribution["selection_status"] != "no_threshold"]
+    for _, row in selected_distribution.iterrows():
+        assert float(row["actual_far"]) <= float(row["far_ceiling"]) + 1e-12
+
+    half_far_distribution = final.build_tar_far_distribution_table(threshold_sweep, far_ceilings=(0.5,))
+    toy_test_half = half_far_distribution[
+        (half_far_distribution["method"] == "sift")
+        & (half_far_distribution["dataset"] == "toy")
+        & (half_far_distribution["split"] == "test")
+        & (half_far_distribution["far_ceiling"] == 0.5)
+    ].iloc[0]
+    assert toy_test_half["threshold"] == pytest.approx(0.7)
+    assert toy_test_half["actual_far"] == pytest.approx(0.5)
+    assert toy_test_half["tar"] == pytest.approx(1.0)
+    assert int(toy_test_half["ta"]) == 2
+    assert int(toy_test_half["fr"]) == 0
+    assert int(toy_test_half["fa"]) == 1
+    assert int(toy_test_half["tr"]) == 1
 
     pair_flags = [cmd[cmd.index("--pairs_file") + 1] for cmd in calls]
     assert pair_flags
@@ -389,9 +420,11 @@ def test_final_runner_uses_selected_pairs_and_val_threshold_for_test(
     markdown_path = tmp_path / "out" / "final_markdown" / "toy_sift_plain_roll_final.md"
     assert markdown_path.exists()
     markdown = markdown_path.read_text(encoding="utf-8")
+    assert "TAR vs FAR Distribution" in markdown
     assert "Positive-only verification evidence" in markdown
     assert "Negative-only impostor evidence" in markdown
     summary = paths["summary"].read_text(encoding="utf-8")
+    assert "Expert TAR/FAR Distribution Summary" in summary
     assert "TAR/FRR are computed only from positive pairs" in summary
     assert "FAR/TNR are computed only from negative pairs" in summary
 
@@ -400,6 +433,21 @@ def test_final_runner_uses_selected_pairs_and_val_threshold_for_test(
     assert "finger_position" in score_csv.columns
     assert score_csv["pair_id"].tolist() == [row["pair_id"] for row in val_rows]
     assert score_csv["finger_position"].astype(str).tolist() == ["3", "3", "3", "3"]
+
+    call_count_after_scoring = len(calls)
+    reuse_paths = final.run_benchmark(
+        datasets=("toy",),
+        methods=("sift",),
+        splits=("val", "test"),
+        outdir=tmp_path / "out",
+        target_fars=(0.0, 0.5),
+        limit_per_split=0,
+        repo_root=tmp_path,
+        reuse_existing_scores=True,
+    )
+    assert len(calls) == call_count_after_scoring
+    assert reuse_paths["threshold_sweep"].exists()
+    assert reuse_paths["tar_far_distribution"].exists()
 
 
 def test_latency_columns_from_classic_and_minutiae_are_surfaced(

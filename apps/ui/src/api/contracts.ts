@@ -11,6 +11,7 @@ import {
     type BenchmarkRunKind,
     type BenchmarkRunsResponse,
     type BenchmarkSummaryResponse,
+    type BenchmarkTarFarDistributionRow,
     type BenchmarkViewMode,
     type BestMethodEntry,
     type BestMethodsResponse,
@@ -299,6 +300,28 @@ function normalizeBenchmarkOperatingPoint(payload: unknown, label = "BenchmarkOp
         calibration_far: maybeNumber(record, "calibration_far"),
         calibration_false_accepts: maybeNumber(record, "calibration_false_accepts"),
         calibration_negatives: maybeNumber(record, "calibration_negatives"),
+        calibration_positives: maybeNumber(record, "calibration_positives"),
+    };
+}
+
+function normalizeBenchmarkTarFarDistributionRow(
+    payload: unknown,
+    label = "BenchmarkTarFarDistributionRow",
+): BenchmarkTarFarDistributionRow {
+    const record = expectObject(payload, label);
+    return {
+        far_ceiling: expectNumber(record, "far_ceiling", label),
+        threshold: maybeNumber(record, "threshold"),
+        actual_far: maybeNumber(record, "actual_far"),
+        tar: maybeNumber(record, "tar"),
+        frr: maybeNumber(record, "frr"),
+        tnr: maybeNumber(record, "tnr"),
+        ta: maybeNumber(record, "ta"),
+        fr: maybeNumber(record, "fr"),
+        fa: maybeNumber(record, "fa"),
+        tr: maybeNumber(record, "tr"),
+        n_positive: maybeNumber(record, "n_positive"),
+        n_negative: maybeNumber(record, "n_negative"),
     };
 }
 
@@ -730,6 +753,8 @@ function normalizeComparisonRow(payload: unknown): ComparisonRow {
         tar_at_far_1e_3: maybeNumber(record, "tar_at_far_1e_3"),
         operating_points: expectArray(record.operating_points ?? [], "ComparisonRow.operating_points")
             .map((item, index) => normalizeBenchmarkOperatingPoint(item, `ComparisonRow.operating_points[${index}]`)),
+        tar_far_distribution: expectArray(record.tar_far_distribution ?? [], "ComparisonRow.tar_far_distribution")
+            .map((item, index) => normalizeBenchmarkTarFarDistributionRow(item, `ComparisonRow.tar_far_distribution[${index}]`)),
         latency_ms: maybeNumber(record, "latency_ms"),
         latency_source: maybeString(record, "latency_source") as "reported" | "wall" | null,
         auc_rank: maybeNumber(record, "auc_rank"),

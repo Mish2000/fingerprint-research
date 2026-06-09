@@ -45,6 +45,7 @@ from apps.api.schemas import (
     BenchmarkRunInfo,
     BenchmarkRunsResponse,
     BenchmarkSummaryResponse,
+    BenchmarkTarFarDistributionRow,
     BestMethodEntry,
     BestMethodsResponse,
     ComparisonResponse,
@@ -63,8 +64,10 @@ SHOWCASE_METRICS = ("best_auc", "best_eer", "best_latency")
 SHOWCASE_SECONDARY_EVIDENCE_KEYS = {"scores_csv", "meta_json", "roc_png", "markdown_summary", "final_markdown", "run_manifest"}
 CURATED_REFERENCE_RUNS = set(ACCEPTED_CANONICAL_FULL_RUNS) | set(ACCEPTED_CANONICAL_SMOKE_RUNS)
 PLAIN_ROLL_FINAL_BUNDLE = "plain_roll_final_sift_v1"
+SOURCEAFIS_FINAL_BUNDLE = "plain_roll_final_sourceafis_v1"
 PLAIN_ROLL_FINAL_DATASETS = ("nist_sd300b", "nist_sd300c")
 PLAIN_ROLL_FINAL_METHODS = ("sift_plain_roll_v2", "sift", "minutiae", "harris", "classic_v2")
+SOURCEAFIS_FINAL_METHODS = ("sourceafis_open",)
 PLAIN_ROLL_FINAL_DISPLAY_ORDER = {
     "sourceafis_open": 0,
     "sift_plain_roll_v2": 1,
@@ -75,6 +78,10 @@ PLAIN_ROLL_FINAL_DISPLAY_ORDER = {
 }
 PLAIN_ROLL_FINAL_RUNS = {
     f"{PLAIN_ROLL_FINAL_BUNDLE}_{dataset}_final"
+    for dataset in PLAIN_ROLL_FINAL_DATASETS
+}
+SOURCEAFIS_FINAL_RUNS = {
+    f"{SOURCEAFIS_FINAL_BUNDLE}_{dataset}_final"
     for dataset in PLAIN_ROLL_FINAL_DATASETS
 }
 BENCHMARK_SOURCE_LABELS = {
@@ -108,6 +115,8 @@ _ARTIFACT_LABELS = {
     "run_manifest": "Run Manifest",
     "run_log": "Run Log",
     "thresholds_csv": "Thresholds CSV",
+    "threshold_sweep_csv": "Threshold Sweep CSV",
+    "tar_far_distribution_csv": "TAR/FAR Distribution CSV",
     "latency_summary": "Latency Summary",
     "positive_only_metrics": "Positive-only Metrics",
     "negative_only_metrics": "Negative-only Metrics",
@@ -255,7 +264,7 @@ CURATED_FINAL_EVIDENCE: List[Dict[str, Any]] = [
     },
 ]
 
-CURATED_FINAL_RUNS = {str(item["run"]) for item in CURATED_FINAL_EVIDENCE} | PLAIN_ROLL_FINAL_RUNS
+CURATED_FINAL_RUNS = {str(item["run"]) for item in CURATED_FINAL_EVIDENCE} | PLAIN_ROLL_FINAL_RUNS | SOURCEAFIS_FINAL_RUNS
 
 
 def _reference_root_for_live_root(root: Path) -> Path:
@@ -713,6 +722,10 @@ def _plain_roll_final_run(dataset: str) -> str:
     return f"{PLAIN_ROLL_FINAL_BUNDLE}_{dataset}_final"
 
 
+def _sourceafis_final_run(dataset: str) -> str:
+    return f"{SOURCEAFIS_FINAL_BUNDLE}_{dataset}_final"
+
+
 def _plain_roll_final_markdown_filename(dataset: str, method: str) -> str:
     return f"final_markdown/{dataset}_{method}_plain_roll_final.md"
 
@@ -811,6 +824,33 @@ def _build_plain_roll_final_operating_points(
     return points
 
 
+def _build_plain_roll_final_tar_far_distribution(
+    rows: Iterable[Dict[str, Any]],
+) -> List[BenchmarkTarFarDistributionRow]:
+    distribution: List[BenchmarkTarFarDistributionRow] = []
+    for raw_row in rows:
+        far_ceiling = _maybe_float(raw_row.get("far_ceiling"))
+        if far_ceiling is None:
+            continue
+        distribution.append(
+            BenchmarkTarFarDistributionRow(
+                far_ceiling=far_ceiling,
+                threshold=_maybe_float(raw_row.get("threshold")),
+                actual_far=_maybe_float(raw_row.get("actual_far")),
+                tar=_maybe_float(raw_row.get("tar")),
+                frr=_maybe_float(raw_row.get("frr")),
+                tnr=_maybe_float(raw_row.get("tnr")),
+                ta=_maybe_int(raw_row.get("ta")),
+                fr=_maybe_int(raw_row.get("fr")),
+                fa=_maybe_int(raw_row.get("fa")),
+                tr=_maybe_int(raw_row.get("tr")),
+                n_positive=_maybe_int(raw_row.get("n_positive")),
+                n_negative=_maybe_int(raw_row.get("n_negative")),
+            )
+        )
+    return sorted(distribution, key=lambda row: row.far_ceiling)
+
+
 def _build_plain_roll_final_entries(
     source_key: str,
     source_label: str,
@@ -819,6 +859,8 @@ def _build_plain_roll_final_entries(
     bundle_dir = source_root / PLAIN_ROLL_FINAL_BUNDLE
     metrics_path = bundle_dir / "plain_roll_final_metrics.csv"
     thresholds_path = bundle_dir / "plain_roll_final_thresholds.csv"
+    threshold_sweep_path = bundle_dir / "plain_roll_final_threshold_sweep.csv"
+    tar_far_distribution_path = bundle_dir / "plain_roll_final_tar_far_distribution.csv"
     if not _is_available_artifact_file(metrics_path) or not _is_available_artifact_file(thresholds_path):
         return []
 
@@ -858,6 +900,16 @@ def _build_plain_roll_final_entries(
         if not method or not dataset or target_far is None:
             continue
         thresholds_by_key[(dataset, method, target_far)] = raw_row
+
+    distribution_by_key: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for raw_row in _safe_read_csv(tar_far_distribution_path):
+        if str(raw_row.get("split") or "").strip() != "test":
+            continue
+        method = str(raw_row.get("method") or "").strip()
+        dataset = str(raw_row.get("dataset") or "").strip()
+        if not method or not dataset:
+            continue
+        distribution_by_key.setdefault((dataset, method), []).append(raw_row)
 
     benchmark_methods_in_run = list(PLAIN_ROLL_FINAL_METHODS)
     methods_in_run = [
@@ -909,6 +961,9 @@ def _build_plain_roll_final_entries(
             showcase_exclusion_note = presentation_meta.get("showcase_exclusion_note") or _showcase_exclusion_note(method, benchmark_method)
             role_note = PLAIN_ROLL_FINAL_METHOD_ROLES.get(benchmark_method, "Final classical baseline evidence.")
             operating_points = _build_plain_roll_final_operating_points(method_rows, threshold_rows)
+            tar_far_distribution = _build_plain_roll_final_tar_far_distribution(
+                distribution_by_key.get((dataset, benchmark_method), [])
+            )
             tar_at_far_1e_2 = next(
                 (point.test_tar for point in operating_points if abs(point.target_far - 0.01) < 1e-12),
                 None,
@@ -943,6 +998,8 @@ def _build_plain_roll_final_entries(
             artifacts = [
                 _source_artifact_link(run, source_root, "summary_csv", metrics_path),
                 _source_artifact_link(run, source_root, "thresholds_csv", thresholds_path),
+                _source_artifact_link(run, source_root, "threshold_sweep_csv", threshold_sweep_path),
+                _source_artifact_link(run, source_root, "tar_far_distribution_csv", tar_far_distribution_path),
                 _source_artifact_link(run, source_root, "scores_csv", scores_csv),
                 _source_artifact_link(run, source_root, "meta_json", meta_json or method_meta_json),
                 _source_artifact_link(run, source_root, "roc_png", bundle_dir / f"roc_{dataset}_{benchmark_method}_test.png"),
@@ -1024,6 +1081,7 @@ def _build_plain_roll_final_entries(
                     tar_at_far_1e_2=tar_at_far_1e_2,
                     tar_at_far_1e_3=None,
                     operating_points=operating_points,
+                    tar_far_distribution=tar_far_distribution,
                     latency_ms=latency_ms,
                     latency_source="reported" if latency_ms is not None else None,
                     run_family=PLAIN_ROLL_FINAL_BUNDLE,
@@ -1078,6 +1136,279 @@ def _build_plain_roll_final_entries(
     return entries
 
 
+def _sourceafis_dataset_dpi(dataset: str) -> Optional[int]:
+    if dataset == "nist_sd300b":
+        return 1000
+    if dataset == "nist_sd300c":
+        return 2000
+    return None
+
+
+def _build_sourceafis_final_entries(
+    source_key: str,
+    source_label: str,
+    source_root: Path,
+) -> List[Tuple[BenchmarkRunInfo, List[ComparisonRow]]]:
+    bundle_dir = source_root / SOURCEAFIS_FINAL_BUNDLE
+    metrics_path = bundle_dir / "plain_roll_final_metrics.csv"
+    thresholds_path = bundle_dir / "plain_roll_final_thresholds.csv"
+    threshold_sweep_path = bundle_dir / "plain_roll_final_threshold_sweep.csv"
+    tar_far_distribution_path = bundle_dir / "plain_roll_final_tar_far_distribution.csv"
+    if not _is_available_artifact_file(metrics_path) or not _is_available_artifact_file(thresholds_path):
+        return []
+
+    metrics_rows = _safe_read_csv(metrics_path)
+    threshold_rows_raw = _safe_read_csv(thresholds_path)
+    if not metrics_rows or not threshold_rows_raw:
+        return []
+
+    manifest_path = bundle_dir / "plain_roll_final_manifest.json"
+    manifest = _safe_read_json(manifest_path)
+    failures_path = bundle_dir / "plain_roll_final_failures.csv"
+    failures_empty = _plain_roll_final_failures_empty(failures_path)
+    failure_count = _maybe_int(manifest.get("failure_count")) if manifest else None
+    manifest_clean = failure_count == 0
+    created_at = str(manifest.get("created_at") or "").strip() or None
+    git_payload = manifest.get("git") if isinstance(manifest.get("git"), dict) else {}
+    git_commit = str(git_payload.get("commit") or "").strip() or None
+    is_dirty = bool(git_payload.get("is_dirty")) if git_payload else False
+    source_display_label = FINAL_EVIDENCE_SOURCE_LABEL if source_key == "live" else f"{FINAL_EVIDENCE_SOURCE_LABEL} ({source_label})"
+
+    metrics_by_key: Dict[Tuple[str, str, float], Dict[str, Any]] = {}
+    for raw_row in metrics_rows:
+        if str(raw_row.get("split") or "").strip() != "test":
+            continue
+        method = str(raw_row.get("method") or "").strip()
+        dataset = str(raw_row.get("dataset") or "").strip()
+        target_far = _maybe_float(raw_row.get("target_far"))
+        if not method or not dataset or target_far is None:
+            continue
+        metrics_by_key[(dataset, method, target_far)] = raw_row
+
+    thresholds_by_key: Dict[Tuple[str, str, float], Dict[str, Any]] = {}
+    for raw_row in threshold_rows_raw:
+        method = str(raw_row.get("method") or "").strip()
+        dataset = str(raw_row.get("dataset") or "").strip()
+        target_far = _maybe_float(raw_row.get("target_far"))
+        if not method or not dataset or target_far is None:
+            continue
+        thresholds_by_key[(dataset, method, target_far)] = raw_row
+
+    distribution_by_key: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for raw_row in _safe_read_csv(tar_far_distribution_path):
+        if str(raw_row.get("split") or "").strip() != "test":
+            continue
+        method = str(raw_row.get("method") or "").strip()
+        dataset = str(raw_row.get("dataset") or "").strip()
+        if not method or not dataset:
+            continue
+        distribution_by_key.setdefault((dataset, method), []).append(raw_row)
+
+    benchmark_method = "sourceafis_open"
+    method = benchmark_method_to_canonical(benchmark_method) or benchmark_method
+    method_label = SOURCEAFIS_METHOD_LABEL
+    presentation_meta = _method_metadata_for_final_evidence(benchmark_method, {})
+    benchmark_methods_in_run = list(SOURCEAFIS_FINAL_METHODS)
+    methods_in_run = [method]
+    entries: List[Tuple[BenchmarkRunInfo, List[ComparisonRow]]] = []
+
+    for dataset in PLAIN_ROLL_FINAL_DATASETS:
+        run = _sourceafis_final_run(dataset)
+        audit_ok = _plain_roll_final_pair_audit_ok(manifest, dataset, "test")
+        validated = manifest_clean and failures_empty and audit_ok and not is_dirty
+        status = "validated" if validated else "partial"
+        validation_state = "validated" if validated else "partial"
+        final_markdown = bundle_dir / _plain_roll_final_markdown_filename(dataset, benchmark_method)
+        if not _is_available_artifact_file(final_markdown):
+            continue
+
+        method_rows = {
+            target_far: metrics_by_key[(dataset, benchmark_method, target_far)]
+            for target_far in (0.01, 0.005)
+            if (dataset, benchmark_method, target_far) in metrics_by_key
+        }
+        if not method_rows:
+            continue
+        threshold_rows = {
+            target_far: thresholds_by_key[(dataset, benchmark_method, target_far)]
+            for target_far in (0.01, 0.005)
+            if (dataset, benchmark_method, target_far) in thresholds_by_key
+        }
+        primary_row = method_rows.get(0.01) or next(iter(method_rows.values()))
+        operating_points = _build_plain_roll_final_operating_points(method_rows, threshold_rows)
+        tar_far_distribution = _build_plain_roll_final_tar_far_distribution(
+            distribution_by_key.get((dataset, benchmark_method), [])
+        )
+        tar_at_far_1e_2 = next(
+            (point.test_tar for point in operating_points if abs(point.target_far - 0.01) < 1e-12),
+            None,
+        )
+        n_positive = _maybe_int(primary_row.get("n_positive"))
+        n_negative = _maybe_int(primary_row.get("n_negative"))
+        n_pairs = _maybe_int(primary_row.get("n_scored"))
+        if n_pairs is None and n_positive is not None and n_negative is not None:
+            n_pairs = n_positive + n_negative
+        latency_ms = _maybe_float(primary_row.get("avg_ms_pair_reported"))
+        scores_csv = _final_bundle_path_from_row(
+            source_root,
+            primary_row.get("scores_csv"),
+            bundle_dir / "scores" / f"scores_{dataset}_{benchmark_method}_test.csv",
+        )
+        meta_json = _final_bundle_path_from_row(
+            source_root,
+            primary_row.get("run_meta_json"),
+            bundle_dir / "run_meta" / f"run_{dataset}_{benchmark_method}_test.meta.json",
+        )
+        method_meta_json = _final_bundle_path_from_row(
+            source_root,
+            primary_row.get("method_meta_json"),
+            bundle_dir / "scores" / f"scores_{dataset}_{benchmark_method}_test.meta.json",
+        )
+        selected_pairs = _final_bundle_path_from_row(
+            source_root,
+            primary_row.get("selected_pairs_csv"),
+            bundle_dir / "selected_pairs" / f"pairs_{dataset}_test.csv",
+        )
+
+        artifacts = [
+            _source_artifact_link(run, source_root, "summary_csv", metrics_path),
+            _source_artifact_link(run, source_root, "thresholds_csv", thresholds_path),
+            _source_artifact_link(run, source_root, "threshold_sweep_csv", threshold_sweep_path),
+            _source_artifact_link(run, source_root, "tar_far_distribution_csv", tar_far_distribution_path),
+            _source_artifact_link(run, source_root, "scores_csv", scores_csv),
+            _source_artifact_link(run, source_root, "meta_json", meta_json or method_meta_json),
+            _source_artifact_link(run, source_root, "roc_png", bundle_dir / "roc" / f"roc_{dataset}_{benchmark_method}_test.png"),
+            _source_artifact_link(run, source_root, "markdown_summary", bundle_dir / "plain_roll_final_summary.md"),
+            _source_artifact_link(run, source_root, "final_markdown", final_markdown),
+            _source_artifact_link(run, source_root, "run_manifest", manifest_path),
+            _source_artifact_link(run, source_root, "latency_summary", bundle_dir / "plain_roll_final_latency_summary.csv"),
+            _source_artifact_link(run, source_root, "positive_only_metrics", bundle_dir / "plain_roll_final_positive_only_metrics.csv"),
+            _source_artifact_link(run, source_root, "negative_only_metrics", bundle_dir / "plain_roll_final_negative_only_metrics.csv"),
+            _source_artifact_link(run, source_root, "failures_csv", failures_path),
+        ]
+        available_artifacts = _available_artifact_keys(artifacts)
+        failure_text = "0 recorded failures" if failures_empty and manifest_clean else "failure report requires review"
+        pair_text = (
+            f"{n_positive:,} positive / {n_negative:,} negative TEST pairs"
+            if n_positive is not None and n_negative is not None
+            else f"{n_pairs:,} TEST pairs" if n_pairs is not None else "TEST pair count unavailable"
+        )
+        summary_text = (
+            f"SourceAFIS champion evidence under the same audited plain-vs-roll selected pairs. {pair_text}. "
+            f"VAL calibration used 700 positive / 700 negative pairs. {failure_text}. "
+            "Expert TAR/FAR distribution plus positive-only and negative-only metrics are available as final artifacts."
+        )
+        showcase_exclusion_note = None
+
+        provenance = BenchmarkProvenance(
+            run=run,
+            run_label=f"Final SourceAFIS plain-vs-roll evidence ({dataset})",
+            run_kind="full",
+            view_mode="canonical",
+            status=status,
+            validation_state=validation_state,
+            source_type="plain_roll_final_sourceafis",
+            artifact_source=_plain_roll_final_markdown_filename(dataset, benchmark_method),
+            methods_in_run=methods_in_run,
+            benchmark_methods_in_run=benchmark_methods_in_run,
+            showcase_methods_in_run=methods_in_run,
+            showcase_benchmark_methods_in_run=benchmark_methods_in_run,
+            research_methods_in_run=[],
+            research_benchmark_methods_in_run=[],
+            canonical_method=method,
+            benchmark_method=benchmark_method,
+            method_label=method_label,
+            method_status=presentation_meta["method_status"],
+            presentation_tier=presentation_meta["presentation_tier"],
+            showcase_eligible=bool(presentation_meta["showcase_eligible"]),
+            benchmark_default=bool(presentation_meta["benchmark_default"]),
+            canonical_default=bool(presentation_meta["canonical_default"]),
+            research_track=bool(presentation_meta["research_track"]),
+            not_champion_candidate=bool(presentation_meta["not_champion_candidate"]),
+            timestamp_utc=created_at,
+            pairs_path=str(selected_pairs) if selected_pairs is not None else None,
+            manifest_path=str(manifest_path),
+            data_dir=str(bundle_dir),
+            git_commit=git_commit,
+            available_artifacts=available_artifacts,
+            benchmark_source_root=source_key,
+            benchmark_source_label=source_display_label,
+            showcase_exclusion_note=showcase_exclusion_note,
+        )
+
+        row = ComparisonRow(
+            dataset=dataset,
+            run=run,
+            split="test",
+            method=method,
+            benchmark_method=benchmark_method,
+            method_label=method_label,
+            method_status=presentation_meta["method_status"],
+            presentation_tier=presentation_meta["presentation_tier"],
+            showcase_eligible=bool(presentation_meta["showcase_eligible"]),
+            benchmark_default=bool(presentation_meta["benchmark_default"]),
+            canonical_default=bool(presentation_meta["canonical_default"]),
+            research_track=bool(presentation_meta["research_track"]),
+            not_champion_candidate=bool(presentation_meta["not_champion_candidate"]),
+            showcase_exclusion_note=showcase_exclusion_note,
+            auc=float(_maybe_float(primary_row.get("auc")) or 0.0),
+            eer=float(_maybe_float(primary_row.get("eer")) or 0.0),
+            n_pairs=n_pairs,
+            dpi=_sourceafis_dataset_dpi(dataset),
+            tar_at_far_1e_2=tar_at_far_1e_2,
+            tar_at_far_1e_3=None,
+            operating_points=operating_points,
+            tar_far_distribution=tar_far_distribution,
+            latency_ms=latency_ms,
+            latency_source="reported" if latency_ms is not None else None,
+            run_family=SOURCEAFIS_FINAL_BUNDLE,
+            run_label=f"Final SourceAFIS plain-vs-roll evidence ({dataset})",
+            run_kind="full",
+            view_mode="canonical",
+            status=status,
+            validation_state=validation_state,
+            artifact_count=len(available_artifacts),
+            available_artifacts=available_artifacts,
+            summary_text=summary_text,
+            artifacts=artifacts,
+            provenance=provenance,
+        )
+
+        entries.append(
+            (
+                BenchmarkRunInfo(
+                    run=run,
+                    dataset=dataset,
+                    run_kind="full",
+                    view_mode="canonical",
+                    status=status,
+                    validation_state=validation_state,
+                    validated=validated,
+                    recommended=validated,
+                    run_label=f"Final SourceAFIS plain-vs-roll evidence ({dataset})",
+                    artifact_count=row.artifact_count,
+                    summary_note=(
+                        "Final pair-audited SourceAFIS benchmark bundle selected for the main showcase; "
+                        f"{'failures CSV is empty' if failures_empty else 'failures CSV requires review'}."
+                    ),
+                    methods=methods_in_run,
+                    benchmark_methods=benchmark_methods_in_run,
+                    showcase_methods=methods_in_run,
+                    showcase_benchmark_methods=benchmark_methods_in_run,
+                    research_methods=[],
+                    research_benchmark_methods=[],
+                    splits=["test"],
+                    dataset_info=_dataset_info(dataset),
+                    benchmark_source_root=source_key,
+                    benchmark_source_label=source_display_label,
+                ),
+                [row],
+            )
+        )
+
+    return entries
+
+
 def _dataset_name(raw: object) -> Optional[str]:
     if isinstance(raw, dict):
         name = str(raw.get("name", "")).strip().lower()
@@ -1105,6 +1436,9 @@ def _build_final_evidence_entries(source_key: str, source_label: str, source_roo
     entries: List[Tuple[BenchmarkRunInfo, List[ComparisonRow]]] = []
     if not source_root.exists():
         return entries
+    sourceafis_bundle_available = _is_available_artifact_file(
+        source_root / SOURCEAFIS_FINAL_BUNDLE / "plain_roll_final_metrics.csv"
+    )
 
     for spec in CURATED_FINAL_EVIDENCE:
         filename = str(spec["filename"])
@@ -1113,6 +1447,8 @@ def _build_final_evidence_entries(source_key: str, source_label: str, source_roo
             continue
 
         benchmark_method = str(spec["method"])
+        if benchmark_method == "sourceafis_open" and sourceafis_bundle_available:
+            continue
         method = benchmark_method_to_canonical(benchmark_method)
         method_label = _method_label_for_final_evidence(benchmark_method, spec)
         presentation_meta = _method_metadata_for_final_evidence(benchmark_method, spec)
@@ -1534,13 +1870,19 @@ def _scan_runs(
             )
             catalog.append((run_info, comparison_rows))
 
-        for run_info, comparison_rows in _build_final_evidence_entries(source_key, source_label, source_root):
+        for run_info, comparison_rows in _build_sourceafis_final_entries(source_key, source_label, source_root):
             if run_info.run in seen_runs:
                 continue
             seen_runs.add(run_info.run)
             catalog.append((run_info, comparison_rows))
 
         for run_info, comparison_rows in _build_plain_roll_final_entries(source_key, source_label, source_root):
+            if run_info.run in seen_runs:
+                continue
+            seen_runs.add(run_info.run)
+            catalog.append((run_info, comparison_rows))
+
+        for run_info, comparison_rows in _build_final_evidence_entries(source_key, source_label, source_root):
             if run_info.run in seen_runs:
                 continue
             seen_runs.add(run_info.run)

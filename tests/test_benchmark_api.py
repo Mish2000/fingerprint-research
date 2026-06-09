@@ -367,6 +367,10 @@ def create_final_markdown_benchmark_root(tmp_path: Path) -> Path:
         "method,dataset,split,n_pairs,avg_ms_pair_reported,avg_ms_pair_wall,scores_csv,run_meta_json,method_meta_json\n",
         encoding="utf-8",
     )
+    (bundle / "plain_roll_final_threshold_sweep.csv").write_text(
+        "method,dataset,split,threshold,n_positive,n_negative,true_accepts,false_rejects,false_accepts,true_rejects,tar,far,frr,tnr,score_count,avg_ms_pair_reported,scores_csv\n",
+        encoding="utf-8",
+    )
     (bundle / "plain_roll_final_manifest.json").write_text(
         json.dumps(
             {
@@ -408,8 +412,14 @@ def create_final_markdown_benchmark_root(tmp_path: Path) -> Path:
         "calibration_negative_count", "calibration_positive_count", "calibration_false_accepts",
         "calibration_far", "scores_csv",
     ]
+    distribution_fields = [
+        "method", "dataset", "split", "far_ceiling", "threshold", "actual_far",
+        "tar", "frr", "tnr", "ta", "fr", "fa", "tr", "n_positive", "n_negative",
+        "selection_status", "selection_rule", "scores_csv",
+    ]
     metric_rows = []
     threshold_rows = []
+    distribution_rows = []
     for (dataset, method), values in reference_1pct.items():
         auc, eer, latency, tar, far, frr, ta, fr, fa, tr, threshold, val_far, val_fa = values
         final_name = final_markdown_dir / f"{dataset}_{method}_plain_roll_final.md"
@@ -457,6 +467,31 @@ def create_final_markdown_benchmark_root(tmp_path: Path) -> Path:
                     "selected_pairs_csv": str(selected_pairs_csv),
                 }
             )
+            reported_fa = min(fa, int(target_far * 700))
+            actual_far = reported_fa / 700
+            reported_ta = int(ta * scale)
+            distribution_rows.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "split": "test",
+                    "far_ceiling": target_far,
+                    "threshold": target_threshold,
+                    "actual_far": actual_far,
+                    "tar": tar * scale,
+                    "frr": min(1.0, frr + (1.0 - scale) * 0.1),
+                    "tnr": 1.0 - actual_far,
+                    "ta": reported_ta,
+                    "fr": 700 - reported_ta,
+                    "fa": reported_fa,
+                    "tr": 700 - reported_fa,
+                    "n_positive": 700,
+                    "n_negative": 700,
+                    "selection_status": "selected",
+                    "selection_rule": "highest TAR with actual FAR <= ceiling",
+                    "scores_csv": str(scores_csv),
+                }
+            )
             threshold_rows.append(
                 {
                     "method": method,
@@ -480,6 +515,184 @@ def create_final_markdown_benchmark_root(tmp_path: Path) -> Path:
         writer = csv.DictWriter(handle, fieldnames=threshold_fields)
         writer.writeheader()
         writer.writerows(threshold_rows)
+    with (bundle / "plain_roll_final_tar_far_distribution.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=distribution_fields)
+        writer.writeheader()
+        writer.writerows(distribution_rows)
+
+    source_bundle = bench_root / "plain_roll_final_sourceafis_v1"
+    source_markdown_dir = source_bundle / "final_markdown"
+    source_selected_pairs_dir = source_bundle / "selected_pairs"
+    source_scores_dir = source_bundle / "scores"
+    source_run_meta_dir = source_bundle / "run_meta"
+    source_markdown_dir.mkdir(parents=True, exist_ok=True)
+    source_selected_pairs_dir.mkdir(parents=True, exist_ok=True)
+    source_scores_dir.mkdir(parents=True, exist_ok=True)
+    source_run_meta_dir.mkdir(parents=True, exist_ok=True)
+    (source_bundle / "plain_roll_final_summary.md").write_text(
+        "# Final SourceAFIS benchmark\n\nExpert TAR/FAR distribution is reported separately.\n",
+        encoding="utf-8",
+    )
+    (source_bundle / "plain_roll_final_failures.csv").write_text(
+        "method,dataset,split,status,error_type,error_message,returncode,command,scores_csv,run_meta_json\n",
+        encoding="utf-8",
+    )
+    (source_bundle / "plain_roll_final_positive_only_metrics.csv").write_text(
+        "method,dataset,split,target_far,threshold,n_positive,true_accepts,false_rejects,tar,frr,auc,eer,avg_ms_pair_reported,scores_csv\nsourceafis_open,nist_sd300b,test,0.01,14.7,700,541,159,0.7729,0.2271,0.8902,0.17,272.902,\n",
+        encoding="utf-8",
+    )
+    (source_bundle / "plain_roll_final_negative_only_metrics.csv").write_text(
+        "method,dataset,split,target_far,threshold,threshold_val_far,threshold_val_false_accepts,n_negative,false_accepts,true_rejects,far,tnr,auc,eer,avg_ms_pair_reported,scores_csv\nsourceafis_open,nist_sd300b,test,0.01,14.7,0.01,7,700,6,694,0.0086,0.9914,0.8902,0.17,272.902,\n",
+        encoding="utf-8",
+    )
+    (source_bundle / "plain_roll_final_latency_summary.csv").write_text(
+        "method,dataset,split,n_pairs,avg_ms_pair_reported,avg_ms_pair_wall,scores_csv,run_meta_json,method_meta_json\n",
+        encoding="utf-8",
+    )
+    (source_bundle / "plain_roll_final_threshold_sweep.csv").write_text(
+        "method,dataset,split,threshold,n_positive,n_negative,true_accepts,false_rejects,false_accepts,true_rejects,tar,far,frr,tnr,score_count,avg_ms_pair_reported,scores_csv\n",
+        encoding="utf-8",
+    )
+    (source_bundle / "plain_roll_final_manifest.json").write_text(
+        json.dumps(
+            {
+                "created_at": "2026-06-04T07:39:15Z",
+                "git": {
+                    "commit": "sourceafis-final",
+                    "is_dirty": False,
+                },
+                "failure_count": 0,
+                "pair_audits": [
+                    {"dataset": "nist_sd300b", "split": "test", "pass": True},
+                    {"dataset": "nist_sd300c", "split": "test", "pass": True},
+                ],
+                "sourceafis_final_bundle": {
+                    "selected_pair_validation": [
+                        {
+                            "dataset": "nist_sd300b",
+                            "split": "test",
+                            "selected_pairs_row_count": 1400,
+                            "sourceafis_score_row_count": 1400,
+                            "status": "match",
+                        },
+                        {
+                            "dataset": "nist_sd300c",
+                            "split": "test",
+                            "selected_pairs_row_count": 1400,
+                            "sourceafis_score_row_count": 1400,
+                            "status": "match",
+                        },
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    source_reference_1pct = {
+        ("nist_sd300b", "sourceafis_open"): (0.8902, 0.1700, 272.902, 0.7729, 0.0086, 0.2271, 541, 159, 6, 694, 14.72326764987426, 0.0100, 7),
+        ("nist_sd300c", "sourceafis_open"): (0.8815, 0.1743, 249.966, 0.7800, 0.0129, 0.2200, 546, 154, 9, 691, 14.483463789540309, 0.0100, 7),
+    }
+    source_metric_rows = []
+    source_threshold_rows = []
+    source_distribution_rows = []
+    for (dataset, method), values in source_reference_1pct.items():
+        auc, eer, latency, tar, far, frr, ta, fr, fa, tr, threshold, val_far, val_fa = values
+        (source_markdown_dir / f"{dataset}_{method}_plain_roll_final.md").write_text(
+            f"# {dataset} {method}\n\n## TAR vs FAR Distribution\n",
+            encoding="utf-8",
+        )
+        scores_csv = source_scores_dir / f"scores_{dataset}_{method}_test.csv"
+        run_meta_json = source_run_meta_dir / f"run_{dataset}_{method}_test.meta.json"
+        method_meta_json = source_scores_dir / f"scores_{dataset}_{method}_test.meta.json"
+        selected_pairs_csv = source_selected_pairs_dir / f"pairs_{dataset}_test.csv"
+        scores_csv.write_text("label,score\n1,1.0\n0,0.0\n", encoding="utf-8")
+        run_meta_json.write_text("{}", encoding="utf-8")
+        method_meta_json.write_text("{}", encoding="utf-8")
+        selected_pairs_csv.write_text("label\n1\n0\n", encoding="utf-8")
+        for target_far, target_threshold, target_val_far, target_val_fa, scale in (
+            (0.01, threshold, val_far, val_fa, 1.0),
+            (0.005, threshold * 1.18, min(val_far, 0.004285714285714286), min(val_fa, 3), 0.98),
+        ):
+            reported_ta = int(ta * scale)
+            reported_fa = min(fa, int(target_far * 700))
+            actual_far = reported_fa / 700
+            source_metric_rows.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "split": "test",
+                    "target_far": target_far,
+                    "threshold": target_threshold,
+                    "threshold_val_far": target_val_far,
+                    "threshold_val_false_accepts": target_val_fa,
+                    "tar": tar * scale,
+                    "far": min(far, target_far),
+                    "frr": min(1.0, frr + (1.0 - scale) * 0.05),
+                    "ta": reported_ta,
+                    "fr": 700 - reported_ta,
+                    "fa": reported_fa,
+                    "tr": 700 - reported_fa,
+                    "n_positive": 700,
+                    "n_negative": 700,
+                    "n_scored": 1400,
+                    "n_unscored": 0,
+                    "auc": auc,
+                    "eer": eer,
+                    "avg_ms_pair_reported": latency,
+                    "scores_csv": str(scores_csv),
+                    "run_meta_json": str(run_meta_json),
+                    "method_meta_json": str(method_meta_json),
+                    "selected_pairs_csv": str(selected_pairs_csv),
+                }
+            )
+            source_distribution_rows.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "split": "test",
+                    "far_ceiling": target_far,
+                    "threshold": target_threshold,
+                    "actual_far": actual_far,
+                    "tar": tar * scale,
+                    "frr": min(1.0, frr + (1.0 - scale) * 0.05),
+                    "tnr": 1.0 - actual_far,
+                    "ta": reported_ta,
+                    "fr": 700 - reported_ta,
+                    "fa": reported_fa,
+                    "tr": 700 - reported_fa,
+                    "n_positive": 700,
+                    "n_negative": 700,
+                    "selection_status": "selected",
+                    "selection_rule": "highest TAR with actual FAR <= ceiling",
+                    "scores_csv": str(scores_csv),
+                }
+            )
+            source_threshold_rows.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "target_far": target_far,
+                    "threshold": target_threshold,
+                    "calibration_split": "val",
+                    "calibration_negative_count": 700,
+                    "calibration_positive_count": 700,
+                    "calibration_false_accepts": target_val_fa,
+                    "calibration_far": target_val_far,
+                    "scores_csv": str(scores_csv),
+                }
+            )
+    with (source_bundle / "plain_roll_final_metrics.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=metric_fields)
+        writer.writeheader()
+        writer.writerows(source_metric_rows)
+    with (source_bundle / "plain_roll_final_thresholds.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=threshold_fields)
+        writer.writeheader()
+        writer.writerows(source_threshold_rows)
+    with (source_bundle / "plain_roll_final_tar_far_distribution.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=distribution_fields)
+        writer.writeheader()
+        writer.writerows(source_distribution_rows)
     return bench_root
 
 
@@ -504,11 +717,31 @@ def test_final_benchmark_evidence_surfaces_sourceafis_and_classical_baselines(tm
     assert sourceafis.eer_rank == 1
     assert [point.label for point in sourceafis.operating_points] == ["1.00% FAR", "0.50% FAR"]
     assert sourceafis.operating_points[1].target_far == 0.005
-    assert sourceafis.operating_points[1].test_far == 0.0043
+    assert sourceafis.operating_points[1].test_far == 0.005
+    assert sourceafis.operating_points[0].ta == 541
+    assert sourceafis.operating_points[0].fr == 159
+    assert sourceafis.operating_points[0].fa == 6
+    assert sourceafis.operating_points[0].tr == 694
+    assert len(sourceafis.tar_far_distribution) == 2
+    sourceafis_one_pct_distribution = next(point for point in sourceafis.tar_far_distribution if point.far_ceiling == 0.01)
+    assert sourceafis_one_pct_distribution.threshold == 14.72326764987426
+    assert sourceafis_one_pct_distribution.actual_far == 0.008571428571428572
+    assert sourceafis_one_pct_distribution.tar == 0.7729
+    assert sourceafis_one_pct_distribution.ta == 541
+    assert sourceafis_one_pct_distribution.fr == 159
+    assert sourceafis_one_pct_distribution.fa == 6
+    assert sourceafis_one_pct_distribution.tr == 694
     assert sourceafis.provenance is not None
-    assert sourceafis.provenance.source_type == "final_markdown"
-    assert sourceafis.provenance.artifact_source == "sourceafis_sd300b_plain_roll_dpi1000_final.md"
+    assert sourceafis.provenance.source_type == "plain_roll_final_sourceafis"
+    assert sourceafis.provenance.artifact_source == "final_markdown/nist_sd300b_sourceafis_open_plain_roll_final.md"
     assert "final_markdown" in sourceafis.available_artifacts
+    assert "threshold_sweep_csv" in sourceafis.available_artifacts
+    assert "tar_far_distribution_csv" in sourceafis.available_artifacts
+    assert "positive_only_metrics" in sourceafis.available_artifacts
+    assert "negative_only_metrics" in sourceafis.available_artifacts
+    assert "failures_csv" in sourceafis.available_artifacts
+    assert sourceafis.status == "validated"
+    assert "Expert TAR/FAR distribution" in sourceafis.summary_text
 
     sift_v2 = rows_by_method["sift_plain_roll_v2"]
     assert sift_v2.research_track is True
@@ -520,11 +753,38 @@ def test_final_benchmark_evidence_surfaces_sourceafis_and_classical_baselines(tm
     assert sift_v2.operating_points[0].calibration_positives == 700
     assert sift_v2.operating_points[0].ta == 350
     assert sift_v2.operating_points[0].fa == 11
+    assert len(sift_v2.tar_far_distribution) == 2
+    one_pct_distribution = next(point for point in sift_v2.tar_far_distribution if point.far_ceiling == 0.01)
+    assert one_pct_distribution.threshold == 6.654212933375476
+    assert one_pct_distribution.actual_far == 0.01
+    assert one_pct_distribution.tar == 0.50
+    assert one_pct_distribution.frr == 0.50
+    assert one_pct_distribution.tnr == 0.99
+    assert one_pct_distribution.ta == 350
+    assert one_pct_distribution.fr == 350
+    assert one_pct_distribution.fa == 7
+    assert one_pct_distribution.tr == 693
+    assert one_pct_distribution.n_positive == 700
+    assert one_pct_distribution.n_negative == 700
+    assert sift_v2.operating_points[0].target_far == 0.01
+    assert sift_v2.tar_far_distribution[0].far_ceiling == 0.005
     assert sift_v2.status == "validated"
     assert "0 recorded failures" in sift_v2.summary_text
+    assert "threshold_sweep_csv" in sift_v2.available_artifacts
+    assert "tar_far_distribution_csv" in sift_v2.available_artifacts
     assert "positive_only_metrics" in sift_v2.available_artifacts
     assert "negative_only_metrics" in sift_v2.available_artifacts
     assert "failures_csv" in sift_v2.available_artifacts
+    assert any(
+        artifact.key == "threshold_sweep_csv"
+        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_sift_v1_nist_sd300b_final/plain_roll_final_sift_v1/plain_roll_final_threshold_sweep.csv"
+        for artifact in sift_v2.artifacts
+    )
+    assert any(
+        artifact.key == "tar_far_distribution_csv"
+        and artifact.url == "/api/benchmark/artifacts/plain_roll_final_sift_v1_nist_sd300b_final/plain_roll_final_sift_v1/plain_roll_final_tar_far_distribution.csv"
+        for artifact in sift_v2.artifacts
+    )
     assert any(
         artifact.key == "final_markdown"
         and artifact.url == "/api/benchmark/artifacts/plain_roll_final_sift_v1_nist_sd300b_final/plain_roll_final_sift_v1/final_markdown/nist_sd300b_sift_plain_roll_v2_plain_roll_final.md"
@@ -547,10 +807,10 @@ def test_final_benchmark_evidence_surfaces_sourceafis_and_classical_baselines(tm
 
     target = resolve_benchmark_artifact(
         sourceafis.run,
-        "sourceafis_sd300b_plain_roll_dpi1000_final.md",
+        "plain_roll_final_sourceafis_v1/final_markdown/nist_sd300b_sourceafis_open_plain_roll_final.md",
         root=bench_root,
     )
-    assert target == bench_root / "sourceafis_sd300b_plain_roll_dpi1000_final.md"
+    assert target == bench_root / "plain_roll_final_sourceafis_v1" / "final_markdown" / "nist_sd300b_sourceafis_open_plain_roll_final.md"
 
     final_markdown = resolve_benchmark_artifact(
         sift_v2.run,

@@ -146,6 +146,21 @@ export type BenchmarkOperatingPoint = {
     calibration_positives?: number | null;
 };
 
+export type BenchmarkTarFarDistributionRow = {
+    far_ceiling: number;
+    threshold?: number | null;
+    actual_far?: number | null;
+    tar?: number | null;
+    frr?: number | null;
+    tnr?: number | null;
+    ta?: number | null;
+    fr?: number | null;
+    fa?: number | null;
+    tr?: number | null;
+    n_positive?: number | null;
+    n_negative?: number | null;
+};
+
 export type BenchmarkProvenance = {
     run: string;
     run_label: string;
@@ -290,6 +305,7 @@ export type ComparisonRow = {
     tar_at_far_1e_2?: number | null;
     tar_at_far_1e_3?: number | null;
     operating_points?: BenchmarkOperatingPoint[];
+    tar_far_distribution?: BenchmarkTarFarDistributionRow[];
     latency_ms?: number | null;
     latency_source?: "reported" | "wall" | null;
     auc_rank?: number | null;

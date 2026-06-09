@@ -32,7 +32,7 @@ type Props = {
 };
 
 const ARTIFACT_GROUPS = [
-    { title: "Data", keys: ["summary_csv", "thresholds_csv", "scores_csv", "latency_summary"] },
+    { title: "Data", keys: ["summary_csv", "thresholds_csv", "threshold_sweep_csv", "tar_far_distribution_csv", "scores_csv", "latency_summary"] },
     { title: "Metrics", keys: ["positive_only_metrics", "negative_only_metrics"] },
     { title: "Metadata", keys: ["meta_json", "run_manifest", "failures_csv"] },
     { title: "Report", keys: ["final_markdown", "markdown_summary", "run_log"] },
@@ -236,6 +236,82 @@ function OperatingPointTile({ point }: { point: ReturnType<typeof operatingPoint
     );
 }
 
+function DistributionCell({ value, format = "metric" }: { value: number | null | undefined; format?: "metric" | "percent" | "count" }) {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+        return <td className="px-3 py-2 text-[var(--app-text-muted)]">N/A</td>;
+    }
+
+    const text = format === "percent"
+        ? formatPercentFromFraction(value)
+        : format === "count"
+            ? value.toLocaleString()
+            : formatMetric(value, 4);
+
+    return <td className="whitespace-nowrap px-3 py-2">{text}</td>;
+}
+
+function ExpertTarFarDistribution({ row }: { row: ComparisonRow }) {
+    const distribution = row.tar_far_distribution ?? [];
+    if (distribution.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mt-6 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-subtle)] p-5">
+            <p className="text-xs font-semibold uppercase text-[var(--app-text-muted)]">Expert TAR/FAR Distribution</p>
+            <div className="mt-3 space-y-2 text-sm text-[var(--app-text-muted)]">
+                <p>
+                    This distribution is a threshold sweep. Calibrated operating points remain the official
+                    VAL-to-TEST evidence above.
+                </p>
+                <p>
+                    TA/FR are computed only from positive pairs. FA/TR are computed only from negative pairs.
+                    FA means a negative pair was incorrectly accepted as a match. TR means a negative pair was
+                    correctly rejected.
+                </p>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)]">
+                <table className="min-w-full text-left text-sm text-[var(--app-text-soft)]">
+                    <thead className="bg-[var(--app-surface-muted)] text-xs uppercase text-[var(--app-text-muted)]">
+                        <tr>
+                            <th scope="col" className="px-3 py-2 font-semibold">FAR ceiling</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">Threshold</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">Actual FAR</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">TAR</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">FRR</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">TNR</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">TA</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">FR</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">FA</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">TR</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">n positive</th>
+                            <th scope="col" className="px-3 py-2 font-semibold">n negative</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--app-border-muted)]">
+                        {distribution.map((point) => (
+                            <tr key={`${point.far_ceiling}_${point.threshold ?? "na"}`}>
+                                <DistributionCell value={point.far_ceiling} format="percent" />
+                                <DistributionCell value={point.threshold} />
+                                <DistributionCell value={point.actual_far} format="percent" />
+                                <DistributionCell value={point.tar} format="percent" />
+                                <DistributionCell value={point.frr} format="percent" />
+                                <DistributionCell value={point.tnr} format="percent" />
+                                <DistributionCell value={point.ta} format="count" />
+                                <DistributionCell value={point.fr} format="count" />
+                                <DistributionCell value={point.fa} format="count" />
+                                <DistributionCell value={point.tr} format="count" />
+                                <DistributionCell value={point.n_positive} format="count" />
+                                <DistributionCell value={point.n_negative} format="count" />
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
 export default function BenchmarkEvidencePanel({
     row,
     datasetInfo,
@@ -299,8 +375,8 @@ export default function BenchmarkEvidencePanel({
             <div className="mt-5 inline-banner inline-banner--info">
                 <div className="inline-banner__body">
                     <p>
-                        EER is the point where FAR and FRR are approximately equal. Operating points show TEST TAR
-                        at calibrated target FARs, plus actual TEST FAR and FRR when the evidence exports them.
+                        EER is the point where FAR and FRR are approximately equal. Calibrated operating points show
+                        TEST TAR at calibrated target FARs, plus actual TEST FAR and FRR when the evidence exports them.
                     </p>
                     <p className="mt-1 text-sm">
                         Raw score thresholds and calibration false accepts are shown when final evidence preserves
@@ -308,6 +384,8 @@ export default function BenchmarkEvidencePanel({
                     </p>
                 </div>
             </div>
+
+            <ExpertTarFarDistribution row={row} />
 
             {showcaseExclusionNote ? (
                 <div className="mt-5 inline-banner inline-banner--warning">

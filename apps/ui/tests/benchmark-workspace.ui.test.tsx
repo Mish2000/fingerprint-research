@@ -139,23 +139,6 @@ function availableArtifacts(
     ];
 }
 
-function finalMarkdownArtifacts(run: string, filename: string) {
-    return [
-        {
-            key: "final_markdown",
-            label: "Final Markdown Evidence",
-            available: true,
-            url: `/api/benchmark/artifacts/${run}/${filename}`,
-        },
-        {
-            key: "roc_png",
-            label: "ROC Preview",
-            available: false,
-            url: null,
-        },
-    ];
-}
-
 function finalBundleArtifacts(run: string, dataset: string, method: string) {
     const prefix = `/api/benchmark/artifacts/${run}/plain_roll_final_sift_v1`;
     return [
@@ -170,6 +153,18 @@ function finalBundleArtifacts(run: string, dataset: string, method: string) {
             label: "Thresholds CSV",
             available: true,
             url: `${prefix}/plain_roll_final_thresholds.csv`,
+        },
+        {
+            key: "threshold_sweep_csv",
+            label: "Threshold Sweep CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_threshold_sweep.csv`,
+        },
+        {
+            key: "tar_far_distribution_csv",
+            label: "TAR/FAR Distribution CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_tar_far_distribution.csv`,
         },
         {
             key: "scores_csv",
@@ -200,6 +195,96 @@ function finalBundleArtifacts(run: string, dataset: string, method: string) {
             label: "Final Markdown Evidence",
             available: true,
             url: `${prefix}/final_markdown/${dataset}_${method}_plain_roll_final.md`,
+        },
+        {
+            key: "run_manifest",
+            label: "Run Manifest",
+            available: true,
+            url: `${prefix}/plain_roll_final_manifest.json`,
+        },
+        {
+            key: "latency_summary",
+            label: "Latency Summary",
+            available: true,
+            url: `${prefix}/plain_roll_final_latency_summary.csv`,
+        },
+        {
+            key: "positive_only_metrics",
+            label: "Positive-only Metrics",
+            available: true,
+            url: `${prefix}/plain_roll_final_positive_only_metrics.csv`,
+        },
+        {
+            key: "negative_only_metrics",
+            label: "Negative-only Metrics",
+            available: true,
+            url: `${prefix}/plain_roll_final_negative_only_metrics.csv`,
+        },
+        {
+            key: "failures_csv",
+            label: "Failures CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_failures.csv`,
+        },
+    ];
+}
+
+function sourceAfisFinalBundleArtifacts(run: string, dataset: string) {
+    const prefix = `/api/benchmark/artifacts/${run}/plain_roll_final_sourceafis_v1`;
+    return [
+        {
+            key: "summary_csv",
+            label: "Summary CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_metrics.csv`,
+        },
+        {
+            key: "thresholds_csv",
+            label: "Thresholds CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_thresholds.csv`,
+        },
+        {
+            key: "threshold_sweep_csv",
+            label: "Threshold Sweep CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_threshold_sweep.csv`,
+        },
+        {
+            key: "tar_far_distribution_csv",
+            label: "TAR/FAR Distribution CSV",
+            available: true,
+            url: `${prefix}/plain_roll_final_tar_far_distribution.csv`,
+        },
+        {
+            key: "scores_csv",
+            label: "Scores CSV",
+            available: true,
+            url: `${prefix}/scores/scores_${dataset}_sourceafis_open_test.csv`,
+        },
+        {
+            key: "meta_json",
+            label: "Meta JSON",
+            available: true,
+            url: `${prefix}/run_meta/run_${dataset}_sourceafis_open_test.meta.json`,
+        },
+        {
+            key: "roc_png",
+            label: "ROC Preview",
+            available: false,
+            url: null,
+        },
+        {
+            key: "markdown_summary",
+            label: "Markdown Summary",
+            available: true,
+            url: `${prefix}/plain_roll_final_summary.md`,
+        },
+        {
+            key: "final_markdown",
+            label: "Final Markdown Evidence",
+            available: true,
+            url: `${prefix}/final_markdown/${dataset}_sourceafis_open_plain_roll_final.md`,
         },
         {
             key: "run_manifest",
@@ -385,6 +470,7 @@ function finalClassicalRow({
         not_champion_candidate: true,
         showcase_exclusion_note: note,
         operating_points: operatingPoints,
+        tar_far_distribution: createTarFarDistribution(operatingPoints),
         latency_ms: latency,
         latency_source: "reported",
         auc_rank: null,
@@ -412,6 +498,82 @@ function finalClassicalRow({
             benchmark_source_root: "live",
             benchmark_source_label: "Final curated evidence",
             showcase_exclusion_note: note,
+        },
+    };
+}
+
+function finalSourceAfisRow({
+    dataset,
+    dpi,
+    operatingPoints,
+    auc,
+    eer,
+    latency,
+}: {
+    dataset: "nist_sd300b" | "nist_sd300c";
+    dpi: number;
+    operatingPoints: ReturnType<typeof createOperatingPoints>;
+    auc: number;
+    eer: number;
+    latency: number;
+}) {
+    const run = `plain_roll_final_sourceafis_v1_${dataset}_final`;
+    const runLabel = `Final SourceAFIS plain-vs-roll evidence (${dataset})`;
+    const base = createRow({
+        dataset,
+        split: "test",
+        method: "sourceafis_open",
+        run,
+        runLabel,
+        auc,
+        eer,
+        latency,
+        nPairs: 1400,
+        tarAtFar1e2: operatingPoints[0]?.test_tar ?? null,
+        aucRank: 1,
+        eerRank: 1,
+        latencyRank: 1,
+        artifacts: sourceAfisFinalBundleArtifacts(run, dataset),
+    });
+    const finalMarkdown = `final_markdown/${dataset}_sourceafis_open_plain_roll_final.md`;
+
+    return {
+        ...base,
+        dpi,
+        method_status: "optional_external",
+        presentation_tier: "production_candidate",
+        showcase_eligible: true,
+        research_track: false,
+        not_champion_candidate: false,
+        operating_points: operatingPoints,
+        tar_far_distribution: createTarFarDistribution(operatingPoints),
+        latency_source: "reported",
+        run_family: "plain_roll_final_sourceafis_v1",
+        summary_text: "SourceAFIS champion evidence under the same audited plain-vs-roll selected pairs. 700 positive / 700 negative TEST pairs. VAL calibration used 700 positive / 700 negative pairs. 0 recorded failures. Expert TAR/FAR distribution plus positive-only and negative-only metrics are available as final artifacts.",
+        provenance: {
+            ...base.provenance,
+            source_type: "plain_roll_final_sourceafis",
+            artifact_source: finalMarkdown,
+            methods_in_run: ["sourceafis_open"],
+            benchmark_methods_in_run: ["sourceafis_open"],
+            showcase_methods_in_run: ["sourceafis_open"],
+            showcase_benchmark_methods_in_run: ["sourceafis_open"],
+            research_methods_in_run: [],
+            research_benchmark_methods_in_run: [],
+            method_status: "optional_external",
+            presentation_tier: "production_candidate",
+            showcase_eligible: true,
+            research_track: false,
+            not_champion_candidate: false,
+            run_family: "plain_roll_final_sourceafis_v1",
+            timestamp_utc: "2026-06-04T07:39:15Z",
+            pairs_path: `artifacts/reports/benchmark/plain_roll_final_sourceafis_v1/selected_pairs/pairs_${dataset}_test.csv`,
+            manifest_path: "plain_roll_final_manifest.json",
+            data_dir: "artifacts/reports/benchmark/plain_roll_final_sourceafis_v1",
+            git_commit: "sourceafis-final",
+            available_artifacts: base.available_artifacts,
+            benchmark_source_root: "live",
+            benchmark_source_label: "Final curated evidence",
         },
     };
 }
@@ -480,6 +642,31 @@ function createOperatingPoints(
             calibration_positives: 700,
         },
     ];
+}
+
+function createTarFarDistribution(points: ReturnType<typeof createOperatingPoints>) {
+    return points.map((point) => {
+        const nNegative = point.calibration_negatives ?? 700;
+        const ceiling = point.target_far;
+        const maxFalseAccepts = Math.floor(ceiling * nNegative);
+        const falseAccepts = Math.min(point.fa ?? maxFalseAccepts, maxFalseAccepts);
+        const actualFar = Math.min(point.test_far ?? ceiling, ceiling);
+
+        return {
+            far_ceiling: ceiling,
+            threshold: point.threshold,
+            actual_far: actualFar,
+            tar: point.test_tar,
+            frr: point.test_frr,
+            tnr: 1 - actualFar,
+            ta: point.ta,
+            fr: point.fr,
+            fa: falseAccepts,
+            tr: nNegative - falseAccepts,
+            n_positive: point.calibration_positives ?? 700,
+            n_negative: nNegative,
+        };
+    }).sort((a, b) => a.far_ceiling - b.far_ceiling);
 }
 
 const sourceAfisBOperatingPoints = [
@@ -592,49 +779,14 @@ const classicCOperatingPoints = createOperatingPoints(
 );
 
 const canonicalBTestRows = [
-    {
-        ...createRow({
-            dataset: "nist_sd300b",
-            split: "test",
-            method: "sourceafis_open",
-            run: "sourceafis_sd300b_plain_roll_dpi1000_final",
-            runLabel: "SourceAFIS SD300B final evidence (DPI 1000)",
-            auc: 0.8902,
-            eer: 0.17,
-            latency: 272.902,
-            nPairs: 1400,
-            tarAtFar1e2: 0.7729,
-            aucRank: 1,
-            eerRank: 1,
-            latencyRank: 1,
-            artifacts: finalMarkdownArtifacts("sourceafis_sd300b_plain_roll_dpi1000_final", "sourceafis_sd300b_plain_roll_dpi1000_final.md"),
-        }),
+    finalSourceAfisRow({
+        dataset: "nist_sd300b",
         dpi: 1000,
-        operating_points: sourceAfisBOperatingPoints,
-        summary_text: "Final SourceAFIS SD300B plain-vs-roll evidence at explicit 1000 DPI. Final markdown evidence is preserved.",
-        provenance: {
-            ...createRow({
-                dataset: "nist_sd300b",
-                split: "test",
-                method: "sourceafis_open",
-                run: "sourceafis_sd300b_plain_roll_dpi1000_final",
-                runLabel: "SourceAFIS SD300B final evidence (DPI 1000)",
-                auc: 0.8902,
-                eer: 0.17,
-                latency: 272.902,
-                nPairs: 1400,
-                aucRank: 1,
-                eerRank: 1,
-                latencyRank: 1,
-                artifacts: finalMarkdownArtifacts("sourceafis_sd300b_plain_roll_dpi1000_final", "sourceafis_sd300b_plain_roll_dpi1000_final.md"),
-            }).provenance,
-            source_type: "final_markdown",
-            artifact_source: "sourceafis_sd300b_plain_roll_dpi1000_final.md",
-            methods_in_run: ["sourceafis_open"],
-            benchmark_methods_in_run: ["sourceafis_open"],
-            benchmark_source_label: "Final curated evidence",
-        },
-    },
+        operatingPoints: sourceAfisBOperatingPoints,
+        auc: 0.8902,
+        eer: 0.17,
+        latency: 272.902,
+    }),
     finalClassicalRow({
         dataset: "nist_sd300b",
         method: "sift_plain_roll_v2",
@@ -689,27 +841,14 @@ const canonicalBTestRows = [
 ];
 
 const canonicalCTestRows = [
-    {
-        ...createRow({
-            dataset: "nist_sd300c",
-            split: "test",
-            method: "sourceafis_open",
-            run: "sourceafis_sd300c_plain_roll_dpi2000_final",
-            runLabel: "SourceAFIS SD300C final evidence (DPI 2000)",
-            auc: 0.8815,
-            eer: 0.1743,
-            latency: 249.966,
-            nPairs: 1400,
-            tarAtFar1e2: 0.78,
-            aucRank: 1,
-            eerRank: 1,
-            latencyRank: 1,
-            artifacts: finalMarkdownArtifacts("sourceafis_sd300c_plain_roll_dpi2000_final", "sourceafis_sd300c_plain_roll_dpi2000_final.md"),
-        }),
+    finalSourceAfisRow({
+        dataset: "nist_sd300c",
         dpi: 2000,
-        operating_points: sourceAfisCOperatingPoints,
-        summary_text: "Final SourceAFIS SD300C plain-vs-roll evidence at explicit 2000 DPI. Final markdown evidence is preserved.",
-    },
+        operatingPoints: sourceAfisCOperatingPoints,
+        auc: 0.8815,
+        eer: 0.1743,
+        latency: 249.966,
+    }),
     finalClassicalRow({
         dataset: "nist_sd300c",
         method: "sift_plain_roll_v2",
@@ -1499,10 +1638,16 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("Baseline");
             expect(normalizeText(container.textContent)).toContain("121.38 ms");
             expect(normalizeText(container.textContent)).toContain("Trust & provenance");
-            expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final");
-            expect(normalizeText(container.textContent)).toContain("DPI 1000");
+            expect(normalizeText(container.textContent)).toContain("plain_roll_final_sourceafis_v1");
+            expect(normalizeText(container.textContent)).toContain("DPI");
+            expect(normalizeText(container.textContent)).toContain("1000");
             expect(normalizeText(container.textContent)).toContain("FAR ~= FRR @ EER");
             expect(normalizeText(container.textContent)).toContain("EER is the point where FAR and FRR are approximately equal");
+            expect(normalizeText(container.textContent)).toContain("Calibrated operating points show TEST TAR");
+            expect(normalizeText(container.textContent)).toContain("Expert TAR/FAR Distribution");
+            expect(normalizeText(container.textContent)).toContain("This distribution is a threshold sweep");
+            expect(normalizeText(container.textContent)).toContain("TA/FR are computed only from positive pairs");
+            expect(normalizeText(container.textContent)).toContain("FA/TR are computed only from negative pairs");
             expect(normalizeText(container.textContent)).toContain("TAR @ 1.00% FAR");
             expect(normalizeText(container.textContent)).toContain("TAR @ 0.50% FAR");
             expect(normalizeText(container.textContent)).toContain("Actual FAR 0.86%");
@@ -1512,20 +1657,37 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("3/700");
             expect(normalizeText(container.textContent)).not.toContain("Not exported");
             expect(normalizeText(container.textContent)).toContain("Final Markdown Evidence");
-            expect(normalizeText(container.textContent)).toContain("sourceafis_sd300b_plain_roll_dpi1000_final.md");
+            expect(normalizeText(container.textContent)).toContain("nist_sd300b_sourceafis_open_plain_roll_final.md");
+            expect(normalizeText(container.textContent)).toContain("Threshold Sweep CSV");
+            expect(normalizeText(container.textContent)).toContain("TAR/FAR Distribution CSV");
+            expect(normalizeText(container.textContent)).toContain("Positive-only Metrics");
+            expect(normalizeText(container.textContent)).toContain("Negative-only Metrics");
             expect(normalizeText(container.textContent)).not.toContain("TAR @ 0.10% FAR");
             expect(normalizeText(container.textContent)).not.toContain("TAR@FAR=1e-2");
             expect(normalizeText(container.textContent)).not.toContain("TAR@FAR=1e-3");
             expect(normalizeText(container.textContent)).not.toContain("TAR@1e-2");
             expect(normalizeText(container.textContent)).not.toContain("TAR@1e-3");
             expect(normalizeText(container.textContent)).toContain("Operating points");
+            expect(normalizeText(container.querySelector("tbody tr.cursor-pointer")?.textContent)).toContain("SourceAFIS Open Matcher");
         });
 
         await clickRowByText(container, "SIFT Plain/Roll v2");
         await waitFor(() => {
             const text = normalizeText(container.textContent);
             expect(text).toContain("121.38 ms");
+            expect(text).toContain("Expert TAR/FAR Distribution");
+            expect(text).toContain("This distribution is a threshold sweep");
+            expect(text).toContain("Calibrated operating points remain the official VAL-to-TEST evidence above");
+            expect(text).toContain("TA/FR are computed only from positive pairs");
+            expect(text).toContain("FA/TR are computed only from negative pairs");
+            expect(text).toContain("FA means a negative pair was incorrectly accepted as a match");
+            expect(text).toContain("TR means a negative pair was correctly rejected");
+            for (const heading of ["FAR ceiling", "Threshold", "Actual FAR", "TAR", "FRR", "TNR", "TA", "FR", "FA", "TR", "n positive", "n negative"]) {
+                expect(text).toContain(heading);
+            }
             expect(text).toContain("700 positive / 700 negative pairs");
+            expect(text).toContain("Threshold Sweep CSV");
+            expect(text).toContain("TAR/FAR Distribution CSV");
             expect(text).toContain("Positive-only Metrics");
             expect(text).toContain("Negative-only Metrics");
             expect(text).toContain("Failures CSV");
@@ -1555,8 +1717,9 @@ describe("Benchmark workspace showcase", () => {
 
         await changeSelect(datasetField, "nist_sd300c");
         await waitFor(() => {
-            expect(normalizeText(container.textContent)).toContain("SourceAFIS SD300C final evidence (DPI 2000)");
-            expect(normalizeText(container.textContent)).toContain("DPI 2000");
+            expect(normalizeText(container.textContent)).toContain("SourceAFIS champion evidence");
+            expect(normalizeText(container.textContent)).toContain("DPI");
+            expect(normalizeText(container.textContent)).toContain("2000");
             expect(normalizeText(container.textContent)).toContain("Actual FAR 1.29%");
             expect(normalizeText(container.textContent)).toContain("Final Markdown Evidence");
         });

@@ -63,7 +63,7 @@ SHOWCASE_VIEW_MODE = "canonical"
 SHOWCASE_METRICS = ("best_auc", "best_eer", "best_latency")
 SHOWCASE_SECONDARY_EVIDENCE_KEYS = {"scores_csv", "meta_json", "roc_png", "markdown_summary", "final_markdown", "run_manifest"}
 CURATED_REFERENCE_RUNS = set(ACCEPTED_CANONICAL_FULL_RUNS) | set(ACCEPTED_CANONICAL_SMOKE_RUNS)
-PLAIN_ROLL_FINAL_BUNDLE = "plain_roll_final_sift_v1"
+PLAIN_ROLL_FINAL_BUNDLE = "plain_roll_final_baselines_v1"
 SOURCEAFIS_FINAL_BUNDLE = "plain_roll_final_sourceafis_v1"
 PLAIN_ROLL_FINAL_DATASETS = ("nist_sd300b", "nist_sd300c")
 PLAIN_ROLL_FINAL_METHODS = ("sift_plain_roll_v2", "sift", "minutiae", "harris", "classic_v2")
@@ -153,116 +153,7 @@ PLAIN_ROLL_FINAL_METHOD_ROLES = {
     ),
 }
 
-CURATED_FINAL_EVIDENCE: List[Dict[str, Any]] = [
-    {
-        "run": "sourceafis_sd300b_plain_roll_dpi1000_final",
-        "filename": "sourceafis_sd300b_plain_roll_dpi1000_final.md",
-        "dataset": "nist_sd300b",
-        "split": "test",
-        "method": "sourceafis_open",
-        "method_label": SOURCEAFIS_METHOD_LABEL,
-        "run_label": "SourceAFIS SD300B final evidence (DPI 1000)",
-        "summary_prefix": "Final SourceAFIS SD300B plain-vs-roll evidence at explicit 1000 DPI",
-        "dpi": 1000,
-        "n_pairs": 1400,
-        "auc": 0.8902,
-        "eer": 0.1700,
-        "latency_ms": 272.902,
-        "timestamp_utc": "2026-05-25T20:16:41Z",
-        "manifest_path": "sourceafis_plain_roll_manifest.json",
-        "data_dir": "artifacts/reports/benchmark/sourceafis_open_plain_roll_balanced1400_dpi1000",
-        "git_commit": "6d4efecdd84da1bdb1cb385fe284039e1423a2ad",
-        "note": SOURCEAFIS_SIDE_CAR_NOTE,
-        "recommended": True,
-        "sourceafis": True,
-        "operating_points": [
-            {
-                "target_far": 0.01,
-                "label": "1.00% FAR",
-                "threshold": 14.72326764987426,
-                "test_tar": 0.7729,
-                "test_far": 0.0086,
-                "test_frr": 0.2271,
-                "ta": 541,
-                "fr": 159,
-                "fa": 6,
-                "tr": 694,
-                "calibration_far": 0.0100,
-                "calibration_false_accepts": 7,
-                "calibration_negatives": 700,
-            },
-            {
-                "target_far": 0.005,
-                "label": "0.50% FAR",
-                "threshold": 17.393218350729448,
-                "test_tar": 0.7600,
-                "test_far": 0.0043,
-                "test_frr": 0.2400,
-                "ta": 532,
-                "fr": 168,
-                "fa": 3,
-                "tr": 697,
-                "calibration_far": 0.0043,
-                "calibration_false_accepts": 3,
-                "calibration_negatives": 700,
-            },
-        ],
-    },
-    {
-        "run": "sourceafis_sd300c_plain_roll_dpi2000_final",
-        "filename": "sourceafis_sd300c_plain_roll_dpi2000_final.md",
-        "dataset": "nist_sd300c",
-        "split": "test",
-        "method": "sourceafis_open",
-        "method_label": SOURCEAFIS_METHOD_LABEL,
-        "run_label": "SourceAFIS SD300C final evidence (DPI 2000)",
-        "summary_prefix": "Final SourceAFIS SD300C plain-vs-roll evidence at explicit 2000 DPI",
-        "dpi": 2000,
-        "n_pairs": 1400,
-        "auc": 0.8815,
-        "eer": 0.1743,
-        "latency_ms": 249.966,
-        "timestamp_utc": "2026-05-25T21:17:06Z",
-        "manifest_path": "sourceafis_plain_roll_manifest.json",
-        "data_dir": "artifacts/reports/benchmark/sourceafis_open_sd300c_balanced1400_dpi2000",
-        "git_commit": "6d4efecdd84da1bdb1cb385fe284039e1423a2ad",
-        "note": SOURCEAFIS_SIDE_CAR_NOTE,
-        "recommended": True,
-        "sourceafis": True,
-        "operating_points": [
-            {
-                "target_far": 0.01,
-                "label": "1.00% FAR",
-                "threshold": 14.483463789540309,
-                "test_tar": 0.7800,
-                "test_far": 0.0129,
-                "test_frr": 0.2200,
-                "ta": 546,
-                "fr": 154,
-                "fa": 9,
-                "tr": 691,
-                "calibration_far": 0.0100,
-                "calibration_false_accepts": 7,
-                "calibration_negatives": 700,
-            },
-            {
-                "target_far": 0.005,
-                "label": "0.50% FAR",
-                "threshold": 20.06041975470194,
-                "test_tar": 0.7529,
-                "test_far": 0.0057,
-                "test_frr": 0.2471,
-                "ta": 527,
-                "fr": 173,
-                "fa": 4,
-                "tr": 696,
-                "calibration_far": 0.0043,
-                "calibration_false_accepts": 3,
-                "calibration_negatives": 700,
-            },
-        ],
-    },
-]
+CURATED_FINAL_EVIDENCE: List[Dict[str, Any]] = []
 
 CURATED_FINAL_RUNS = {str(item["run"]) for item in CURATED_FINAL_EVIDENCE} | PLAIN_ROLL_FINAL_RUNS | SOURCEAFIS_FINAL_RUNS
 

@@ -1,4 +1,4 @@
-﻿import { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import BenchmarkWorkspace from "../src/features/benchmark/BenchmarkWorkspace.tsx";
@@ -140,7 +140,7 @@ function availableArtifacts(
 }
 
 function finalBundleArtifacts(run: string, dataset: string, method: string) {
-    const prefix = `/api/benchmark/artifacts/${run}/plain_roll_final_sift_v1`;
+    const prefix = `/api/benchmark/artifacts/${run}/plain_roll_final_baselines_v1`;
     return [
         {
             key: "summary_csv",
@@ -441,7 +441,7 @@ function finalClassicalRow({
     note: string;
 }) {
     const rawBenchmarkMethod = benchmarkMethod ?? method;
-    const run = `plain_roll_final_sift_v1_${dataset}_final`;
+    const run = `plain_roll_final_baselines_v1_${dataset}_final`;
     const base = createRow({
         dataset,
         split: "test",
@@ -476,7 +476,7 @@ function finalClassicalRow({
         auc_rank: null,
         eer_rank: null,
         latency_rank: null,
-        run_family: "plain_roll_final_sift_v1",
+        run_family: "plain_roll_final_baselines_v1",
         summary_text: `${note} TEST pair audit passed with 700 positive / 700 negative pairs. VAL calibration used 700 positive / 700 negative pairs. 0 recorded failures. Positive-only and negative-only metrics are available as separate final artifacts.`,
         provenance: {
             ...base.provenance,
@@ -489,10 +489,10 @@ function finalClassicalRow({
             showcase_eligible: !isSiftV2,
             research_track: isSiftV2,
             not_champion_candidate: true,
-            run_family: "plain_roll_final_sift_v1",
+            run_family: "plain_roll_final_baselines_v1",
             timestamp_utc: "2026-06-03T07:39:15Z",
             manifest_path: "plain_roll_final_manifest.json",
-            data_dir: "artifacts/reports/benchmark/plain_roll_final_sift_v1",
+            data_dir: "artifacts/reports/benchmark/plain_roll_final_baselines_v1",
             git_commit: "6d2d9fc3f28f167e6c3a24d162bed20de56457a7",
             available_artifacts: base.available_artifacts,
             benchmark_source_root: "live",

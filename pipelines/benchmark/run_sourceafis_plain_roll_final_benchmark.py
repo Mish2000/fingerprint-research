@@ -34,7 +34,7 @@ DEFAULT_CLASSICAL_BUNDLE = (
     / "artifacts"
     / "reports"
     / "benchmark"
-    / "plain_roll_final_sift_v1"
+    / "plain_roll_final_baselines_v1"
 )
 DEFAULT_SELECTED_PAIRS_DIR = DEFAULT_CLASSICAL_BUNDLE / "selected_pairs"
 DEFAULT_PAIR_AUDIT_DIR = DEFAULT_CLASSICAL_BUNDLE / "pair_audit"

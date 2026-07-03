@@ -76,6 +76,8 @@ artifacts/**
 
 artifacts/reports/benchmark/**/template_cache/
 artifacts/reports/benchmark/**/template_cache/**
+artifacts/reports/benchmark/**/sourceafis_template_cache/
+artifacts/reports/benchmark/**/sourceafis_template_cache/**
 artifacts/reports/benchmark/**/*.template.json
 artifacts/reports/benchmark/sourceafis_open_plain_roll_smoke*/
 
@@ -130,6 +132,7 @@ Thumbs.db
 
 # ---------- Local helpers / generated context ----------
 project_tree.txt
+ai_repo_structure.txt
 make_tree.py
 
 # ---------- Local/generated reports ----------

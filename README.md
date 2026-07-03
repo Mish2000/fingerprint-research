@@ -382,7 +382,7 @@ python pipelines/benchmark/run_plain_roll_final_benchmark.py `
   --methods sift_plain_roll_v2,sift,harris,classic_v2,minutiae `
   --splits val,test `
   --outdir artifacts/reports/benchmark/plain_roll_final_baselines_v1 `
-  --limit_per_split 1400 `
+  --limit_per_split 0 `
   --sample_strategy balanced_spread `
   --sample_seed 13 `
   --strict_pair_audit
@@ -397,13 +397,11 @@ python pipelines/benchmark/run_sourceafis_plain_roll_final_benchmark.py `
   --datasets nist_sd300b,nist_sd300c `
   --splits val,test `
   --outdir artifacts/reports/benchmark/plain_roll_final_sourceafis_v1 `
-  --selected_pairs_dir artifacts/reports/benchmark/plain_roll_final_baselines_v1/selected_pairs `
-  --pair_audit_dir artifacts/reports/benchmark/plain_roll_final_baselines_v1/pair_audit `
   --sourceafis_outdir artifacts/reports/benchmark/plain_roll_final_sourceafis_v1/run_meta/sourceafis_raw `
   --target_far 0.01 0.005
 ```
 
-The SourceAFIS final runner reuses complete raw SourceAFIS outputs unless `--force_rerun_sourceafis` is provided. For NIST DPI-sensitive runs, keep the project’s DPI validation path intact: SD300B is 1000 PPI/DPI and SD300C is 2000 PPI/DPI.
+The SourceAFIS final runner reads canonical pairs from `data/manifests/nist_sd300b` and `data/manifests/nist_sd300c`, materializes run-local `selected_pairs` as output, and reuses complete raw SourceAFIS outputs only when their pair SHA256 metadata matches the current run. For NIST DPI-sensitive runs, keep the project's DPI validation path intact: SD300B is 1000 PPI/DPI and SD300C is 2000 PPI/DPI.
 
 ## Testing
 

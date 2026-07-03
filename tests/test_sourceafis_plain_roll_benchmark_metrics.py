@@ -496,7 +496,7 @@ def test_cli_parses_runtime_hardening_args() -> None:
             "--image_dpi",
             "1000",
             "--selected_pairs_dir",
-            "artifacts/reports/benchmark/plain_roll_final_baselines_v1/selected_pairs",
+            "scratch/current_exact_pairs",
         ]
     )
 
@@ -509,7 +509,7 @@ def test_cli_parses_runtime_hardening_args() -> None:
     assert args.sample_seed == 21
     assert args.dpi_strategy == "explicit"
     assert args.image_dpi == 1000
-    assert args.selected_pairs_dir == "artifacts/reports/benchmark/plain_roll_final_baselines_v1/selected_pairs"
+    assert args.selected_pairs_dir == "scratch/current_exact_pairs"
 
 
 def test_balanced_spread_sampling_is_deterministic_and_spread(tmp_path: Path) -> None:

@@ -6,6 +6,7 @@ import json
 import math
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -26,6 +27,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from pipelines.benchmark.evaluate import compute_auc_eer
+from src.fpbench.universal.pair_bundle_metadata import (
+    SD300_DATASETS,
+    SD300_RUN_PAIR_BUNDLE_VERSION,
+    build_pair_bundle_metadata,
+    file_sha256,
+)
 
 
 DEFAULT_DATASETS = ("nist_sd300b", "nist_sd300c")
@@ -36,7 +43,7 @@ DEFAULT_TAR_FAR_CEILINGS = (0.0, 0.001, 0.0025, 0.005, 0.01, 0.02, 0.05, 0.10)
 DEFAULT_OUTDIR = REPO_ROOT / "artifacts" / "reports" / "benchmark" / "plain_roll_final_v1"
 DEFAULT_SAMPLE_STRATEGY = "balanced_spread"
 DEFAULT_SAMPLE_SEED = 13
-DEFAULT_LIMIT_PER_SPLIT = 1400
+DEFAULT_LIMIT_PER_SPLIT = 0
 OUTPUT_SCHEMA_VERSION = "plain_roll_final_benchmark_v1"
 PAIR_AUDIT_SCHEMA_VERSION = "plain_roll_pair_audit_v1"
 RUNTIME_ESTIMATE_SCHEMA_VERSION = "plain_roll_runtime_estimate_v1"
@@ -506,6 +513,17 @@ def load_plain_roll_pairs(
         "sample_seed": int(sample_seed),
         "limit_per_split": int(limit),
     }
+    try:
+        status.update(
+            build_pair_bundle_metadata(
+                dataset=dataset,
+                split=split,
+                pair_source_path=pairs_csv,
+                repo_root=repo_root,
+            )
+        )
+    except Exception as exc:
+        status["pair_bundle_metadata_error"] = str(exc)
     columns = [
         "dataset",
         "split",
@@ -553,9 +571,21 @@ def write_selected_pairs(
                     f"No compatible pairs for dataset={dataset!r} split={split!r}: {status.get('reason')}"
                 )
             path = selected_dir / f"pairs_{dataset}_{split}.csv"
-            pairs.to_csv(path, index=False)
+            source_path = Path(str(status.get("pairs_csv", "")))
+            can_preserve_source_csv = (
+                int(limit_per_split) <= 0
+                and int(status.get("filtered_out_pairs", 0)) == 0
+                and int(status.get("sampled_out_pairs", 0)) == 0
+                and source_path.exists()
+            )
+            if can_preserve_source_csv:
+                shutil.copy2(source_path, path)
+            else:
+                pairs.to_csv(path, index=False)
             selected_paths[(dataset, split)] = path
             status["selected_pairs_csv"] = str(path)
+            status["materialized_pairs_path"] = str(path)
+            status["materialized_pairs_sha256"] = file_sha256(path)
     return selected_paths, statuses
 
 
@@ -955,6 +985,10 @@ def ensure_score_csv_traceability(*, selected_pairs_csv: Path, scores_csv: Path)
             f"scores={len(scores)} selected_pairs={len(selected)}"
         )
 
+    if "finger_position" not in selected.columns and "frgp" in selected.columns:
+        selected = selected.copy()
+        selected["finger_position"] = selected["frgp"].astype(str)
+
     trace_columns = [column for column in SCORE_TRACEABILITY_COLUMNS if column in selected.columns]
     if not trace_columns:
         return
@@ -963,6 +997,51 @@ def ensure_score_csv_traceability(*, selected_pairs_csv: Path, scores_csv: Path)
     for column in trace_columns:
         updated[column] = selected[column].to_numpy()
     updated.to_csv(scores_csv, index=False)
+
+
+def _score_run_pair_bundle_metadata(run: ScoreRun, *, repo_root: Path) -> dict[str, Any]:
+    pair_source = _pairs_path(run.dataset, run.split, repo_root=repo_root) or run.selected_pairs_csv
+    metadata = build_pair_bundle_metadata(
+        dataset=run.dataset,
+        split=run.split,
+        pair_source_path=pair_source,
+        repo_root=repo_root,
+    )
+    metadata.update(
+        {
+            "method": run.method,
+            "selected_pairs_csv": str(run.selected_pairs_csv),
+            "selected_pairs_sha256": file_sha256(run.selected_pairs_csv) if run.selected_pairs_csv.exists() else "",
+            "scores_csv": str(run.scores_csv),
+            "score_count": int(len(pd.read_csv(run.scores_csv))) if run.scores_csv.exists() else 0,
+        }
+    )
+    return metadata
+
+
+def _merge_json_metadata(path: Path, updates: dict[str, Any]) -> None:
+    payload: dict[str, Any] = {}
+    if path.exists() and path.stat().st_size > 0:
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                payload = existing
+        except json.JSONDecodeError:
+            payload = {}
+    payload.update(updates)
+    payload["pair_bundle_metadata"] = updates
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
+
+
+def annotate_score_run_metadata(run: ScoreRun, *, repo_root: Path) -> None:
+    metadata = _score_run_pair_bundle_metadata(run, repo_root=repo_root)
+    method_meta_path = resolve_method_meta(run.scores_csv, run.method)
+    if method_meta_path is None:
+        method_meta_path = _method_meta_candidates(run.scores_csv, run.method)[0]
+    _merge_json_metadata(method_meta_path, metadata)
+    if run.run_meta_json.exists():
+        _merge_json_metadata(run.run_meta_json, metadata)
 
 
 def _traceability_failure_row(run: ScoreRun, exc: Exception) -> dict[str, Any]:
@@ -1010,6 +1089,7 @@ def run_selected_methods(
                             selected_pairs_csv=run.selected_pairs_csv,
                             scores_csv=run.scores_csv,
                         )
+                        annotate_score_run_metadata(run, repo_root=repo_root)
                     except PlainRollFinalBenchmarkError as exc:
                         row = _traceability_failure_row(run, exc)
                         failures.append(row)
@@ -1077,6 +1157,7 @@ def run_selected_methods(
                         selected_pairs_csv=run.selected_pairs_csv,
                         scores_csv=run.scores_csv,
                     )
+                    annotate_score_run_metadata(run, repo_root=repo_root)
                 except PlainRollFinalBenchmarkError as exc:
                     row = _traceability_failure_row(run, exc)
                     failures.append(row)
@@ -2347,6 +2428,7 @@ def write_manifest(
         "datasets": list(datasets),
         "methods": list(methods),
         "splits": list(splits),
+        "run_pair_bundle_version": SD300_RUN_PAIR_BUNDLE_VERSION if set(datasets) & SD300_DATASETS else "",
         "target_fars": [float(x) for x in target_fars],
         "limit_per_split": int(limit_per_split),
         "sample_strategy": sample_strategy,
@@ -2362,6 +2444,7 @@ def write_manifest(
             "positive_rule": "label 1 requires subject_a == subject_b",
             "negative_rule": "label 0 requires subject_a != subject_b",
             "finger_position": "frgp or finger_id is preserved as finger_position",
+            "sd300_frgp_semantics": "for SD300 datasets, frgp is anatomical 1..10; raw_frgp remains manifest-only",
         },
         "pair_audit_schema_version": PAIR_AUDIT_SCHEMA_VERSION,
         "pair_audits": [
@@ -2411,6 +2494,7 @@ def write_manifest(
                 "command": run.command,
                 "elapsed_seconds": run.elapsed_seconds,
                 "reused_existing_scores": bool(run.reused_existing_scores),
+                "pair_bundle_metadata": _score_run_pair_bundle_metadata(run, repo_root=repo_root),
             }
             for run in score_runs
         ],

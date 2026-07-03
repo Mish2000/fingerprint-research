@@ -451,7 +451,12 @@ def test_final_runner_uses_selected_pairs_and_val_threshold_for_test(
     assert reuse_paths["tar_far_distribution"].exists()
 
 
-def _write_sourceafis_raw_scores(raw_dir: Path, rows_by_split: dict[str, list[dict[str, Any]]]) -> None:
+def _write_sourceafis_raw_scores(
+    raw_dir: Path,
+    rows_by_split: dict[str, list[dict[str, Any]]],
+    *,
+    selected_dir: Path | None = None,
+) -> None:
     raw_dir.mkdir(parents=True, exist_ok=True)
     for split, rows in rows_by_split.items():
         out_rows = []
@@ -495,7 +500,20 @@ def _write_sourceafis_raw_scores(raw_dir: Path, rows_by_split: dict[str, list[di
         "dataset,split,pair_id,operation,path,subject_a,subject_b,finger_position,retry_count,cached_failure,failure_category,error_type,error_message\n",
         encoding="utf-8",
     )
-    (raw_dir / "sourceafis_plain_roll_manifest.json").write_text("{}", encoding="utf-8")
+    manifest = {"datasets": []}
+    if selected_dir is not None:
+        for split, rows in rows_by_split.items():
+            selected_path = selected_dir / f"pairs_toy_{split}.csv"
+            manifest["datasets"].append(
+                {
+                    "dataset": "toy",
+                    "split": split,
+                    "selected_pairs_csv": str(selected_path),
+                    "selected_pairs_row_count": len(rows),
+                    "selected_pairs_sha256": sourceafis.file_sha256(selected_path),
+                }
+            )
+    (raw_dir / "sourceafis_plain_roll_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 def test_sourceafis_final_bundle_reuses_raw_scores_and_exports_expert_evidence(tmp_path: Path) -> None:
@@ -516,7 +534,7 @@ def test_sourceafis_final_bundle_reuses_raw_scores_and_exports_expert_evidence(t
     pd.DataFrame(val_rows).to_csv(selected_dir / "pairs_toy_val.csv", index=False)
     pd.DataFrame(test_rows).to_csv(selected_dir / "pairs_toy_test.csv", index=False)
     raw_dir = tmp_path / "raw_sourceafis"
-    _write_sourceafis_raw_scores(raw_dir, {"val": val_rows, "test": test_rows})
+    _write_sourceafis_raw_scores(raw_dir, {"val": val_rows, "test": test_rows}, selected_dir=selected_dir)
 
     paths = sourceafis_final.run_benchmark(
         datasets=("toy",),

@@ -63,12 +63,12 @@ The professor-facing SD300B selected-pair run used 1000 positives and 1000 negat
 
 The full five-method SD300B matrix used all compatible VAL/TEST pairs recorded in `artifacts/reports/benchmark/nist_sd300b_professor_1to1_five_methods_far_frr/run_manifest.json`.
 
-The SIFT v2 external validation artifacts report full compatible plain-vs-roll SD300B and SD300C VAL/TEST pair counts:
+Legacy/stale note: the older SIFT v2 external validation artifacts reported pre-anatomical-mapping compatible plain-vs-roll SD300B and SD300C VAL/TEST pair counts:
 
 - VAL: 2812 pairs per dataset, with 703 positives and 2109 negatives.
 - TEST: 2844 pairs per dataset, with 711 positives and 2133 negatives.
 
-The validated SourceAFIS balanced1400 runs sampled 1400 pairs per split per dataset:
+Legacy/stale note: the validated SourceAFIS balanced1400 runs sampled 1400 pairs per split per dataset and are retained as historical evidence only:
 
 - VAL: 700 positives and 700 negatives.
 - TEST: 700 positives and 700 negatives.

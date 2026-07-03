@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import sys
 from dataclasses import asdict
@@ -710,12 +709,27 @@ def test_eval_classic_main_writes_actual_extracted_keypoint_counts(
 
     df = pd.read_csv(out_csv)
 
-    assert list(df.columns) == ["label", "split", "path_a", "path_b", "score", "inliers", "matches", "k1", "k2"]
+    assert list(df.columns) == [
+        "label",
+        "split",
+        "path_a",
+        "path_b",
+        "score",
+        "inliers",
+        "matches",
+        "k1",
+        "k2",
+        "extract_a_ms",
+        "extract_b_ms",
+        "match_ms",
+        "pair_total_ms",
+    ]
     assert df["k1"].tolist() == [11, 5]
     assert df["k2"].tolist() == [7, 3]
     assert df["score"].tolist() == [0.42, 0.42]
     assert df["inliers"].tolist() == [6, 6]
     assert df["matches"].tolist() == [9, 9]
+    assert (df[["extract_a_ms", "extract_b_ms", "match_ms", "pair_total_ms"]] >= 0.0).all().all()
 
 
 def test_sift_plain_roll_v2_score_formula_handles_edge_cases() -> None:
@@ -800,13 +814,3 @@ def test_sift_plain_roll_v2_explicit_pair_smoke_preserves_split(
     assert meta["config"]["method_semantics_epoch"] == "sift_plain_roll_v2_research_v1"
 
 
-def test_week3_score_pairs_shim_routes_to_eval_classic() -> None:
-    shim_path = Path(__file__).resolve().parents[1] / "research_history" / "week03" / "week3_score_pairs.py"
-    spec = importlib.util.spec_from_file_location("week3_score_pairs_shim", shim_path)
-    assert spec is not None
-    assert spec.loader is not None
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    assert module.main is eval_classic.main

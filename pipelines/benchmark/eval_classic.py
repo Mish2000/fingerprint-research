@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from functools import lru_cache
 
+sys.modules.setdefault("numexpr", None)
+sys.modules.setdefault("bottleneck", None)
 import cv2
 import numpy as np
 import pandas as pd
@@ -436,7 +438,27 @@ def main():
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
     meta_path = Path(str(out_path) + ".meta.json")
-    cache_info = extract.cache_info()
+    cache_info_fn = getattr(extract, "cache_info", None)
+    cache_info = cache_info_fn() if callable(cache_info_fn) else None
+    feature_cache = (
+        {
+            "type": "functools.lru_cache",
+            "scope": "in_process_feature_extraction",
+            "hits": int(cache_info.hits),
+            "misses": int(cache_info.misses),
+            "maxsize": cache_info.maxsize,
+            "currsize": int(cache_info.currsize),
+        }
+        if cache_info is not None
+        else {
+            "type": "unavailable",
+            "scope": "in_process_feature_extraction",
+            "hits": 0,
+            "misses": 0,
+            "maxsize": None,
+            "currsize": 0,
+        }
+    )
     meta_path.write_text(
         json.dumps(
             {
@@ -460,14 +482,7 @@ def main():
                 "ransac_thresh": float(args.ransac_thresh),
                 "ratio": float(args.ratio),
                 "long_edge": int(args.long_edge),
-                "feature_cache": {
-                    "type": "functools.lru_cache",
-                    "scope": "in_process_feature_extraction",
-                    "hits": int(cache_info.hits),
-                    "misses": int(cache_info.misses),
-                    "maxsize": cache_info.maxsize,
-                    "currsize": int(cache_info.currsize),
-                },
+                "feature_cache": feature_cache,
                 "cache_note": (
                     "Feature extraction uses an in-process functools.lru_cache keyed by image path and "
                     "classic extraction configuration; timings include cache hits when repeated paths occur."

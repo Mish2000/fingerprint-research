@@ -261,7 +261,7 @@ def main():
         "problems": [],
     }
 
-    required_cols = {"dataset", "capture", "subject_id", "frgp", "ppi", "path"}
+    required_cols = {"dataset", "capture", "subject_id", "raw_frgp", "frgp", "ppi", "path"}
     missing = sorted(list(required_cols - set(df.columns)))
     if missing:
         report["problems"].append(f"manifest missing columns: {missing}")
@@ -269,8 +269,16 @@ def main():
     report["manifest"]["rows"] = int(len(df))
     report["manifest"]["unique_subjects"] = int(df["subject_id"].nunique()) if "subject_id" in df.columns else None
     report["manifest"]["frgp_values"] = sorted(df["frgp"].unique().tolist()) if "frgp" in df.columns else None
+    report["manifest"]["raw_frgp_values"] = sorted(df["raw_frgp"].unique().tolist()) if "raw_frgp" in df.columns else None
     report["manifest"]["ppi_values"] = sorted(df["ppi"].unique().tolist()) if "ppi" in df.columns else None
     report["manifest"]["capture_counts"] = df["capture"].value_counts().to_dict() if "capture" in df.columns else None
+
+    if "raw_frgp" in df.columns and "capture" in df.columns:
+        plain_raw = set(df.loc[df["capture"].astype(str).str.lower() == "plain", "raw_frgp"].astype(int).tolist())
+        slap_raw = sorted(plain_raw.intersection({13, 14}))
+        report["checks"]["plain_slap_raw_frgp_present"] = slap_raw
+        if slap_raw:
+            report["problems"].append(f"plain slap images entered single-finger manifest: raw_frgp={slap_raw}")
 
     if "split" in df.columns:
         split_vals = sorted(df["split"].dropna().unique().tolist())

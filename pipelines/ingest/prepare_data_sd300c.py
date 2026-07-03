@@ -215,7 +215,9 @@ def main() -> None:
             "val_ratio": float(args.val_ratio),
             "test_ratio": float(1.0 - args.train_ratio - args.val_ratio),
             "helper_source": "pipelines/ingest/prepare_data_sd300b.py",
-            "choose_one_policy": "lexicographically smallest path per (subject_id, frgp, capture, split)",
+            "choose_one_policy": "lexicographically smallest path per (subject_id, anatomical frgp, capture, split)",
+            "frgp_semantics": "anatomical finger position for matching",
+            "raw_frgp_semantics": "original NIST finger/slap code parsed from filename",
         },
     )
     validate_pairs_split_build_meta(meta, context=f"{DATASET} pairs_split_build metadata")
@@ -225,6 +227,7 @@ def main() -> None:
         "manifest_rows": int(len(df)),
         "unique_subjects": int(df["subject_id"].nunique()),
         "unique_frgp": sorted(int(x) for x in df["frgp"].unique().tolist()),
+        "unique_raw_frgp": sorted(int(x) for x in df["raw_frgp"].unique().tolist()),
         "plain_rows": int((df["capture"] == "plain").sum()),
         "roll_rows": int((df["capture"] == "roll").sum()),
         "pos_pairs": int(len(pos)),

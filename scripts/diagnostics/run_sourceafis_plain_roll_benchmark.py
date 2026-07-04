@@ -45,6 +45,10 @@ from src.fpbench.fingerprint_engine.providers.sourceafis_provider import (
     SOURCEAFIS_SERVICE_URL_ENV,
 )
 from src.fpbench.fingerprint_engine.types import EngineMetadata
+from src.fpbench.universal.pair_bundle_metadata import (
+    build_pair_bundle_metadata,
+    is_artifact_selected_pairs_path,
+)
 
 
 PROVIDER_ID = "sourceafis_open"
@@ -806,6 +810,17 @@ def load_plain_roll_pairs(
         "sample_seed": int(sample_seed),
         "limit_per_split": int(limit),
     }
+    try:
+        status.update(
+            build_pair_bundle_metadata(
+                dataset=dataset,
+                split=split,
+                pair_source_path=pairs_csv,
+                repo_root=repo_root,
+            )
+        )
+    except Exception as exc:
+        status["pair_bundle_metadata_error"] = str(exc)
     columns = [
         "dataset",
         "split",
@@ -904,6 +919,17 @@ def load_selected_plain_roll_pairs(
         "selected_pairs_sha256": file_sha256(pairs_csv),
         "source_is_selected_pairs": True,
     }
+    try:
+        status.update(
+            build_pair_bundle_metadata(
+                dataset=dataset,
+                split=split,
+                pair_source_path=pairs_csv,
+                repo_root=repo_root,
+            )
+        )
+    except Exception as exc:
+        status["pair_bundle_metadata_error"] = str(exc)
     columns = [
         "dataset",
         "split",
@@ -2018,6 +2044,7 @@ def run_benchmark(
     dpi_strategy: str = DEFAULT_DPI_STRATEGY,
     image_dpi: int | None = None,
     selected_pairs_dir: Path | None = None,
+    allow_artifact_selected_pairs_dir: bool = False,
 ) -> dict[str, Path]:
     start = time.perf_counter()
     if sample_strategy not in {"first", "balanced_spread"}:
@@ -2029,6 +2056,11 @@ def run_benchmark(
             raise SourceAfisBenchmarkError("--selected_pairs_dir requires --limit_per_split 0 so the audited pair set is unchanged.")
         if not selected_dir.exists():
             raise SourceAfisBenchmarkError(f"Selected pairs directory does not exist: {selected_dir}")
+        if is_artifact_selected_pairs_path(selected_dir, repo_root=repo_root) and not bool(allow_artifact_selected_pairs_dir):
+            raise SourceAfisBenchmarkError(
+                "Refusing to use artifacts/reports/**/selected_pairs as a SourceAFIS input. "
+                "Use canonical data/manifests pairs or a freshly materialized non-artifact exact-pairs directory."
+            )
     output = validate_output_directory(outdir, repo_root=repo_root)
     output.mkdir(parents=True, exist_ok=True)
     timeout_overrides = _timeout_env_overrides(

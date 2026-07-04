@@ -49,6 +49,37 @@ FNAME_RE = re.compile(
     r"^(?P<subject>\d+)_(?P<impression>.+)_(?P<ppi>\d+)_(?P<frgp>\d+)\.(?P<ext>\w+)$"
 )
 
+RAW_TO_ANATOMICAL_PLAIN = {
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    7: 7,
+    8: 8,
+    9: 9,
+    10: 10,
+    11: 1,
+    12: 6,
+}
+
+RAW_TO_ANATOMICAL_ROLL = {
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    6: 6,
+    7: 7,
+    8: 8,
+    9: 9,
+    10: 10,
+}
+
+RAW_TO_ANATOMICAL_BY_CAPTURE = {
+    "plain": RAW_TO_ANATOMICAL_PLAIN,
+    "roll": RAW_TO_ANATOMICAL_ROLL,
+}
+
 
 @dataclass(frozen=True)
 class Row:
@@ -57,7 +88,8 @@ class Row:
     subject_id: int
     impression: str       # "plain" / "roll" (from filename)
     ppi: int
-    frgp: int
+    raw_frgp: int          # original NIST code from filename
+    frgp: int              # anatomical finger position for matching
     path: str             # absolute path
     split: Optional[str] = None
 
@@ -127,7 +159,7 @@ def parse_file(p: Path, capture: str, dataset: str, *, target_ppi: int, exts: Tu
     subject_id = int(m.group("subject"))
     impression = m.group("impression")
     ppi = int(m.group("ppi"))
-    frgp = int(m.group("frgp"))
+    raw_frgp = int(m.group("frgp"))
 
     # Safety: ensure filename impression matches the directory we're scanning
     if impression != capture:
@@ -137,8 +169,13 @@ def parse_file(p: Path, capture: str, dataset: str, *, target_ppi: int, exts: Tu
     if ppi != target_ppi:
         return None
 
-    # Week-1 clean fingerprint matching: keep only finger positions 1..10
-    if not (1 <= frgp <= 10):
+    # SD300 plain 11/12 are anatomical thumbs; plain 13/14 are four-finger slaps.
+    # Keep single-finger rows only, and normalize frgp to anatomical position.
+    raw_to_anatomical = RAW_TO_ANATOMICAL_BY_CAPTURE.get(capture)
+    if raw_to_anatomical is None:
+        return None
+    frgp = raw_to_anatomical.get(raw_frgp)
+    if frgp is None:
         return None
 
     return Row(
@@ -147,6 +184,7 @@ def parse_file(p: Path, capture: str, dataset: str, *, target_ppi: int, exts: Tu
         subject_id=subject_id,
         impression=impression,
         ppi=ppi,
+        raw_frgp=raw_frgp,
         frgp=frgp,
         path=str(p.resolve()),
     )
@@ -227,10 +265,10 @@ def assign_split(df: pd.DataFrame, split: Dict[str, List[int]]) -> pd.DataFrame:
 
 def choose_one(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Keep 1 sample per (subject_id, frgp, capture, split).
+    Keep 1 sample per (subject_id, anatomical frgp, capture, split).
     Deterministic: pick lexicographically smallest path.
     """
-    df = df.sort_values(["subject_id", "frgp", "capture", "path"])
+    df = df.sort_values(["subject_id", "frgp", "capture", "raw_frgp", "path"])
     return df.groupby(["subject_id", "frgp", "capture", "split"], as_index=False).first()
 
 
@@ -451,7 +489,9 @@ def main() -> None:
             "train_ratio": float(args.train_ratio),
             "val_ratio": float(args.val_ratio),
             "test_ratio": float(1.0 - args.train_ratio - args.val_ratio),
-            "choose_one_policy": "lexicographically smallest path per (subject_id, frgp, capture, split)",
+            "choose_one_policy": "lexicographically smallest path per (subject_id, anatomical frgp, capture, split)",
+            "frgp_semantics": "anatomical finger position for matching",
+            "raw_frgp_semantics": "original NIST finger/slap code parsed from filename",
         },
     )
     validate_pairs_split_build_meta(meta, context=f"{dataset} pairs_split_build metadata")
@@ -461,6 +501,7 @@ def main() -> None:
         "manifest_rows": int(len(df)),
         "unique_subjects": int(df["subject_id"].nunique()),
         "unique_frgp": sorted([int(x) for x in df["frgp"].unique().tolist()]),
+        "unique_raw_frgp": sorted([int(x) for x in df["raw_frgp"].unique().tolist()]),
         "plain_rows": int((df["capture"] == "plain").sum()),
         "roll_rows": int((df["capture"] == "roll").sum()),
         "pos_pairs": int(len(pos)),

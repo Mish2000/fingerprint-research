@@ -68,6 +68,14 @@ def _configure_temp_catalog_roots(monkeypatch: pytest.MonkeyPatch, repo_root: Pa
     )
 
 
+def _isolate_real_catalog_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    output_root = tmp_path / "catalog_output"
+    monkeypatch.setattr(demo_catalog, "ROOT", output_root)
+    monkeypatch.setattr(demo_catalog, "SAMPLES_ROOT", output_root / "data" / "samples")
+    monkeypatch.setattr(demo_catalog, "ASSETS_ROOT", output_root / "data" / "samples" / "assets")
+    return output_root
+
+
 def _stub_catalog_postprocessing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(demo_catalog, "materialize_catalog_assets", lambda payload: payload)
     monkeypatch.setattr(
@@ -226,8 +234,9 @@ def _patch_minimal_catalog_config(monkeypatch: pytest.MonkeyPatch, dataset: str 
 
 
 
-def test_demo_catalog_builds_non_empty_sections():
+def test_demo_catalog_builds_non_empty_sections(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _require_catalog_source_data()
+    _isolate_real_catalog_outputs(monkeypatch, tmp_path)
     bundle = build_catalog_bundle(write_files=True, generated_at="2026-03-31T00:00:00Z")
     catalog = bundle["catalog"]
     assert catalog["catalog_version"] == CATALOG_VERSION
@@ -245,8 +254,9 @@ def test_demo_catalog_builds_non_empty_sections():
 
 
 
-def test_demo_catalog_schema_and_ids_are_valid():
+def test_demo_catalog_schema_and_ids_are_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _require_catalog_source_data()
+    _isolate_real_catalog_outputs(monkeypatch, tmp_path)
     bundle = build_catalog_bundle(write_files=True, generated_at="2026-03-31T00:00:00Z")
     catalog = bundle["catalog"]
     schema = bundle["schema"]
@@ -259,8 +269,9 @@ def test_demo_catalog_schema_and_ids_are_valid():
 
 
 
-def test_demo_catalog_has_required_demo_coverage():
+def test_demo_catalog_has_required_demo_coverage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _require_catalog_source_data()
+    _isolate_real_catalog_outputs(monkeypatch, tmp_path)
     bundle = build_catalog_bundle(write_files=True, generated_at="2026-03-31T00:00:00Z")
     catalog = bundle["catalog"]
     case_ids = {item["case_id"] for item in catalog["verify_cases"]}
@@ -283,8 +294,9 @@ def test_demo_catalog_has_required_demo_coverage():
 
 
 
-def test_every_curated_asset_exists_on_disk_and_report_is_clean():
+def test_every_curated_asset_exists_on_disk_and_report_is_clean(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _require_catalog_source_data()
+    output_root = _isolate_real_catalog_outputs(monkeypatch, tmp_path)
     bundle = build_catalog_bundle(write_files=True, generated_at="2026-03-31T00:00:00Z")
     catalog = bundle["catalog"]
     report = bundle["report"]
@@ -292,7 +304,7 @@ def test_every_curated_asset_exists_on_disk_and_report_is_clean():
     for asset in _collect_asset_dicts(catalog):
         rel_path = asset.get("relative_path") or asset["path"]
         assert rel_path, asset["asset_id"]
-        assert (ROOT / rel_path).exists(), rel_path
+        assert (output_root / rel_path).exists(), rel_path
         assert asset["availability_status"] == "available"
 
     assert report["validation_status"] == "pass"
@@ -306,8 +318,12 @@ def test_every_curated_asset_exists_on_disk_and_report_is_clean():
 
 
 
-def test_regression_all_curated_assets_are_marked_available_and_catalog_files_are_written():
+def test_regression_all_curated_assets_are_marked_available_and_catalog_files_are_written(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     _require_catalog_source_data()
+    output_root = _isolate_real_catalog_outputs(monkeypatch, tmp_path)
     bundle = build_catalog_bundle(write_files=True, generated_at="2026-03-31T00:00:00Z")
     catalog = bundle["catalog"]
     assert catalog["metadata"]["validation_status"] == "pass"
@@ -318,15 +334,19 @@ def test_regression_all_curated_assets_are_marked_available_and_catalog_files_ar
         assert asset["source_path"], asset["asset_id"]
         assert asset["traceability"]["materialized_asset_path"] == asset["path"]
 
-    report_path = ROOT / "data/samples/catalog.validation_report.json"
+    report_path = output_root / "data/samples/catalog.validation_report.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["validation_status"] == "pass"
     assert report["validation_warnings_count"] == len(report["warnings"])
     assert report["selection_diagnostics"]["catalog_build_health"] == catalog["metadata"]["catalog_build_health"]
 
 
-def test_regression_nist_plain_roll_cases_are_same_modality_and_only_cross_datasets_emit_cross_modality():
+def test_regression_nist_plain_roll_cases_are_same_modality_and_only_cross_datasets_emit_cross_modality(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     _require_catalog_source_data()
+    _isolate_real_catalog_outputs(monkeypatch, tmp_path)
     bundle = build_catalog_bundle(write_files=True, generated_at="2026-03-31T00:00:00Z")
     catalog = bundle["catalog"]
 

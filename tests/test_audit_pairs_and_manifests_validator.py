@@ -21,7 +21,7 @@ from pipelines.ingest.pair_bundle_utils import (
 )
 
 
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "validate_pairs_and_manifests.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "repo" / "validate_pairs_and_manifests.py"
 DATASET_NAME = "toyset"
 
 
@@ -85,6 +85,7 @@ def _manifest_rows() -> list[dict]:
                         "subject_id": subject_id,
                         "impression": f"sample_{impression}",
                         "ppi": 500,
+                        "raw_frgp": 1,
                         "frgp": 1,
                         "path": f"data/raw/{DATASET_NAME}/{split}/s{subject_id}_i{impression}.png",
                         "split": split,
@@ -238,3 +239,119 @@ def test_invalid_root_resolution_fails_clearly(tmp_path: Path) -> None:
     result = _run_validator(tmp_path / "unused", env_override=str(tmp_path / "does-not-exist"))
     assert result.returncode == 2
     assert "Could not resolve project root" in result.stderr
+
+
+def _write_sd300_repo(root: Path, *, bad_mapping: bool = False) -> Path:
+    dataset_name = "nist_sd300b"
+    registry = _build_dataset_registry()
+    registry["datasets"] = {
+        dataset_name: {
+            "status": "active",
+            "manifests": {"proposed": f"data/manifests/{dataset_name}"},
+        }
+    }
+    _write_yaml(root / "configs" / "datasets.yaml", registry)
+
+    base = root / "data" / "manifests" / dataset_name
+    pairs_dir = base / "pairs"
+    pairs_dir.mkdir(parents=True, exist_ok=True)
+
+    split_subjects = {"train": (1, 2), "val": (3, 4), "test": (5, 6)}
+    manifest_rows = []
+    for split, subjects in split_subjects.items():
+        for subject_id in subjects:
+            frgp = 11 if bad_mapping and subject_id == 1 else 1
+            manifest_rows.extend(
+                [
+                    {
+                        "dataset": dataset_name,
+                        "capture": "plain",
+                        "subject_id": subject_id,
+                        "impression": "plain",
+                        "ppi": 1000,
+                        "raw_frgp": 11,
+                        "frgp": frgp,
+                        "path": f"data/raw/{dataset_name}/{split}/s{subject_id}_plain_11.png",
+                        "split": split,
+                    },
+                    {
+                        "dataset": dataset_name,
+                        "capture": "roll",
+                        "subject_id": subject_id,
+                        "impression": "roll",
+                        "ppi": 1000,
+                        "raw_frgp": 1,
+                        "frgp": 1,
+                        "path": f"data/raw/{dataset_name}/{split}/s{subject_id}_roll_01.png",
+                        "split": split,
+                    },
+                ]
+            )
+    pd.DataFrame(manifest_rows).to_csv(base / "manifest.csv", index=False)
+
+    def pairs(split: str, subject_a: int, subject_b: int) -> list[dict]:
+        return [
+            {
+                "pair_id": 0,
+                "label": 1,
+                "split": split,
+                "subject_a": subject_a,
+                "subject_b": subject_a,
+                "frgp": 1,
+                "path_a": f"data/raw/{dataset_name}/{split}/s{subject_a}_plain_11.png",
+                "path_b": f"data/raw/{dataset_name}/{split}/s{subject_a}_roll_01.png",
+            },
+            {
+                "pair_id": 1,
+                "label": 0,
+                "split": split,
+                "subject_a": subject_a,
+                "subject_b": subject_b,
+                "frgp": 1,
+                "path_a": f"data/raw/{dataset_name}/{split}/s{subject_a}_plain_11.png",
+                "path_b": f"data/raw/{dataset_name}/{split}/s{subject_b}_roll_01.png",
+            },
+        ]
+
+    pd.DataFrame(pairs("train", 1, 2), columns=CANONICAL_PAIR_COLUMNS).to_csv(
+        pairs_dir / "pairs_train.csv", index=False
+    )
+    pd.DataFrame(pairs("val", 3, 4), columns=CANONICAL_PAIR_COLUMNS).to_csv(
+        pairs_dir / "pairs_val.csv", index=False
+    )
+    pd.DataFrame(pairs("test", 5, 6), columns=CANONICAL_PAIR_COLUMNS).to_csv(
+        pairs_dir / "pairs_test.csv", index=False
+    )
+
+    split_meta = build_split_subjects_metadata(
+        splits={"train": [1, 2], "val": [3, 4], "test": [5, 6]},
+        seed=42,
+        neg_per_pos=3,
+        impostors_per_pos=3,
+        same_finger_policy=True,
+        negative_pair_policy="same_finger_other_subject_same_split",
+        positive_pair_policy="same_subject_same_finger_plain_to_roll",
+        finger_col="frgp",
+        resolved_data_dir=root / "data" / "raw" / dataset_name,
+        manifest_path=base / "manifest.csv",
+    )
+    _write_json(pairs_dir / "split_subjects.json", split_meta)
+
+    build_meta = build_pairs_split_build_meta(
+        dataset=dataset_name,
+        seed=42,
+        neg_per_pos=3,
+        impostors_per_pos=3,
+        finger_col="frgp",
+        positive_pair_policy="same_subject_same_finger_plain_to_roll",
+        negative_pair_policy="same_finger_other_subject_same_split",
+    )
+    _write_json(base / "pairs_split_build.meta.json", build_meta)
+    return root
+
+
+def test_sd300_raw_frgp_mapping_mismatch_fails(tmp_path: Path) -> None:
+    repo_root = _write_sd300_repo(tmp_path / "repo", bad_mapping=True)
+    result = _run_validator(repo_root)
+    assert result.returncode == 1
+    assert "SD300 raw_frgp/frgp mapping mismatch" in result.stdout

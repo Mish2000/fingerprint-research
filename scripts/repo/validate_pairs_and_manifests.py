@@ -8,23 +8,95 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
 
-import pandas as pd
-import yaml
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from pipelines.ingest.pair_bundle_utils import (
-    CANONICAL_PAIR_COLUMNS,
-    CANONICAL_PAIR_SCHEMA_VERSION,
-    PAIR_BUILD_META_SCHEMA_VERSION,
-    REQUIRED_PAIR_BUILD_META_FIELDS,
-    REQUIRED_SPLIT_SUBJECTS_FIELDS,
-    SPLIT_SUBJECTS_SCHEMA_VERSION,
-    validate_canonical_pairs_df,
-    validate_pairs_split_build_meta,
-    validate_split_subjects_metadata,
-)
+pd = None
+yaml = None
+
+
+def load_runtime_dependencies() -> None:
+    global CANONICAL_PAIR_COLUMNS
+    global CANONICAL_PAIR_SCHEMA_VERSION
+    global PAIR_BUILD_META_SCHEMA_VERSION
+    global REQUIRED_PAIR_BUILD_META_FIELDS
+    global REQUIRED_SPLIT_SUBJECTS_FIELDS
+    global SPLIT_SUBJECTS_SCHEMA_VERSION
+    global pd
+    global validate_canonical_pairs_df
+    global validate_pairs_split_build_meta
+    global validate_split_subjects_metadata
+    global yaml
+
+    if pd is not None and yaml is not None:
+        return
+
+    # The validator only needs pandas' core CSV/DataFrame behavior. Some local
+    # environments have stale optional accelerators built against NumPy 1.x,
+    # which can print noisy import tracebacks under NumPy 2 before pandas falls
+    # back. Mark them unavailable for this process.
+    for optional_pandas_module in ("numexpr", "bottleneck"):
+        sys.modules.setdefault(optional_pandas_module, None)
+
+    import pandas as _pd
+    import yaml as _yaml
+    from pipelines.ingest.pair_bundle_utils import (
+        CANONICAL_PAIR_COLUMNS as _CANONICAL_PAIR_COLUMNS,
+        CANONICAL_PAIR_SCHEMA_VERSION as _CANONICAL_PAIR_SCHEMA_VERSION,
+        PAIR_BUILD_META_SCHEMA_VERSION as _PAIR_BUILD_META_SCHEMA_VERSION,
+        REQUIRED_PAIR_BUILD_META_FIELDS as _REQUIRED_PAIR_BUILD_META_FIELDS,
+        REQUIRED_SPLIT_SUBJECTS_FIELDS as _REQUIRED_SPLIT_SUBJECTS_FIELDS,
+        SPLIT_SUBJECTS_SCHEMA_VERSION as _SPLIT_SUBJECTS_SCHEMA_VERSION,
+        validate_canonical_pairs_df as _validate_canonical_pairs_df,
+        validate_pairs_split_build_meta as _validate_pairs_split_build_meta,
+        validate_split_subjects_metadata as _validate_split_subjects_metadata,
+    )
+
+    pd = _pd
+    yaml = _yaml
+    CANONICAL_PAIR_COLUMNS = _CANONICAL_PAIR_COLUMNS
+    CANONICAL_PAIR_SCHEMA_VERSION = _CANONICAL_PAIR_SCHEMA_VERSION
+    PAIR_BUILD_META_SCHEMA_VERSION = _PAIR_BUILD_META_SCHEMA_VERSION
+    REQUIRED_PAIR_BUILD_META_FIELDS = _REQUIRED_PAIR_BUILD_META_FIELDS
+    REQUIRED_SPLIT_SUBJECTS_FIELDS = _REQUIRED_SPLIT_SUBJECTS_FIELDS
+    SPLIT_SUBJECTS_SCHEMA_VERSION = _SPLIT_SUBJECTS_SCHEMA_VERSION
+    validate_canonical_pairs_df = _validate_canonical_pairs_df
+    validate_pairs_split_build_meta = _validate_pairs_split_build_meta
+    validate_split_subjects_metadata = _validate_split_subjects_metadata
 
 
 DEFAULT_SPLITS = ("train", "val", "test")
+SD300_DATASETS = {"nist_sd300b", "nist_sd300c"}
+SD300_RAW_TO_ANATOMICAL_PLAIN = {
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    7: 7,
+    8: 8,
+    9: 9,
+    10: 10,
+    11: 1,
+    12: 6,
+}
+SD300_RAW_TO_ANATOMICAL_ROLL = {
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    6: 6,
+    7: 7,
+    8: 8,
+    9: 9,
+    10: 10,
+}
+SD300_EXPECTED_SPLIT_COUNTS = {
+    "train": {"pair_count": 28052, "positive_count": 7013, "negative_count": 21039},
+    "val": {"pair_count": 3508, "positive_count": 877, "negative_count": 2631},
+    "test": {"pair_count": 3556, "positive_count": 889, "negative_count": 2667},
+}
 
 
 @dataclass
@@ -97,7 +169,7 @@ def resolve_root(root_arg: str | None) -> Path:
             "Expected configs/datasets.yaml under that directory."
         )
 
-    resolved = Path(__file__).resolve().parent
+    resolved = REPO_ROOT
     if (resolved / "configs" / "datasets.yaml").exists():
         return resolved
     raise FileNotFoundError(
@@ -226,8 +298,9 @@ def _validate_manifest(manifest_path: Path, *, dataset_name: str, report: Valida
         report.error(f"manifest.csv missing required columns: {missing}")
         return None
 
-    if df[required_cols].isnull().any().any():
-        null_counts = {k: int(v) for k, v in df[required_cols].isnull().sum().items() if int(v) > 0}
+    nullable_cols = required_cols + (["raw_frgp"] if "raw_frgp" in df.columns else [])
+    if df[nullable_cols].isnull().any().any():
+        null_counts = {k: int(v) for k, v in df[nullable_cols].isnull().sum().items() if int(v) > 0}
         report.error(f"manifest.csv contains nulls in required fields: {null_counts}")
         return None
 
@@ -245,6 +318,31 @@ def _validate_manifest(manifest_path: Path, *, dataset_name: str, report: Valida
 
     df = df.copy()
     df["capture_norm"] = df["capture"].map(norm_capture)
+
+    if dataset_name in SD300_DATASETS and "raw_frgp" in df.columns:
+        plain = df["capture_norm"] == "plain"
+        roll = df["capture_norm"] == "roll"
+        raw = pd.to_numeric(df["raw_frgp"], errors="coerce")
+        anatomical = pd.to_numeric(df["frgp"], errors="coerce")
+
+        plain_expected = raw.map(SD300_RAW_TO_ANATOMICAL_PLAIN)
+        roll_expected = raw.map(SD300_RAW_TO_ANATOMICAL_ROLL)
+        bad_plain = int((plain & (plain_expected.isna() | (anatomical != plain_expected))).sum())
+        bad_roll = int((roll & (roll_expected.isna() | (anatomical != roll_expected))).sum())
+        if bad_plain or bad_roll:
+            report.error(
+                "manifest.csv SD300 raw_frgp/frgp mapping mismatch: "
+                f"plain={bad_plain}, roll={bad_roll}"
+            )
+            return None
+
+        slap_rows = int((plain & raw.isin([13, 14])).sum())
+        if slap_rows:
+            report.error(f"manifest.csv contains {slap_rows} SD300 plain slap rows raw_frgp=13/14")
+            return None
+
+        report.ok("manifest.csv SD300 raw_frgp/frgp mapping valid")
+
     report.ok(f"manifest.csv rows={len(df)} capture_values={sorted(df['capture_norm'].unique().tolist())}")
     return df
 
@@ -253,6 +351,7 @@ def _validate_manifest(manifest_path: Path, *, dataset_name: str, report: Valida
 def _validate_pairs_csv(
     pairs_path: Path,
     *,
+    dataset_name: str,
     split_name: str,
     manifest_df: pd.DataFrame,
     report: ValidationReport,
@@ -261,14 +360,35 @@ def _validate_pairs_csv(
         return
 
     pairs = pd.read_csv(pairs_path)
+    pair_ids = None
+    if "pair_id" in pairs.columns:
+        pair_ids = pd.to_numeric(pairs["pair_id"], errors="coerce")
+        if pair_ids.isna().any():
+            bad = int(pair_ids.isna().sum())
+            report.error(f"{pairs_path} contains {bad} non-numeric pair_id value(s)")
+            return
+        pair_ids = pair_ids.astype(int)
+        if pair_ids.duplicated().any():
+            examples = pair_ids[pair_ids.duplicated()].head(5).astype(int).tolist()
+            report.error(f"{pairs_path} contains duplicate pair_id values; examples={examples}")
+            return
+
     try:
+        # Repository bundles may use globally unique pair IDs across split files.
+        # The shared pair validator checks the rest of the canonical schema, so
+        # validate a temporary zero-based copy and then restore the original IDs.
+        pairs_for_schema = pairs.copy()
+        if "pair_id" in pairs_for_schema.columns:
+            pairs_for_schema["pair_id"] = range(len(pairs_for_schema))
         pairs = validate_canonical_pairs_df(
-            pairs,
+            pairs_for_schema,
             context=str(pairs_path),
             expected_split=split_name,
             require_exact_columns=True,
             require_non_empty=True,
         )
+        if pair_ids is not None:
+            pairs["pair_id"] = pair_ids.to_numpy()
     except ValueError as exc:
         report.error(str(exc))
         return
@@ -305,6 +425,22 @@ def _validate_pairs_csv(
         return
 
     label_counts = pairs["label"].value_counts(dropna=False).to_dict()
+    if dataset_name in SD300_DATASETS:
+        frgp_values = sorted(pd.to_numeric(pairs["frgp"], errors="coerce").dropna().astype(int).unique().tolist())
+        invalid_frgp = [value for value in frgp_values if value < 1 or value > 10]
+        if invalid_frgp:
+            report.error(f"{pairs_path} contains non-anatomical SD300 frgp values: {invalid_frgp}")
+            return
+        expected = SD300_EXPECTED_SPLIT_COUNTS[split_name]
+        actual = {
+            "pair_count": int(len(pairs)),
+            "positive_count": int((pairs["label"] == 1).sum()),
+            "negative_count": int((pairs["label"] == 0).sum()),
+        }
+        if actual != expected:
+            report.error(f"{pairs_path} SD300 canonical counts mismatch: expected={expected}, actual={actual}")
+            return
+        report.ok(f"{pairs_path.name} SD300 anatomical counts valid: {actual}")
     report.ok(f"{pairs_path.name} rows={len(pairs)} label_counts={label_counts}")
 
 
@@ -341,6 +477,8 @@ def _validate_pairs_build_meta(path: Path, *, dataset_name: str, report: Validat
 
 
 def validate_repository(root: Path) -> int:
+    load_runtime_dependencies()
+
     print(f"Repository root: {root}")
     config_path = root / "configs" / "datasets.yaml"
     if not config_path.exists():
@@ -375,6 +513,7 @@ def validate_repository(root: Path) -> int:
                     continue
                 _validate_pairs_csv(
                     pairs_path,
+                    dataset_name=dataset_name,
                     split_name=split_name,
                     manifest_df=manifest_df,
                     report=report,

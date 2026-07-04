@@ -434,16 +434,21 @@ class SecureSplitFingerprintStore:
 
     @classmethod
     def for_inspection(
-        cls,
-        database_url: str | None = None,
-        *,
-        identity_database_url: str | None = None,
-        table_prefix: str = "",
+            cls,
+            database_url: str | None = None,
+            *,
+            identity_database_url: str | None = None,
+            table_prefix: str = "",
     ) -> "SecureSplitFingerprintStore":
         store = cls.__new__(cls)
+
+        effective_identity_database_url = identity_database_url
+        if database_url is not None and effective_identity_database_url is None:
+            effective_identity_database_url = database_url
+
         store._configure_runtime_layout(
             database_url=database_url,
-            identity_database_url=identity_database_url,
+            identity_database_url=effective_identity_database_url,
             table_prefix=table_prefix,
         )
         return store

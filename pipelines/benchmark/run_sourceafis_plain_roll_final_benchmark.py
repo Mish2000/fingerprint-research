@@ -25,19 +25,13 @@ if str(REPO_ROOT) not in sys.path:
 from pipelines.benchmark import run_plain_roll_final_benchmark as final
 from scripts.diagnostics import run_sourceafis_plain_roll_benchmark as sourceafis
 from src.fpbench.fingerprint_engine.base import FingerprintEngine
+from src.fpbench.universal.pair_bundle_metadata import build_pair_bundle_metadata, is_artifact_selected_pairs_path
 
 
 PROVIDER_ID = "sourceafis_open"
 OUTPUT_SCHEMA_VERSION = "plain_roll_final_sourceafis_benchmark_v1"
-DEFAULT_CLASSICAL_BUNDLE = (
-    REPO_ROOT
-    / "artifacts"
-    / "reports"
-    / "benchmark"
-    / "plain_roll_final_baselines_v1"
-)
-DEFAULT_SELECTED_PAIRS_DIR = DEFAULT_CLASSICAL_BUNDLE / "selected_pairs"
-DEFAULT_PAIR_AUDIT_DIR = DEFAULT_CLASSICAL_BUNDLE / "pair_audit"
+DEFAULT_SELECTED_PAIRS_DIR: Path | None = None
+DEFAULT_PAIR_AUDIT_DIR: Path | None = None
 DEFAULT_OUTDIR = (
     REPO_ROOT
     / "artifacts"
@@ -106,22 +100,37 @@ def _copy_file(src: Path, dst: Path) -> None:
 
 def _copy_selected_pairs(
     *,
-    selected_pairs_dir: Path,
+    selected_pairs_dir: Path | None,
     outdir: Path,
     datasets: tuple[str, ...],
     splits: tuple[str, ...],
-) -> dict[tuple[str, str], Path]:
+    repo_root: Path,
+) -> tuple[dict[tuple[str, str], Path], dict[tuple[str, str], Path]]:
     target_dir = outdir / "selected_pairs"
     selected_paths: dict[tuple[str, str], Path] = {}
+    source_paths: dict[tuple[str, str], Path] = {}
+    if selected_pairs_dir is not None and is_artifact_selected_pairs_path(selected_pairs_dir, repo_root=repo_root):
+        raise SourceAfisFinalBenchmarkError(
+            "Refusing to use artifacts/reports/**/selected_pairs as SourceAFIS final input. "
+            "Omit --selected_pairs_dir to use canonical data/manifests pairs."
+        )
     for dataset in datasets:
         for split in splits:
-            src = selected_pairs_dir / f"pairs_{dataset}_{split}.csv"
+            if selected_pairs_dir is None:
+                src = final._pairs_path(dataset, split, repo_root=repo_root)
+                if src is None:
+                    raise SourceAfisFinalBenchmarkError(
+                        f"Missing canonical pair CSV for dataset={dataset!r} split={split!r}"
+                    )
+            else:
+                src = selected_pairs_dir / f"pairs_{dataset}_{split}.csv"
             if not src.exists():
-                raise SourceAfisFinalBenchmarkError(f"Missing selected pair CSV: {src}")
-            dst = target_dir / src.name
+                raise SourceAfisFinalBenchmarkError(f"Missing pair CSV: {src}")
+            dst = target_dir / f"pairs_{dataset}_{split}.csv"
             _copy_file(src, dst)
             selected_paths[(dataset, split)] = dst
-    return selected_paths
+            source_paths[(dataset, split)] = src
+    return selected_paths, source_paths
 
 
 def _copy_pair_audits(
@@ -180,8 +189,10 @@ def _validate_score_alignment(
     *,
     source_scores: pd.DataFrame,
     selected_pairs_csv: Path,
+    pair_source_csv: Path,
     dataset: str,
     split: str,
+    repo_root: Path,
 ) -> dict[str, Any]:
     selected = pd.read_csv(selected_pairs_csv)
     selected_keys = _normalized_pair_keys(selected, dataset=dataset, split=split)
@@ -204,15 +215,24 @@ def _validate_score_alignment(
             f"SourceAFIS score pair order/content does not match selected pairs for {dataset}/{split}"
             + (f" at row {mismatch_index}." if mismatch_index is not None else ".")
         )
+    metadata = build_pair_bundle_metadata(
+        dataset=dataset,
+        split=split,
+        pair_source_path=pair_source_csv,
+        repo_root=repo_root,
+    )
     return {
         "dataset": dataset,
         "split": split,
         "selected_pairs_csv": str(selected_pairs_csv),
+        "materialized_pairs_path": str(selected_pairs_csv),
+        "materialized_pairs_sha256": sourceafis.file_sha256(selected_pairs_csv),
         "selected_pairs_row_count": int(len(selected_keys)),
         "sourceafis_score_row_count": int(len(score_keys)),
         "selected_pairs_sha256": sourceafis.file_sha256(selected_pairs_csv),
         "pair_key_sha256": _pair_key_digest(selected_keys),
         "status": "match",
+        **metadata,
     }
 
 
@@ -236,7 +256,7 @@ def _finite(values: pd.Series) -> np.ndarray:
     return arr[np.isfinite(arr)]
 
 
-def _write_method_meta(path: Path, scores: pd.DataFrame) -> None:
+def _write_method_meta(path: Path, scores: pd.DataFrame, pair_metadata: dict[str, Any] | None = None) -> None:
     values = _finite(scores["pair_total_ms"]) if "pair_total_ms" in scores.columns else np.asarray([], dtype=float)
     cache_hits = 0
     cache_misses = 0
@@ -257,11 +277,20 @@ def _write_method_meta(path: Path, scores: pd.DataFrame) -> None:
             "misses": int(cache_misses),
         },
     }
+    if pair_metadata:
+        payload.update(pair_metadata)
+        payload["pair_bundle_metadata"] = pair_metadata
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
 
 
-def _write_run_meta(path: Path, *, scores: pd.DataFrame, method_meta_json: Path) -> None:
+def _write_run_meta(
+    path: Path,
+    *,
+    scores: pd.DataFrame,
+    method_meta_json: Path,
+    pair_metadata: dict[str, Any] | None = None,
+) -> None:
     values = _finite(scores["pair_total_ms"]) if "pair_total_ms" in scores.columns else np.asarray([], dtype=float)
     avg = float(np.mean(values)) if values.size else float("nan")
     payload = {
@@ -278,6 +307,9 @@ def _write_run_meta(path: Path, *, scores: pd.DataFrame, method_meta_json: Path)
             "meta_json": str(method_meta_json),
         },
     }
+    if pair_metadata:
+        payload.update(pair_metadata)
+        payload["pair_bundle_metadata"] = pair_metadata
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
 
@@ -286,9 +318,11 @@ def _write_sourceafis_score_runs(
     *,
     source_scores: pd.DataFrame,
     selected_paths: dict[tuple[str, str], Path],
+    pair_source_paths: dict[tuple[str, str], Path],
     outdir: Path,
     datasets: tuple[str, ...],
     splits: tuple[str, ...],
+    repo_root: Path,
 ) -> tuple[list[final.ScoreRun], list[dict[str, Any]]]:
     runs: list[final.ScoreRun] = []
     validations: list[dict[str, Any]] = []
@@ -305,8 +339,10 @@ def _write_sourceafis_score_runs(
             validation = _validate_score_alignment(
                 source_scores=source_scores,
                 selected_pairs_csv=selected_pairs_csv,
+                pair_source_csv=pair_source_paths[(dataset, split)],
                 dataset=dataset,
                 split=split,
+                repo_root=repo_root,
             )
             validations.append(validation)
             subset = source_scores[
@@ -354,8 +390,21 @@ def _write_sourceafis_score_runs(
                 if column not in subset.columns:
                     subset[column] = None
             subset[columns].to_csv(score_csv, index=False)
-            _write_method_meta(method_meta_json, subset)
-            _write_run_meta(run_meta_json, scores=subset, method_meta_json=method_meta_json)
+            pair_metadata = dict(validation)
+            pair_metadata.update(
+                {
+                    "method": PROVIDER_ID,
+                    "scores_csv": str(score_csv),
+                    "score_count": int(len(subset)),
+                }
+            )
+            _write_method_meta(method_meta_json, subset, pair_metadata=pair_metadata)
+            _write_run_meta(
+                run_meta_json,
+                scores=subset,
+                method_meta_json=method_meta_json,
+                pair_metadata=pair_metadata,
+            )
             runs.append(
                 final.ScoreRun(
                     method=PROVIDER_ID,
@@ -454,25 +503,27 @@ def _write_manifest_with_sourceafis_metadata(
     raw_sourceafis_outdir: Path,
     sourceafis_raw_reused: bool,
 ) -> None:
-    dataset_statuses = [
-        {
-            "dataset": row["dataset"],
-            "split": row["split"],
-            "compatible": True,
-            "reason": "SourceAFIS scored exact audited selected pairs",
-            "n_pairs": int(row["selected_pairs_row_count"]),
-            "n_positive": int(
-                pd.to_numeric(pd.read_csv(row["selected_pairs_csv"])["label"], errors="coerce").fillna(-1).eq(1).sum()
-            ),
-            "n_negative": int(
-                pd.to_numeric(pd.read_csv(row["selected_pairs_csv"])["label"], errors="coerce").fillna(-1).eq(0).sum()
-            ),
-            "selected_pairs_csv": row["selected_pairs_csv"],
-            "selected_pairs_row_count": int(row["selected_pairs_row_count"]),
-            "selected_pairs_sha256": row["selected_pairs_sha256"],
-        }
-        for row in selected_pair_validations
-    ]
+    dataset_statuses = []
+    for row in selected_pair_validations:
+        selected_rows = pd.read_csv(row["selected_pairs_csv"])
+        status = dict(row)
+        status.update(
+            {
+                "compatible": True,
+                "reason": "SourceAFIS scored exact audited canonical pairs",
+                "n_pairs": int(row["selected_pairs_row_count"]),
+                "n_positive": int(
+                    pd.to_numeric(selected_rows["label"], errors="coerce").fillna(-1).eq(1).sum()
+                ),
+                "n_negative": int(
+                    pd.to_numeric(selected_rows["label"], errors="coerce").fillna(-1).eq(0).sum()
+                ),
+                "selected_pairs_csv": row["selected_pairs_csv"],
+                "selected_pairs_row_count": int(row["selected_pairs_row_count"]),
+                "selected_pairs_sha256": row["selected_pairs_sha256"],
+            }
+        )
+        dataset_statuses.append(status)
     final.write_manifest(
         path,
         datasets=datasets,
@@ -506,6 +557,40 @@ def _write_manifest_with_sourceafis_metadata(
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
 
 
+def _sourceafis_raw_matches_selected_pairs(
+    *,
+    raw_outdir: Path,
+    selected_pairs_dir: Path,
+    datasets: tuple[str, ...],
+    splits: tuple[str, ...],
+) -> bool:
+    manifest_path = raw_outdir / "sourceafis_plain_roll_manifest.json"
+    if not manifest_path.exists():
+        return False
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    statuses = payload.get("datasets", [])
+    if not isinstance(statuses, list):
+        return False
+    by_key = {
+        (str(item.get("dataset")), str(item.get("split")).lower()): item
+        for item in statuses
+        if isinstance(item, dict)
+    }
+    for dataset in datasets:
+        for split in splits:
+            selected_path = selected_pairs_dir / f"pairs_{dataset}_{split}.csv"
+            if not selected_path.exists():
+                return False
+            expected = sourceafis.file_sha256(selected_path)
+            status = by_key.get((dataset, split.lower()))
+            if not status or str(status.get("selected_pairs_sha256", "")) != expected:
+                return False
+    return True
+
+
 def _ensure_sourceafis_raw_outputs(
     *,
     raw_outdir: Path,
@@ -524,7 +609,12 @@ def _ensure_sourceafis_raw_outputs(
     dpi_strategy: str,
     image_dpi: int | None,
 ) -> bool:
-    if not force_rerun and _sourceafis_outputs_complete(raw_outdir, splits):
+    if not force_rerun and _sourceafis_outputs_complete(raw_outdir, splits) and _sourceafis_raw_matches_selected_pairs(
+        raw_outdir=raw_outdir,
+        selected_pairs_dir=selected_pairs_dir,
+        datasets=datasets,
+        splits=splits,
+    ):
         return True
 
     sourceafis.run_benchmark(
@@ -544,6 +634,7 @@ def _ensure_sourceafis_raw_outputs(
         dpi_strategy=dpi_strategy,
         image_dpi=image_dpi,
         selected_pairs_dir=selected_pairs_dir,
+        allow_artifact_selected_pairs_dir=True,
     )
     return False
 
@@ -553,8 +644,8 @@ def run_benchmark(
     datasets: tuple[str, ...] = DEFAULT_DATASETS,
     splits: tuple[str, ...] = DEFAULT_SPLITS,
     outdir: Path = DEFAULT_OUTDIR,
-    selected_pairs_dir: Path = DEFAULT_SELECTED_PAIRS_DIR,
-    pair_audit_dir: Path = DEFAULT_PAIR_AUDIT_DIR,
+    selected_pairs_dir: Path | None = DEFAULT_SELECTED_PAIRS_DIR,
+    pair_audit_dir: Path | None = DEFAULT_PAIR_AUDIT_DIR,
     sourceafis_outdir: Path = DEFAULT_RAW_SOURCEAFIS_OUTDIR,
     target_fars: tuple[float, ...] = DEFAULT_TARGET_FARS,
     force_rerun_sourceafis: bool = False,
@@ -570,16 +661,30 @@ def run_benchmark(
 ) -> dict[str, Path]:
     start = time.perf_counter()
     output = sourceafis.parse_file_uri(outdir, repo_root=repo_root)
-    selected_dir = sourceafis.parse_file_uri(selected_pairs_dir, repo_root=repo_root)
-    audit_dir = sourceafis.parse_file_uri(pair_audit_dir, repo_root=repo_root)
+    selected_dir = sourceafis.parse_file_uri(selected_pairs_dir, repo_root=repo_root) if selected_pairs_dir is not None else None
     raw_outdir = sourceafis.parse_file_uri(sourceafis_outdir, repo_root=repo_root)
     output.mkdir(parents=True, exist_ok=True)
+
+    selected_paths, pair_source_paths = _copy_selected_pairs(
+        selected_pairs_dir=selected_dir,
+        outdir=output,
+        datasets=datasets,
+        splits=splits,
+        repo_root=repo_root,
+    )
+    pair_audit_reports = _load_pair_audit_reports(
+        outdir=output,
+        selected_paths=selected_paths,
+        datasets=datasets,
+        splits=splits,
+        repo_root=repo_root,
+    )
 
     raw_reused = _ensure_sourceafis_raw_outputs(
         raw_outdir=raw_outdir,
         datasets=datasets,
         splits=splits,
-        selected_pairs_dir=selected_dir,
+        selected_pairs_dir=output / "selected_pairs",
         target_fars=target_fars,
         force_rerun=bool(force_rerun_sourceafis),
         engine=engine,
@@ -593,26 +698,14 @@ def run_benchmark(
         image_dpi=image_dpi,
     )
     source_scores = _load_sourceafis_scores(raw_outdir, splits)
-    selected_paths = _copy_selected_pairs(
-        selected_pairs_dir=selected_dir,
-        outdir=output,
-        datasets=datasets,
-        splits=splits,
-    )
-    _copy_pair_audits(pair_audit_dir=audit_dir, outdir=output, datasets=datasets, splits=splits)
-    pair_audit_reports = _load_pair_audit_reports(
-        outdir=output,
-        selected_paths=selected_paths,
-        datasets=datasets,
-        splits=splits,
-        repo_root=repo_root,
-    )
     score_runs, selected_pair_validations = _write_sourceafis_score_runs(
         source_scores=source_scores,
         selected_paths=selected_paths,
+        pair_source_paths=pair_source_paths,
         outdir=output,
         datasets=datasets,
         splits=splits,
+        repo_root=repo_root,
     )
 
     latency = final.build_latency_rows(score_runs)
@@ -724,8 +817,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--datasets", default=",".join(DEFAULT_DATASETS))
     parser.add_argument("--splits", default=",".join(DEFAULT_SPLITS))
     parser.add_argument("--outdir", default=str(DEFAULT_OUTDIR))
-    parser.add_argument("--selected_pairs_dir", default=str(DEFAULT_SELECTED_PAIRS_DIR))
-    parser.add_argument("--pair_audit_dir", default=str(DEFAULT_PAIR_AUDIT_DIR))
+    parser.add_argument(
+        "--selected_pairs_dir",
+        default="",
+        help="Optional non-artifact exact-pairs directory. Default uses canonical data/manifests pairs.",
+    )
+    parser.add_argument(
+        "--pair_audit_dir",
+        default="",
+        help="Deprecated; pair audits are regenerated from the pair source used by this run.",
+    )
     parser.add_argument("--sourceafis_outdir", default=str(DEFAULT_RAW_SOURCEAFIS_OUTDIR))
     parser.add_argument("--target_far", type=float, nargs="*", default=list(DEFAULT_TARGET_FARS))
     parser.add_argument("--force_rerun_sourceafis", action="store_true")
@@ -746,8 +847,12 @@ def main(argv: list[str] | None = None) -> int:
             datasets=_parse_csv_arg(args.datasets),
             splits=tuple(item.lower() for item in _parse_csv_arg(args.splits)),
             outdir=sourceafis.parse_file_uri(args.outdir),
-            selected_pairs_dir=sourceafis.parse_file_uri(args.selected_pairs_dir),
-            pair_audit_dir=sourceafis.parse_file_uri(args.pair_audit_dir),
+            selected_pairs_dir=sourceafis.parse_file_uri(args.selected_pairs_dir)
+            if str(args.selected_pairs_dir).strip()
+            else None,
+            pair_audit_dir=sourceafis.parse_file_uri(args.pair_audit_dir)
+            if str(args.pair_audit_dir).strip()
+            else None,
             sourceafis_outdir=sourceafis.parse_file_uri(args.sourceafis_outdir),
             target_fars=tuple(float(item) for item in args.target_far),
             force_rerun_sourceafis=bool(args.force_rerun_sourceafis),

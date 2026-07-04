@@ -16,6 +16,7 @@ from pipelines.ingest.pair_bundle_utils import (
     validate_pairs_split_build_meta,
     validate_split_subjects_metadata,
 )
+from src.fpbench.universal.pair_bundle_metadata import build_pair_bundle_metadata, file_sha256
 
 
 def test_canonicalize_pairs_promotes_finger_id_and_adds_columns():
@@ -26,6 +27,7 @@ def test_canonicalize_pairs_promotes_finger_id_and_adds_columns():
             "label": 1,
             "subject_a": 10,
             "subject_b": 10,
+            "raw_frgp": 11,
             "finger_id": 2,
         }
     ])
@@ -128,3 +130,61 @@ def test_validate_pairs_split_build_meta_rejects_wrong_pair_schema_version():
     payload["pair_schema_version"] = "old_schema"
     with pytest.raises(ValueError, match="pair_schema_version"):
         validate_pairs_split_build_meta(payload)
+
+
+def test_build_pair_bundle_metadata_fingerprints_sources(tmp_path: Path):
+    base = tmp_path / "data" / "manifests" / "nist_sd300b"
+    pairs_dir = base / "pairs"
+    pairs_dir.mkdir(parents=True)
+    manifest = pd.DataFrame(
+        [
+            {"dataset": "nist_sd300b", "capture": "plain", "raw_frgp": 11, "frgp": 1, "path": "a.png"},
+            {"dataset": "nist_sd300b", "capture": "roll", "raw_frgp": 1, "frgp": 1, "path": "b.png"},
+        ]
+    )
+    manifest.to_csv(base / "manifest.csv", index=False)
+    (pairs_dir / "split_subjects.json").write_text('{"splits":{"train":[1],"val":[2],"test":[3]}}', encoding="utf-8")
+    pairs = pd.DataFrame(
+        [
+            {
+                "pair_id": 0,
+                "label": 1,
+                "split": "val",
+                "subject_a": 1,
+                "subject_b": 1,
+                "frgp": 1,
+                "path_a": "a.png",
+                "path_b": "b.png",
+            },
+            {
+                "pair_id": 1,
+                "label": 0,
+                "split": "val",
+                "subject_a": 1,
+                "subject_b": 2,
+                "frgp": 6,
+                "path_a": "c.png",
+                "path_b": "d.png",
+            },
+        ]
+    )
+    pair_path = base / "pairs_val.csv"
+    pairs.to_csv(pair_path, index=False)
+
+    metadata = build_pair_bundle_metadata(
+        dataset="nist_sd300b",
+        split="val",
+        pair_source_path=pair_path,
+        repo_root=tmp_path,
+    )
+
+    assert metadata["dataset_id"] == "nist_sd300b"
+    assert metadata["pair_source_sha256"] == file_sha256(pair_path)
+    assert metadata["manifest_source_sha256"] == file_sha256(base / "manifest.csv")
+    assert metadata["split_subjects_sha256"] == file_sha256(pairs_dir / "split_subjects.json")
+    assert metadata["pair_count"] == 2
+    assert metadata["positive_count"] == 1
+    assert metadata["negative_count"] == 1
+    assert metadata["frgp_counts"] == {"1": 1, "6": 1}
+    assert metadata["sd300_frgp_semantics"] == "anatomical"
+    assert metadata["sd300_raw_frgp_available"] is True

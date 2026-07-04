@@ -104,6 +104,9 @@ def set_seed(seed: int):
 
 
 def _infer_finger_col(df: pd.DataFrame) -> str:
+    if "raw_frgp" in df.columns and "frgp" in df.columns:
+        return "frgp"
+
     for c in ["finger_id", "frgp", "finger", "finger_idx"]:
         if c in df.columns:
             return c

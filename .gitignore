@@ -81,6 +81,9 @@ artifacts/reports/benchmark/**/sourceafis_template_cache/**
 artifacts/reports/benchmark/**/*.template.json
 artifacts/reports/benchmark/sourceafis_open_plain_roll_smoke*/
 
+# External research checkouts and downloaded weights used by diagnostics.
+artifacts/external/
+
 # Model checkpoints / exported models (never commit)
 **/*.pth
 **/*.pt

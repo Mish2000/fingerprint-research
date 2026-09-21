@@ -72,7 +72,7 @@ def test_rerank_only_methods_report_capability_aware_retrieval_error(
     store: SecureSplitFingerprintStore,
 ) -> None:
     with pytest.raises(ValueError, match="experimental rerank-only method.*validated fixed-size"):
-        store._prepare_vector("dedicated", np.ones(128, dtype=np.float32))
+        store._prepare_vector("sift_plain_roll_v2", np.ones(128, dtype=np.float32))
 
 
 def test_store_reports_generic_vector_storage_schema() -> None:

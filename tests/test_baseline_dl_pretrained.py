@@ -59,6 +59,13 @@ def _install_fake_torchvision(monkeypatch: pytest.MonkeyPatch) -> None:
     tv.models = tvm
     monkeypatch.setitem(sys.modules, "torchvision", tv)
     monkeypatch.setitem(sys.modules, "torchvision.models", tvm)
+    # Synthetic architecture dimensions only. Real weights are verified by the
+    # explicit local model smoke, never downloaded by this unit test.
+    monkeypatch.setattr(baseline_dl, "load_pretrained_model", lambda backbone: {
+        "resnet18": lambda: _DummyResNet(512),
+        "resnet50": lambda: _DummyResNet(2048),
+        "vit_base": _DummyVit,
+    }[backbone]())
 
 
 def test_pretrained_embedder_raises_when_torchvision_loading_fails(monkeypatch: pytest.MonkeyPatch) -> None:

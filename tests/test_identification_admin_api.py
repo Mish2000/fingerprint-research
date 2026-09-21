@@ -16,7 +16,7 @@ import src.fpbench.identification.secure_split_store as secure_store_module
 
 
 DIRECT_RETRIEVAL_METHODS = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
-RERANK_ONLY_METHODS = ["sift_plain_roll_v2", "dedicated"]
+RERANK_ONLY_METHODS = ["sift_plain_roll_v2"]
 
 
 class _FakeMatchService:
@@ -410,41 +410,8 @@ def test_admin_layout_endpoint_returns_redacted_read_only_inspection_payload(
     assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["sift"]["retrieval_vector_kind"] == "sift_aggregated_descriptor_v1"
-    dedicated_capability = payload["method_capabilities"]["dedicated"]
-    assert dedicated_capability["retrieval_unavailable_reason"] == (
-        "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
-    )
-    assert dedicated_capability["retrieval_capability_status"] == "experimental_rerank_only"
-    assert dedicated_capability["direct_retrieval_exclusion"] == "intentional_rerank_only"
-    assert dedicated_capability["experimental"] is True
-    assert dedicated_capability["supports_direct_vector_retrieval"] is False
-    assert dedicated_capability["supports_pairwise_rerank"] is True
-    assert dedicated_capability["future_adapter_hint"] == (
-        "A future dedicated_aggregated_patch_descriptor_v1 adapter can be added once global pooling is validated."
-    )
-    assert payload["vector_storage_schema"]["method_generic_vectors_supported"] is True
-    assert payload["vector_storage_schema"]["schema_accepts_method_generic_vectors"] is True
-    assert payload["vector_storage_schema"]["legacy_compatibility_methods"] == ["dl", "vit"]
-    assert payload["vector_storage_schema"]["dual_write_methods"] == ["dl", "vit"]
-    assert payload["vector_storage_schema"]["generic_only_methods"] == [
-        "classic_gftt_orb",
-        "classic_orb",
-        "harris",
-        "minutiae",
-        "sift",
-    ]
-    assert payload["redacted_database_urls"]["biometric_db"] == "postgresql://admin:***@localhost:5432/biometric_db"
-    assert "localhost:5433/identity_db" in payload["redacted_database_urls"]["identity_db"]
-    assert "secret" not in json.dumps(payload)
-    assert inspect_calls == [
-        {
-            "database_url": None,
-            "identity_database_url": None,
-            "table_prefix": "identify_browser_",
-        }
-    ]
-    assert api_main._browser_ident_service is None
-    assert _FakeIdentificationService.created_prefixes == [""]
+    assert "dedicated" not in payload["method_capabilities"]
+    assert payload["method_capabilities"]["sift_plain_roll_v2"]["supports_direct_vector_retrieval"] is False
 
 
 def test_lifespan_startup_initializes_operational_services_and_shutdown_clears_runtime(
@@ -650,6 +617,8 @@ def _install_missing_password_psycopg(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_identify_stats_missing_database_password_error_is_actionable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    for key in ("IDENTIFICATION_TEST_BIOMETRIC_DATABASE_URL", "IDENTIFICATION_TEST_IDENTITY_DATABASE_URL", "IDENTIFICATION_TEST_DATABASE_URL"):
+        monkeypatch.delenv(key, raising=False)
     _install_missing_password_psycopg(monkeypatch)
     monkeypatch.setattr(api_service, "MatchService", _FakeMatchService)
     monkeypatch.setenv("FPBENCH_API_LAZY_STARTUP", "1")

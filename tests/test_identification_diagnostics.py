@@ -494,23 +494,19 @@ def test_inspection_state_uses_read_only_connection_path(monkeypatch) -> None:
     assert "Reseed demo/browser stores" in payload["coverage_recommendation"]
     assert "source image path is known" in payload["coverage_recommendation"]
     assert payload["direct_vector_retrieval_methods"] == ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
-    assert payload["rerank_only_methods"] == ["sift_plain_roll_v2", "dedicated"]
+    assert payload["rerank_only_methods"] == ["sift_plain_roll_v2"]
     assert payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["vit"]["retrieval_vector_dim"] == 768
     assert payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
     assert payload["method_capabilities"]["sift"]["retrieval_vector_kind"] == "sift_aggregated_descriptor_v1"
-    dedicated_capability = payload["method_capabilities"]["dedicated"]
-    assert dedicated_capability["retrieval_unavailable_reason"] == (
-        "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
-    )
+    assert "dedicated" not in payload["method_capabilities"]
+    dedicated_capability = payload["method_capabilities"]["sift_plain_roll_v2"]
     assert dedicated_capability["retrieval_capability_status"] == "experimental_rerank_only"
     assert dedicated_capability["direct_retrieval_exclusion"] == "intentional_rerank_only"
     assert dedicated_capability["experimental"] is True
     assert dedicated_capability["supports_direct_vector_retrieval"] is False
     assert dedicated_capability["supports_pairwise_rerank"] is True
-    assert dedicated_capability["future_adapter_hint"] == (
-        "A future dedicated_aggregated_patch_descriptor_v1 adapter can be added once global pooling is validated."
-    )
+    assert dedicated_capability["retrieval_unavailable_reason"]
     assert "dedicated" not in payload["retrieval_vector_coverage_by_method"]
     assert "dedicated" not in payload["retrieval_methods_missing_vectors"]
     assert "dedicated" not in payload["retrieval_methods_with_zero_coverage"]

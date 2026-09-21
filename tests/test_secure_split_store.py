@@ -11,7 +11,7 @@ import pytest
 psycopg = pytest.importorskip("psycopg", reason="PostgreSQL integration test requires psycopg")
 pytest.importorskip("pgvector", reason="PostgreSQL integration test requires pgvector")
 
-RUNBOOK_PATH = Path(__file__).resolve().parents[1] / "LOCAL_DUAL_DB_RUNBOOK.md"
+RUNBOOK_PATH = Path(__file__).resolve().parents[1] / "docs/LOCAL_DUAL_DB_RUNBOOK.md"
 LOCAL_SETUP_HINT = (
     "Set PostgreSQL URLs for the biometric and identity databases before running this test.\n"
     "PowerShell quick start:\n"
@@ -34,6 +34,8 @@ IDENTITY_DB_URL = (
     or BIOMETRIC_DB_URL
 )
 if not BIOMETRIC_DB_URL:
+    if os.getenv("FPBENCH_INTEGRATION_REQUIRED") == "true":
+        raise RuntimeError("Required PostgreSQL integration needs explicit test database URLs")
     pytest.skip(LOCAL_SETUP_HINT, allow_module_level=True)
 
 from src.fpbench.identification.secure_split_store import IdentifyHints, SecureSplitFingerprintStore

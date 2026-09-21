@@ -36,7 +36,7 @@ def _match_kwargs(method: str, tmp_path: Path) -> dict[str, object]:
 
 
 def test_dl_unavailable_is_reported_and_dl_aliases_raise(tmp_path: Path) -> None:
-    def dl_factory(*, dl_cfg, prep_cfg):
+    def dl_factory(*, dl_cfg, prep_cfg, device):
         if dl_cfg.backbone == "resnet18":
             raise RuntimeError("resnet18 pretrained weights unavailable")
         return _FakeDL()
@@ -56,7 +56,7 @@ def test_dl_unavailable_is_reported_and_dl_aliases_raise(tmp_path: Path) -> None
 
 
 def test_vit_unavailable_is_reported_and_vit_raises(tmp_path: Path) -> None:
-    def dl_factory(*, dl_cfg, prep_cfg):
+    def dl_factory(*, dl_cfg, prep_cfg, device):
         if dl_cfg.backbone == "vit_base":
             raise RuntimeError("vit_base pretrained weights unavailable")
         return _FakeDL()
@@ -75,7 +75,7 @@ def test_vit_unavailable_is_reported_and_vit_raises(tmp_path: Path) -> None:
 def test_health_and_methods_payload_include_dl_vit_availability(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def dl_factory(*, dl_cfg, prep_cfg):
+    def dl_factory(*, dl_cfg, prep_cfg, device):
         if dl_cfg.backbone == "resnet18":
             raise RuntimeError("resnet18 pretrained weights unavailable")
         if dl_cfg.backbone == "vit_base":
@@ -107,14 +107,13 @@ def test_health_and_methods_payload_include_dl_vit_availability(
         "dl",
         "vit",
     ]
-    assert health_payload["rerank_only_methods"] == ["sift_plain_roll_v2", "dedicated"]
+    assert health_payload["rerank_only_methods"] == ["sift_plain_roll_v2"]
     assert health_payload["method_capabilities"]["dl"]["retrieval_vector_dim"] == 512
     assert health_payload["method_capabilities"]["sift"]["retrieval_vector_dim"] == 512
     assert health_payload["method_capabilities"]["sift"]["retrieval_vector_kind"] == "sift_aggregated_descriptor_v1"
-    dedicated_capability = health_payload["method_capabilities"]["dedicated"]
-    assert dedicated_capability["retrieval_unavailable_reason"] == (
-        "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
-    )
+    assert "dedicated" not in health_payload["method_capabilities"]
+    dedicated_capability = health_payload["method_capabilities"]["sift_plain_roll_v2"]
+    assert dedicated_capability["retrieval_unavailable_reason"]
     assert dedicated_capability["retrieval_capability_status"] == "experimental_rerank_only"
     assert dedicated_capability["direct_retrieval_exclusion"] == "intentional_rerank_only"
     assert dedicated_capability["experimental"] is True
@@ -129,5 +128,5 @@ def test_health_and_methods_payload_include_dl_vit_availability(
         "dl",
         "vit",
     ]
-    assert methods_payload["rerank_only_methods"] == ["sift_plain_roll_v2", "dedicated"]
+    assert methods_payload["rerank_only_methods"] == ["sift_plain_roll_v2"]
     assert methods_payload["method_capabilities"]["vit"]["retrieval_vector_dim"] == 768

@@ -23,6 +23,10 @@ class ROIExtractionResult:
 
 
 def load_gray(path: str) -> np.ndarray:
+    from src.fpbench.local_data import configured_raw_path
+    mapped = configured_raw_path(path)
+    if mapped is not None:
+        path = str(mapped)
     img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         raise FileNotFoundError(f"Failed to read image: {path}")

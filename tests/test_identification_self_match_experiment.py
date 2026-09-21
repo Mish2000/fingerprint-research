@@ -104,7 +104,7 @@ def test_method_alias_mapping_and_optional_vit() -> None:
 
 
 def test_research_or_fusion_methods_are_rejected_for_self_match_experiment() -> None:
-    with pytest.raises(ValueError, match="experimental rerank-only"):
+    with pytest.raises(ValueError, match="retired from the application"):
         resolve_experiment_methods("dedicated")
 
     with pytest.raises(ValueError, match="Unsupported retrieval_method"):

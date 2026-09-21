@@ -269,6 +269,10 @@ function installFetchMock(
         const url = String(input);
         requests.push(url);
 
+        if (url === "/api/methods") {
+            return createJsonResponse({ methods: ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "sift_plain_roll_v2", "dl", "vit"].map(id => ({ id, availability: { available: true, error: null, device: "cpu" } })) });
+        }
+
         if (overrides[url]) {
             return overrides[url]!(input, init);
         }

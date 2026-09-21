@@ -98,6 +98,12 @@ def resolve_fingerprint_path(
         returns the most useful remapped candidate if possible, otherwise the
         normalized direct path.
     """
+    from src.fpbench.local_data import configured_raw_path
+    configured = configured_raw_path(raw_path)
+    if configured is not None:
+        if must_exist and not configured.is_file():
+            raise FileNotFoundError("Image is missing under the explicitly configured dataset root")
+        return configured
     normalized = _norm(raw_path)
     direct_candidates: list[Path] = []
 

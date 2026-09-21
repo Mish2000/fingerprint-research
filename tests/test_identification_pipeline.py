@@ -655,7 +655,7 @@ def test_identification_rejects_unsupported_shortlist_retrieval_method(tmp_path:
     )
     probe = _write_probe(tmp_path / "probe.bin", b"A")
 
-    with pytest.raises(ValueError, match="experimental rerank-only method") as excinfo:
+    with pytest.raises(ValueError, match="retired from the application") as excinfo:
         service.identify_from_path(
             path=str(probe),
             capture="plain",
@@ -663,11 +663,7 @@ def test_identification_rejects_unsupported_shortlist_retrieval_method(tmp_path:
             rerank_method=MatchMethod.sift,
             shortlist_size=2,
         )
-    assert "does not have a validated fixed-size direct retrieval vector adapter yet" in str(excinfo.value)
-    assert "dedicated_aggregated_patch_descriptor_v1" in str(excinfo.value)
-    assert "Supported retrieval methods: ['classic_orb', 'classic_gftt_orb', 'minutiae', 'harris', 'sift', 'dl', 'vit']" in str(
-        excinfo.value
-    )
+    assert "historical metadata only" in str(excinfo.value)
 
 
 def test_identify_search_api_rejects_dedicated_retrieval_method_with_capability_message(
@@ -700,11 +696,8 @@ def test_identify_search_api_rejects_dedicated_retrieval_method_with_capability_
 
     assert excinfo.value.status_code == 400
     detail = str(excinfo.value.detail)
-    assert (
-        "Method 'dedicated' is currently an experimental rerank-only method and does not have a "
-        "validated fixed-size direct retrieval vector adapter yet."
-    ) in detail
-    assert "Supported retrieval methods: ['classic_orb', 'classic_gftt_orb', 'minutiae', 'harris', 'sift', 'dl', 'vit']" in detail
+    assert "Method 'dedicated' is retired from the application" in detail
+    assert "historical metadata only" in detail
 
 
 def test_identification_accepts_valid_retrieval_and_rerank_combination(tmp_path: Path) -> None:
@@ -728,13 +721,13 @@ def test_identification_accepts_valid_retrieval_and_rerank_combination(tmp_path:
         path=str(probe),
         capture="plain",
         retrieval_method="vit",
-        rerank_method=MatchMethod.dedicated,
+        rerank_method=MatchMethod.sift_plain_roll_v2,
         shortlist_size=1,
     )
 
     assert result.top_candidate is not None
     assert result.retrieval_method == "vit"
-    assert result.rerank_method == MatchMethod.dedicated
+    assert result.rerank_method == MatchMethod.sift_plain_roll_v2
     assert result.top_candidate.full_name == "Alice Levi"
 
 

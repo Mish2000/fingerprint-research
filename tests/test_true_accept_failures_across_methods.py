@@ -43,7 +43,9 @@ def _write_method_fixture(root: Path, alias: str, benchmark_dir: str, method_id:
 
 
 def _write_sourceafis_full_pairs_fixture(root: Path, rows: list[dict], threshold: float) -> None:
-    bench = root / "artifacts" / "reports" / "benchmark" / "plain_roll_full_scores_v1" / "sourceafis"
+    # Follow the existing canonical alias; this fixture previously used an obsolete directory.
+    from scripts.diagnostics.analyze_true_accept_failures_across_methods import DEFAULT_METHOD_SPECS
+    bench = root / "artifacts" / "reports" / "benchmark" / DEFAULT_METHOD_SPECS["sourceafis"][0]
     bench.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(bench / "sourceafis_plain_roll_scores_test.csv", index=False)
     pd.DataFrame(
@@ -143,7 +145,7 @@ def test_default_sourceafis_alias_uses_full_pairs_raw_scores(tmp_path: Path) -> 
     )
 
     assert sourceafis.benchmark_dir == (
-        tmp_path / "artifacts" / "reports" / "benchmark" / "plain_roll_full_scores_v1" / "sourceafis"
+        tmp_path / "artifacts" / "reports" / "benchmark" / "plain_roll_final_sourceafis_v2_anatomical_full_pairs"
     ).resolve()
     matrix = outputs["positive_pair_outcome_matrix.csv"]
     assert set(matrix["pair_id"]) == {"p1", "p2"}

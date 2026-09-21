@@ -636,6 +636,20 @@ class SecureSplitFingerprintStore:
                 row = cur.fetchone()
         return int(row["n"]) if row else 0
 
+    def has_image_reference(self, sha256: str) -> bool:
+        with self._connect_biometric() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT 1 FROM {self.raw_table} WHERE sha256 = %s LIMIT 1", (sha256,))
+                return cur.fetchone() is not None
+
+    def check_connections(self) -> None:
+        """Read both configured roles, even when the gallery contains no people."""
+        for connect in (self._connect_biometric, self._connect_identity):
+            with connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+
     def count_vectors(self, method: str) -> int:
         method_norm = str(method).strip().lower()
         spec = self._spec_for_method(method_norm)
@@ -2531,6 +2545,7 @@ class SecureSplitFingerprintStore:
         try:
             return psycopg.connect(
                 database_url,
+                connect_timeout=3,
                 row_factory=dict_row,
                 options="-c default_transaction_read_only=on",
             )
@@ -4857,7 +4872,7 @@ class SecureSplitFingerprintStore:
     ):
         psycopg, dict_row = _load_postgres_base_deps()
         try:
-            conn = psycopg.connect(database_url, autocommit=autocommit, row_factory=dict_row)
+            conn = psycopg.connect(database_url, autocommit=autocommit, row_factory=dict_row, connect_timeout=3)
         except Exception as exc:  # pragma: no cover - runtime dependency
             raise RuntimeError(
                 _postgres_connection_error_message(
@@ -5183,6 +5198,10 @@ class SecureSplitFingerprintStore:
         payload = row.get(spec.generic_storage_column)
         if payload is None and spec.legacy_storage_column is not None:
             payload = row.get(spec.legacy_storage_column)
+        # pgvector-python 0.5 returns its Vector wrapper; older versions returned
+        # an ndarray. The explicit conversion preserves the stored float32 data.
+        if hasattr(payload, "to_numpy"):
+            payload = payload.to_numpy()
         vec = np.asarray(payload, dtype=np.float32).reshape(-1).copy()
         return FeatureVectorRecord(
             random_id=str(row["random_id"]),

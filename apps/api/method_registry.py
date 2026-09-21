@@ -234,7 +234,9 @@ class ApiMethodRegistry:
         methods_section = self._methods_payload.get("methods", {})
         benchmark_names = set(self.benchmark_runtime_namespace)
 
-        for canonical_name in self.api_runtime_namespace:
+        self.historical_names = tuple(str(name) for name in namespaces.get("historical", [])
+                                      if str(name) not in self.api_runtime_namespace)
+        for canonical_name in (*self.api_runtime_namespace, *self.historical_names):
             payload = methods_section.get(canonical_name)
             if not isinstance(payload, Mapping):
                 raise MethodRegistryError(
@@ -418,6 +420,9 @@ class ApiMethodRegistry:
     def list_methods(self) -> list[ApiMethodDefinition]:
         return [self._definitions[name] for name in self.api_runtime_namespace]
 
+    def historical_methods(self) -> list[ApiMethodDefinition]:
+        return [self._definitions[name] for name in self.historical_names]
+
     def definition_for(self, canonical_name: str) -> ApiMethodDefinition:
         key = str(canonical_name).strip().lower()
         if key not in self._definitions:
@@ -463,7 +468,7 @@ class ApiMethodRegistry:
     def research_methods(self) -> tuple[str, ...]:
         return tuple(
             definition.canonical_api_name
-            for definition in self.list_methods()
+            for definition in self._definitions.values()
             if definition.research_track
         )
 
@@ -537,6 +542,8 @@ class ApiMethodRegistry:
             raise MethodRegistryError(f"{field_name} is required. {self._supported_message(field_name=field_name)}")
 
         canonical_name = self._lookup_to_canonical.get(requested)
+        if canonical_name is not None and canonical_name not in self.api_runtime_namespace:
+            raise MethodRegistryError(f"Method {requested!r} is retired from the application; historical metadata only.")
         if canonical_name is None:
             raise MethodRegistryError(
                 f"Unsupported {field_name}={requested!r}. {self._supported_message(field_name=field_name)}"

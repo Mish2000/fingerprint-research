@@ -1625,11 +1625,11 @@ describe("Benchmark workspace showcase", () => {
             expect(normalizeText(container.textContent)).toContain("Validated fingerprint matching benchmark");
             expect(normalizeText(container.textContent)).toContain("Benchmark Story");
             expect(normalizeText(container.textContent)).toContain("Current benchmark finding");
-            expect(normalizeText(container.textContent)).toContain("SourceAFIS remains the strongest validated plain-vs-roll evidence");
-            expect(normalizeText(container.textContent)).toContain("SIFT v2 is now the strongest custom research baseline with exported latency");
-            expect(normalizeText(container.textContent)).toContain("final classical baselines produced under the same strict pair-audited VAL-to-TEST protocol");
-            expect(normalizeText(container.textContent)).toContain("Positive-only and negative-only evidence is reported separately");
-            expect(normalizeText(container.textContent)).toContain("not a default interactive runtime method");
+            expect(normalizeText(container.textContent)).toContain("These historical reports retain their original protocols, thresholds and results");
+            expect(normalizeText(container.textContent)).toContain("Their accuracy values were not produced by the current software validation");
+            expect(normalizeText(container.textContent)).toContain("SourceAFIS is an external Java engine");
+            expect(normalizeText(container.textContent)).toContain("interactive comparison is available separately");
+            expect(normalizeText(container.textContent)).toContain("Verification workspace");
             expect(normalizeText(container.textContent)).not.toContain("SIFT is currently the strongest verified method");
             expect(normalizeText(container.textContent)).toContain("SourceAFIS Open Matcher");
             expect(normalizeText(container.textContent)).toContain("SIFT Plain/Roll v2 (Experimental)");

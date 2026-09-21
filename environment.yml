@@ -1,29 +1,13 @@
-name: fingerprint_research
+# Windows CPU profile. For exact builds use scripts/dev/bootstrap.ps1.
+name: fingerprint_research_cpu
 channels:
-  - pytorch
-  - nvidia
   - conda-forge
+  - nodefaults
 dependencies:
-  - python=3.11
-  - pip
-  - numpy
-  - pandas
-  - scikit-learn
-  - matplotlib
-  - tqdm
-  - pytorch
-  - torchvision
-  - pytorch-cuda=11.8
-  - fastapi
-  - uvicorn
-  - httpx
-  - pytest
-  - jsonschema
+  - python=3.11.15
+  - pip=26.2.1
+  - openjdk=17.0.18
+  - maven=3.9.16
   - pip:
-      # PostgreSQL dual-database runtime and integration tests.
-      - psycopg[binary]
-      - pgvector
-      - opencv-python
-      - python-multipart
-      - pydantic-settings
-      - facenet-pytorch
+      - --extra-index-url https://download.pytorch.org/whl/cpu
+      - -r requirements/windows-cpu.lock

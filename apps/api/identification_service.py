@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 import time
 from dataclasses import dataclass, replace
@@ -15,12 +16,14 @@ from apps.api.candidate_source_resolver import (
     SOURCE_NO_CANDIDATE_SOURCE,
 )
 from apps.api.method_registry import ApiMethodRegistry, MethodRegistryError, load_api_method_registry
+from apps.api.enrollment_sources import EnrollmentSources
 from apps.api.schemas import MatchMethod
 from src.fpbench.identification.secure_split_store import (
     EnrollmentReceipt,
     IdentifyHints,
     RawFingerprintRecord,
     SecureSplitFingerprintStore,
+    normalize_national_id,
 )
 
 Vectorizer = Callable[..., np.ndarray]
@@ -204,6 +207,9 @@ class IdentificationService:
             table_prefix=table_prefix,
         )
         self.candidate_source_resolver = candidate_source_resolver or CandidateSourceResolver()
+        source_root = os.getenv("FPBENCH_ENROLLMENT_DIR")
+        self.enrollment_sources = (EnrollmentSources(Path(source_root) / (table_prefix or "operational"))
+                                   if source_root else None)
 
         need_match_service = (match_service is None) and (vectorizers is None or rerank_callable is None)
         if need_match_service:
@@ -314,19 +320,37 @@ class IdentificationService:
                 self._vectorize_with_capture(method, str(file_path), _safe_capture(capture))
             )
         file_stat = file_path.stat()
-
-        return self.store.enroll(
+        previous_raw = None
+        if self.enrollment_sources and replace_existing:
+            if random_id:
+                previous_raw = self.store.load_raw_fingerprint(random_id)
+            else:
+                previous = self.store.search_people(IdentifyHints(national_id_pattern=normalize_national_id(national_id)), limit=1)
+                if previous:
+                    previous_raw = self.store.load_raw_fingerprint(previous[0].random_id)
+        digest = self.enrollment_sources.save(file_path) if self.enrollment_sources else self._sha256_file(file_path)
+        receipt = self.store.enroll(
             full_name=full_name,
             national_id=national_id,
             capture=_safe_capture(capture),
             ext=file_path.suffix or ".png",
             vectors=vectors,
-            image_sha256=self._sha256_file(file_path),
+            image_sha256=digest,
             byte_size=int(file_stat.st_size),
             replace_existing=replace_existing,
             random_id=random_id,
             created_at=created_at,
         )
+        if previous_raw and previous_raw.sha256 != digest and not self.store.has_image_reference(previous_raw.sha256):
+            self.enrollment_sources.remove(previous_raw.sha256)
+        return receipt
+
+    def purge(self, random_id: str) -> bool:
+        raw = self.store.load_raw_fingerprint(random_id) if self.enrollment_sources else None
+        removed = self.store.purge(random_id)
+        if removed and raw and not self.store.has_image_reference(raw.sha256):
+            self.enrollment_sources.remove(raw.sha256)
+        return removed
 
     # ------------------------------------------------------------------
     # Identification
@@ -599,6 +623,17 @@ class IdentificationService:
         raw: RawFingerprintRecord,
     ) -> RerankAttemptResult:
         source = self.candidate_source_resolver.resolve(raw.random_id)
+        if not source.available and self.enrollment_sources is not None:
+            try:
+                retained = self.enrollment_sources.resolve(raw.sha256)
+            except (OSError, ValueError):
+                return RerankAttemptResult(score=None, rerank_status=RERANK_FAILED_ERROR,
+                                          candidate_source_status=SOURCE_CANDIDATE_SOURCE_MISSING)
+            return self._rerank_candidate_path(
+                probe_path=probe_path, probe_capture=probe_capture, rerank_method=rerank_method,
+                candidate_path=str(retained), candidate_capture=raw.capture,
+                candidate_source_status="retained_local_input",
+            )
         if source.available and source.path is not None:
             return self._rerank_candidate_path(
                 probe_path=probe_path,

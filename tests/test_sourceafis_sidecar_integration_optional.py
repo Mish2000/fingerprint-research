@@ -32,9 +32,9 @@ def sourceafis_service_url() -> Iterator[str]:
     try:
         response = httpx.get(f"{service_url}/health", timeout=2.0)
     except httpx.RequestError as exc:
-        pytest.skip(f"SourceAFIS sidecar is not reachable at {service_url}: {exc}")
+        pytest.fail(f"Required SourceAFIS sidecar is not reachable: {type(exc).__name__}")
     if response.status_code != 200:
-        pytest.skip(f"SourceAFIS sidecar at {service_url} returned HTTP {response.status_code}.")
+        pytest.fail(f"Required SourceAFIS sidecar returned HTTP {response.status_code}.")
     yield service_url
 
 
@@ -84,10 +84,14 @@ def test_sourceafis_sidecar_health_and_python_engine_roundtrip(
 
     identification = engine.identify(
         probe,
-        [GalleryTemplate(gallery_id="subject-1", subject_id="subject-1", template=candidate)],
-        top_k=1,
+        [GalleryTemplate(gallery_id="subject-1", subject_id="subject-1", template=candidate),
+         GalleryTemplate(gallery_id="subject-2", subject_id="subject-2", template=engine.extract_template(
+             FingerprintImage(image_bytes=_synthetic_fingerprint_png(1), dpi=500,
+                              metadata={"dpi":500,"fixture":"synthetic_non_sensitive"})))],
+        top_k=2,
     )
-    assert len(identification.candidates) == 1
+    assert len(identification.candidates) == 2
+    assert all(math.isfinite(item.score) for item in identification.candidates)
     assert identification.top_candidate is not None
     assert identification.top_candidate.gallery_id == "subject-1"
     assert math.isfinite(identification.top_candidate.score)

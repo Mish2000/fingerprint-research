@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+from src.fpbench.runtime_config import configured_device
 
 from apps.api.method_registry import (
     ApiMethodRegistry,
@@ -237,7 +238,9 @@ class MatchService:
         method_registry: ApiMethodRegistry | None = None,
         dedicated_factory: Callable[..., DedicatedMatcher] | None = None,
         dl_factory: Callable[..., BaselineDL] | None = None,
+        device: str | None = None,
     ):
+        self.device = configured_device(device)
         self.method_registry = method_registry or load_api_method_registry()
         self.prep_cfg = _build_preprocess_config(self.method_registry)
 
@@ -251,7 +254,10 @@ class MatchService:
         )
         dl_defaults = _copy_dict(self.method_registry.definition_for("dl").runtime_defaults)
         vit_defaults = _copy_dict(self.method_registry.definition_for("vit").runtime_defaults)
-        dedicated_defaults = _copy_dict(self.method_registry.definition_for("dedicated").runtime_defaults)
+        # Kept only for explicit legacy registries used when reading old evidence.
+        dedicated_enabled = "dedicated" in self.method_registry.api_runtime_namespace
+        dedicated_defaults = (_copy_dict(self.method_registry.definition_for("dedicated").runtime_defaults)
+                              if dedicated_enabled else {})
 
         self.orb_cfg = ORBConfig(
             **_extract_kwargs(
@@ -378,12 +384,13 @@ class MatchService:
         )
         self.dedicated: DedicatedMatcher | None = None
         self._method_availability: Dict[str, Dict[str, Optional[str] | bool]] = {
-            definition.canonical_api_name: {"available": True, "error": None}
+            definition.canonical_api_name: {"available": True, "error": None, "device": "cpu"}
             for definition in self.method_registry.list_methods()
         }
         self._probe_dl("dl", dl_defaults)
         self._probe_dl("vit", vit_defaults)
-        self._probe_dedicated()
+        if dedicated_enabled:
+            self._probe_dedicated()
 
     def _probe_dl(self, method: str, defaults: Dict[str, Any]) -> None:
         target_attr = "dl_vit" if method == "vit" else "dl_resnet"
@@ -391,6 +398,7 @@ class MatchService:
             model = self._dl_factory(
                 dl_cfg=DLBaselineConfig(**_extract_kwargs(defaults, _DL_CONFIG_KEYS)),
                 prep_cfg=self.prep_cfg,
+                device=self.device,
             )
         except Exception as exc:
             setattr(self, target_attr, None)
@@ -400,11 +408,11 @@ class MatchService:
             }
         else:
             setattr(self, target_attr, model)
-            self._method_availability[method] = {"available": True, "error": None}
+            self._method_availability[method] = {"available": True, "error": None, "device": self.device}
 
     def _probe_dedicated(self) -> None:
         try:
-            self.dedicated = self._dedicated_factory(cfg=self.prep_cfg, **self._dedicated_defaults)
+            self.dedicated = self._dedicated_factory(cfg=self.prep_cfg, device=self.device, **self._dedicated_defaults)
         except Exception as exc:
             self.dedicated = None
             self._method_availability["dedicated"] = {

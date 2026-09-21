@@ -96,17 +96,9 @@ class TestAPISanity(unittest.TestCase):
 
     def test_match_dedicated(self):
         r = self._post_match("dedicated", return_overlay=True)
-        if r.status_code == 503:
-            self.assertIn("Method 'dedicated'", r.json()["detail"])
-            self.assertIn("unavailable", r.json()["detail"])
-            return
-        self.assertEqual(r.status_code, 200, msg=r.text)
-        j = r.json()
-        self.assertIn("score", j)
-        self.assertIn("latency_ms", j)
-        self.assertIn("meta", j)
-        self.assertIn("overlay", j)
-        self.assertIsNotNone(j["overlay"])
+        self.assertEqual(r.status_code, 400, msg=r.text)
+        self.assertIn("retired", r.json()["detail"])
+        self.assertNotIn("score", r.json())
 
 
 if __name__ == "__main__":

@@ -9,6 +9,12 @@ from typing import Annotated, Any, Literal, Optional
 from fastapi import APIRouter, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse, Response
+
+from src.fpbench.runtime_config import load_environment, validate_demo_databases
+
+if os.getenv("FPBENCH_ENV_FILE"):
+    load_environment(os.environ["FPBENCH_ENV_FILE"])
 
 import apps.api.service as api_service
 from apps.api.benchmark_catalog import (
@@ -124,7 +130,7 @@ def _initialize_match_service() -> None:
 
 def _initialize_identification_service() -> None:
     global _ident_service, _ident_service_init_error
-    if _ident_service is not None or _ident_service_init_error is not None:
+    if _ident_service is not None:
         return
 
     _initialize_match_service()
@@ -133,7 +139,10 @@ def _initialize_identification_service() -> None:
         return
 
     try:
-        _ident_service = IdentificationService(match_service=_service)
+        if os.getenv("FPBENCH_DEMO_PROFILE") == "true":
+            validate_demo_databases()
+        _ident_service = IdentificationService(match_service=_service, table_prefix=os.getenv("FPBENCH_TABLE_PREFIX", ""))
+        _ident_service_init_error = None
     except Exception as exc:  # pragma: no cover - exercised through health tests
         _ident_service = None
         _ident_service_init_error = _format_error(exc)
@@ -364,7 +373,7 @@ def _methods_payload() -> dict[str, Any]:
         retrieval_capability = definition.retrieval_capability_metadata()
         state = availability.get(
             definition.canonical_api_name,
-            {"available": True, "error": None},
+            {"available": False, "error": "not_initialized"},
         )
         entries.append(
             {
@@ -413,6 +422,7 @@ def _methods_payload() -> dict[str, Any]:
                 "availability": {
                     "available": bool(state.get("available", False)),
                     "error": state.get("error"),
+                    "device": state.get("device"),
                 },
             }
         )
@@ -476,7 +486,7 @@ def health() -> dict[str, Any]:
 
     match_ok = _service is not None and _service_init_error is None
     if _lazy_startup_enabled() and _service is None and _service_init_error is None:
-        match_ok = True
+        match_ok = False
         match_status = "lazy_not_initialized"
     else:
         match_status = "ready" if match_ok else "error"
@@ -489,7 +499,7 @@ def health() -> dict[str, Any]:
         identify_status = "error"
         identify_error = _ident_service_init_error
     elif _lazy_startup_enabled() and _ident_service is None:
-        identify_ok = True
+        identify_ok = False
         identify_status = "lazy_not_initialized"
         identify_error = None
     else:
@@ -515,6 +525,72 @@ def methods() -> dict[str, Any]:
     return _methods_payload()
 
 
+@router.get("/live")
+def live() -> dict[str, str]:
+    """Liveness does not load models, connect to databases, or download files."""
+    return {"status": "alive"}
+
+
+@router.get("/demo/synthetic/{variant}.png")
+def synthetic_fixture(variant: int) -> Response:
+    if variant not in (0, 1, 2):
+        raise HTTPException(status_code=404, detail="Unknown synthetic fixture")
+    from src.fpbench.demo_fixtures import synthetic_fingerprint_png
+    return Response(synthetic_fingerprint_png(variant), media_type="image/png",
+                    headers={"X-Fixture-Origin": "synthetic-no-human-subject"})
+
+
+@router.get("/ready")
+def ready() -> JSONResponse:
+    """Readiness observes actual runtime resources, including current DB health."""
+    checks: dict[str, Any] = {"initialized": _service is not None}
+    availability = _health_method_availability()
+    checks["models"] = all(state.get("available") is True for state in availability.values())
+    checks["databases"] = False
+    if _ident_service is not None:
+        try:
+            _ident_service.store.total_people()
+            _ident_service.store.check_connections()
+            checks["databases"] = _ident_service.store.dual_database_enabled
+        except Exception:
+            pass
+    try:
+        checks["sourceafis"] = bool(get_engine("sourceafis_open").metadata().available)
+    except FingerprintEngineError:
+        checks["sourceafis"] = False
+    ok = all(checks.values())
+    return JSONResponse({"ready": ok, "checks": checks, "methods": availability}, status_code=200 if ok else 503)
+
+
+@router.post("/fingerprint-engine/verify")
+def verify_engine(
+    img_a: Annotated[UploadFile, File()],
+    img_b: Annotated[UploadFile, File()],
+    dpi_a: Annotated[int, Form(ge=20, le=20000)],
+    dpi_b: Annotated[int, Form(ge=20, le=20000)],
+    provider: Annotated[Literal["sourceafis_open"], Form()] = "sourceafis_open",
+) -> dict[str, Any]:
+    """1:1 via the external provider; no normalization, threshold, or fallback."""
+    from src.fpbench.fingerprint_engine.types import FingerprintImage
+    import math
+    try:
+        engine = get_engine(provider)
+        templates = [engine.extract_template(FingerprintImage(
+            image_bytes=upload.file.read(), mime_type=upload.content_type, dpi=dpi,
+            metadata={"dpi": dpi},
+        )) for upload, dpi in ((img_a, dpi_a), (img_b, dpi_b))]
+        result = engine.verify(*templates)
+        if not math.isfinite(result.score):
+            raise ValueError("Engine returned a nonfinite score")
+        return {"provider": provider, "score": result.score, "score_semantics": "raw_similarity",
+                "decision": None, "provider_version": result.provider_version,
+                "latency_ms": result.latency_ms, "warnings": result.warnings, "device": "cpu"}
+    except FingerprintEngineError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/match")
 async def match(
     img_a: Annotated[UploadFile, File()],
@@ -529,7 +605,7 @@ async def match(
     path_a = await save_upload_to_temp(img_a, prefix="a", capture=capture_a)
     path_b = await save_upload_to_temp(img_b, prefix="b", capture=capture_b)
     try:
-        return service.match(
+        result = service.match(
             method=method,
             path_a=str(path_a),
             path_b=str(path_b),
@@ -540,6 +616,10 @@ async def match(
             filename_a=img_a.filename,
             filename_b=img_b.filename,
         )
+        result.meta["device"] = service.device if result.method in (MatchMethod.dl, MatchMethod.vit) else "cpu"
+        return result
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail="Could not decode an input image; upload a supported image file") from exc
     except (MethodRegistryError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except api_service.MethodUnavailableError as exc:
@@ -850,6 +930,8 @@ async def identify_enroll(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except api_service.MethodUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Enrollment could not access a required resource. Check database readiness and retry.") from exc
     finally:
         path.unlink(missing_ok=True)
 
@@ -890,6 +972,8 @@ async def identify_search(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except api_service.MethodUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Identification could not access a required resource. Check database readiness and retry.") from exc
     finally:
         path.unlink(missing_ok=True)
 
@@ -899,7 +983,7 @@ def identify_delete_person(random_id: str) -> DeleteIdentityResponse:
     service = _get_identification_service()
     return DeleteIdentityResponse(
         random_id=random_id,
-        removed=bool(service.store.purge(random_id)),
+        removed=bool(service.purge(random_id)),
         storage_layout=service.store.dump_layout(),
     )
 

@@ -9,7 +9,7 @@ import pytest
 psycopg = pytest.importorskip("psycopg", reason="PostgreSQL integration test requires psycopg")
 pytest.importorskip("pgvector", reason="PostgreSQL integration test requires pgvector")
 
-RUNBOOK_PATH = Path(__file__).resolve().parents[1] / "LOCAL_DUAL_DB_RUNBOOK.md"
+RUNBOOK_PATH = Path(__file__).resolve().parents[1] / "docs/LOCAL_DUAL_DB_RUNBOOK.md"
 LOCAL_SETUP_HINT = (
     "Dual-database migration tests require two distinct PostgreSQL URLs.\n"
     "PowerShell quick start:\n"
@@ -32,9 +32,13 @@ IDENTITY_DB_URL = (
 )
 
 if not BIOMETRIC_DB_URL or not IDENTITY_DB_URL:
+    if os.getenv("FPBENCH_INTEGRATION_REQUIRED") == "true":
+        raise RuntimeError("Required migration tests need both test database URLs")
     pytest.skip(LOCAL_SETUP_HINT, allow_module_level=True)
 
 if BIOMETRIC_DB_URL == IDENTITY_DB_URL:
+    if os.getenv("FPBENCH_INTEGRATION_REQUIRED") == "true":
+        raise RuntimeError("Required migration tests need two distinct databases")
     pytest.skip(
         LOCAL_SETUP_HINT
         + "\nThe configured biometric and identity URLs are identical; set them to different PostgreSQL databases.",

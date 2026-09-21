@@ -13,6 +13,9 @@ capture_labels:
     roll: roll
     contact_based: roll
 namespaces:
+  # Metadata-only compatibility for old benchmark artifacts; not API execution.
+  historical:
+  - dedicated
   api_runtime:
   - classic_orb
   - classic_gftt_orb
@@ -21,7 +24,6 @@ namespaces:
   - sift
   - sift_plain_roll_v2
   - dl
-  - dedicated
   - vit
   benchmark_runtime:
   - classic_v2
@@ -49,7 +51,6 @@ identification:
   - harris
   - sift
   - sift_plain_roll_v2
-  - dedicated
   - dl
   - vit
   vector_storage_schema:
@@ -71,9 +72,8 @@ identification:
     descriptor vectors for fast 1:N shortlisting; minutiae uses a deterministic
     aggregate minutiae vector for shortlist only. Pairwise geometric or minutiae
     alignment rerank remains the authoritative final scoring step.
-  - dedicated remains a valid experimental research rerank method for 1:N
-    identification, but it is intentionally excluded from direct vector retrieval
-    until a global retrieval vector adapter is scientifically validated.
+  - dedicated is retired from the application. Its legacy metadata and source
+    remain only to interpret historical reports; the original checkpoint is unavailable.
 methods:
   classic_orb:
     api_name: classic_orb

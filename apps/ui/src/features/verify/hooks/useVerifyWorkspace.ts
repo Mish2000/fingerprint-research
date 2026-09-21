@@ -126,6 +126,7 @@ function createOverlayFallbackDescription(
 }
 
 function createDefaultVerifyFormState(preferences?: PersistedVerifyPreferences | null): VerifyFormState {
+    if (preferences?.method === "dedicated") preferences = null;
     const method = preferences?.method ?? "sift";
 
     return {
@@ -178,7 +179,8 @@ export function useVerifyWorkspace() {
     const [resultState, setResultState] = useState<AsyncState<MatchResponse>>(createIdleState());
     const [demoCasesState, setDemoCasesState] = useState<AsyncState<CatalogVerifyCase[]>>(createLoadingState());
     const [demoCatalogBuildHealth, setDemoCatalogBuildHealth] = useState<CatalogBuildHealth | null>(null);
-    const [notice, setNotice] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(persistedWorkspace?.preferences?.method === "dedicated"
+        ? "The previously selected Dedicated Patch AI method has been retired. Select a supported method before running." : null);
     const [selectedDemoCaseId, setSelectedDemoCaseId] = useState<string | null>(() => persistedWorkspace?.selectedDemoCaseId ?? null);
     const [pinnedDemoCaseIds, setPinnedDemoCaseIds] = useState<string[]>(() => persistedWorkspace?.pinnedDemoCaseIds ?? []);
     const [runningDemoCaseId, setRunningDemoCaseId] = useState<string | null>(null);

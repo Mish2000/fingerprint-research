@@ -161,7 +161,7 @@ def seed_identify_demo_store(
         national_id = _demo_national_id(record.public_item.dataset, record.public_item.id)
         existed = service.store.get_person(random_id) is not None
         if existed:
-            service.store.purge(random_id)
+            service.purge(random_id)
             updated_count += 1
         else:
             seeded_count += 1
@@ -212,7 +212,7 @@ def reset_identify_demo_store(
 
     removed_count = 0
     for random_id in candidate_random_ids:
-        if service.store.purge(random_id):
+        if service.purge(random_id):
             removed_count += 1
 
     _clear_state(_demo_state_path())
@@ -322,7 +322,7 @@ def seed_identify_browser_store(
         national_id = _demo_national_id(record.public_item.dataset, record.public_item.identity_id)
         existed = service.store.get_person(random_id) is not None
         if existed:
-            service.store.purge(random_id)
+            service.purge(random_id)
             updated_count += 1
         else:
             seeded_count += 1
@@ -384,7 +384,7 @@ def reset_identify_browser_store(
 
     removed_count = 0
     for random_id in candidate_random_ids:
-        if service.store.purge(random_id):
+        if service.purge(random_id):
             removed_count += 1
 
     _clear_state(_browser_state_path())

@@ -335,12 +335,9 @@ function CurrentBenchmarkFindingPanel() {
             <div className="inline-banner__body">
                 <p className="inline-banner__title">Current benchmark finding</p>
                 <p>
-                    SourceAFIS remains the strongest validated plain-vs-roll evidence on NIST SD300B/SD300C. SIFT v2
-                    is now the strongest custom research baseline with exported latency, and the table includes final
-                    classical baselines produced under the same strict pair-audited VAL-to-TEST protocol. Positive-only
-                    and negative-only evidence is reported separately in final markdown and metrics artifacts. SourceAFIS
-                    evidence still comes from the fingerprint-engine HTTP sidecar path and is not a default interactive
-                    runtime method.
+                    These historical reports retain their original protocols, thresholds and results. Their accuracy
+                    values were not produced by the current software validation. SourceAFIS is an external Java engine;
+                    its interactive comparison is available separately in the Verification workspace.
                 </p>
             </div>
         </div>
@@ -379,24 +376,33 @@ function viewModeOptions(available: NamedInfo[], selectedViewMode: BenchmarkView
 export default function BenchmarkWorkspace() {
     const benchmark = useBenchmark();
     const evidencePanelRef = useRef<HTMLDivElement>(null);
-    const [showResearchHistory, setShowResearchHistory] = useState(false);
+    const { comparisonRows, rowKey, selectedRowKey, setSelectedRowKey } = benchmark;
+    const historyContext = `${benchmark.selectedDataset}/${benchmark.selectedSplit}/${benchmark.selectedViewMode}`;
+    const [history, setHistory] = useState({ context: historyContext, visible: false });
+    if (history.context !== historyContext) {
+        setHistory({ context: historyContext, visible: false });
+    }
+    const showResearchHistory = history.context === historyContext && history.visible;
+    const setShowResearchHistory = (next: boolean | ((current: boolean) => boolean)) => {
+        setHistory(current => ({ context: historyContext, visible: typeof next === "function" ? next(current.visible) : next }));
+    };
     const summary = benchmark.summary;
     const datasetInfo = benchmark.comparison?.dataset_info ?? {};
     const splitInfo = benchmark.comparison?.split_info ?? {};
     const comparisonRowsView = useMemo(
         () => buildComparisonRowsView(
-            benchmark.comparisonRows,
+            comparisonRows,
             {
                 showResearchHistory,
-                rowKey: benchmark.rowKey,
+                rowKey,
             },
         ),
-        [benchmark.comparisonRows, benchmark.rowKey, showResearchHistory],
+        [comparisonRows, rowKey, showResearchHistory],
     );
     const displayRows = comparisonRowsView.rows;
     const displayRowKeys = useMemo(
-        () => displayRows.map((row) => benchmark.rowKey(row)),
-        [benchmark.rowKey, displayRows],
+        () => displayRows.map(rowKey),
+        [rowKey, displayRows],
     );
     const selectedDisplayRow = displayRows.find((row) => benchmark.rowKey(row) === benchmark.selectedRowKey)
         ?? displayRows[0]
@@ -440,20 +446,16 @@ export default function BenchmarkWorkspace() {
         && benchmark.availableViewModes.some((item) => item.key === "archive");
 
     useEffect(() => {
-        setShowResearchHistory(false);
-    }, [benchmark.selectedDataset, benchmark.selectedSplit, benchmark.selectedViewMode]);
-
-    useEffect(() => {
         if (displayRowKeys.length === 0) {
-            if (benchmark.selectedRowKey) {
-                benchmark.setSelectedRowKey("");
+            if (selectedRowKey) {
+                setSelectedRowKey("");
             }
             return;
         }
-        if (!displayRowKeys.includes(benchmark.selectedRowKey)) {
-            benchmark.setSelectedRowKey(displayRowKeys[0]);
+        if (!displayRowKeys.includes(selectedRowKey)) {
+            setSelectedRowKey(displayRowKeys[0]);
         }
-    }, [benchmark.selectedRowKey, benchmark.setSelectedRowKey, displayRowKeys]);
+    }, [selectedRowKey, setSelectedRowKey, displayRowKeys]);
 
     const handleChampionClick = (entry: BestMethodEntry): void => {
         benchmark.setSelectedSortMode(sortModeForMetric(entry.metric));

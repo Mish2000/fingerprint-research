@@ -136,7 +136,8 @@ The read-only resolver maps `data/raw/sd300b` to `NIST/sd300b`, `sd300c` to
 are preserved. It creates no junction and writes no source cache.
 
 Original manifest families for SD300B, SD300C, PolyU Cross, PolyU 3D, UNSW 2D/3D
-and L3-SF V2 remain incomplete: 87 declared source files are missing. Eight
+and L3-SF V2 remain incomplete: 87 declared file paths are absent, including
+optional/raw-only entries whose original creation is not established. Eight
 selected-pair CSVs in retained final bundles are preserved, but do not recover
 all original splits. Reproduction requires the originals. A new selection must
 never be described as a restoration.

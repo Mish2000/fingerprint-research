@@ -10,6 +10,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from src.fpbench.model_resources import load_pretrained_model
+from src.fpbench.runtime_config import configured_device
 
 from src.fpbench.preprocess.preprocess import (
     PreprocessConfig,
@@ -134,17 +136,14 @@ class PretrainedEmbedder(nn.Module):
         super().__init__()
         dim = expected_embed_dim_for_backbone(backbone)
         try:
-            import torchvision.models as tvm
+            m = load_pretrained_model(backbone)
             if backbone == "resnet18":
-                m = tvm.resnet18(weights=tvm.ResNet18_Weights.DEFAULT)
                 self.backbone = nn.Sequential(*list(m.children())[:-1])
                 self.is_vit = False
             elif backbone == "resnet50":
-                m = tvm.resnet50(weights=tvm.ResNet50_Weights.DEFAULT)
                 self.backbone = nn.Sequential(*list(m.children())[:-1])
                 self.is_vit = False
             elif backbone == "vit_base":
-                m = tvm.vit_b_16(weights=tvm.ViT_B_16_Weights.DEFAULT)
                 m.heads = nn.Identity()
                 self.backbone = m
                 self.is_vit = True
@@ -180,9 +179,9 @@ class BaselineDL:
         self.dl_cfg = dl_cfg or DLBaselineConfig()
         self.prep_cfg = prep_cfg or PreprocessConfig(target_size=512)
 
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.device = device
+        self.device = configured_device(device)
+        if self.device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("CUDA was explicitly requested but is unavailable; select CPU explicitly")
 
         self.model = PretrainedEmbedder(self.dl_cfg.backbone).to(self.device).eval()
         self.expected_embed_dim = expected_embed_dim_for_backbone(self.dl_cfg.backbone)

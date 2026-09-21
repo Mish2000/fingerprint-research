@@ -152,7 +152,9 @@ export default function IdentificationOperationalWorkspace({ identification }: I
         ? "Inspection pending"
         : adminLayout.dual_database_enabled
             ? (
-                adminLayout.table_presence.identity_db.person
+                (adminLayout.layout_version.startsWith("v4_")
+                    ? adminLayout.table_presence.biometric_db.person
+                    : adminLayout.table_presence.identity_db.person)
                 && adminLayout.table_presence.identity_db.identity
                 && adminLayout.table_presence.biometric_db.raw
                 && adminLayout.table_presence.biometric_db.vectors

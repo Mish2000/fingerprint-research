@@ -1,31 +1,38 @@
-version: '3.8'
-
+name: ${COMPOSE_PROJECT_NAME:-fingerprint-research-demo}
 services:
   biometric_db:
-    image: pgvector/pgvector:pg16
-    container_name: biometric_postgres
+    image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
     environment:
       POSTGRES_DB: biometric_db
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: ${BIOMETRIC_POSTGRES_PASSWORD:-change_me_biometric_dev_password}
+      POSTGRES_PASSWORD: ${BIOMETRIC_POSTGRES_PASSWORD:?Set a private biometric password}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${BIOMETRIC_POSTGRES_PORT:-55432}:5432"
     volumes:
       - biometric_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d biometric_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   identity_db:
-    image: pgvector/pgvector:pg16
-    container_name: identity_postgres
+    image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
     environment:
       POSTGRES_DB: identity_db
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: ${IDENTITY_POSTGRES_PASSWORD:-change_me_identity_dev_password}
+      POSTGRES_PASSWORD: ${IDENTITY_POSTGRES_PASSWORD:?Set a private identity password}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:${IDENTITY_POSTGRES_PORT:-55433}:5432"
     volumes:
       - identity_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d identity_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
 volumes:
   biometric_postgres_data:

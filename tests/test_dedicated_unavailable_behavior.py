@@ -5,10 +5,19 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytest
+import yaml
 
 import apps.api.main as api_main
 from apps.api.service import MatchService, MethodUnavailableError
 from src.fpbench.matchers.dedicated_matcher import DedicatedMatcher
+from apps.api.method_registry import ApiMethodRegistry, METHODS_CONFIG_PATH, THRESHOLDS_CONFIG_PATH
+
+
+def _legacy_registry():
+    """Exercise preserved legacy code explicitly, outside the active API registry."""
+    methods = yaml.safe_load(METHODS_CONFIG_PATH.read_text())
+    methods["namespaces"]["api_runtime"].append("dedicated")
+    return ApiMethodRegistry(methods, yaml.safe_load(THRESHOLDS_CONFIG_PATH.read_text()))
 
 
 def _write_png(path: Path, seed: int) -> Path:
@@ -36,7 +45,7 @@ def test_zero_byte_dedicated_checkpoint_reports_clear_invalid_error(tmp_path: Pa
         def __init__(self, *args, **kwargs):
             DedicatedMatcher(ckpt_path=str(ckpt_path), device="cpu")
 
-    service = MatchService(dedicated_factory=_ZeroByteDedicatedMatcher)
+    service = MatchService(method_registry=_legacy_registry(), dedicated_factory=_ZeroByteDedicatedMatcher)
     availability = service.method_availability()
 
     assert availability["dedicated"]["available"] is False
@@ -44,7 +53,7 @@ def test_zero_byte_dedicated_checkpoint_reports_clear_invalid_error(tmp_path: Pa
 
 
 def test_dedicated_unavailable_is_reported_without_killing_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    service = MatchService(dedicated_factory=_BrokenDedicatedMatcher)
+    service = MatchService(method_registry=_legacy_registry(), dedicated_factory=_BrokenDedicatedMatcher)
 
     first = _write_png(tmp_path / "a.png", 31)
     second = _write_png(tmp_path / "b.png", 32)
@@ -73,5 +82,4 @@ def test_dedicated_unavailable_is_reported_without_killing_service(tmp_path: Pat
     payload = api_main.health()
 
     assert payload["ok"] is True
-    assert payload["methods"]["dedicated"]["available"] is False
-    assert "missing-test-checkpoint.pth" in payload["methods"]["dedicated"]["error"]
+    assert "dedicated" not in payload["methods"]

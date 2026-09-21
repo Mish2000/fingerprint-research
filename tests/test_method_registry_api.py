@@ -10,7 +10,7 @@ from apps.api.main import app
 from apps.api.method_registry import METHODS_CONFIG_PATH, THRESHOLDS_CONFIG_PATH, load_api_method_registry
 
 DIRECT_RETRIEVAL_METHODS = ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "dl", "vit"]
-RERANK_ONLY_METHODS = ["sift_plain_roll_v2", "dedicated"]
+RERANK_ONLY_METHODS = ["sift_plain_roll_v2"]
 DEDICATED_RETRIEVAL_UNAVAILABLE_REASON = "experimental_rerank_only_no_validated_global_retrieval_vector_yet"
 DEDICATED_FUTURE_ADAPTER_HINT = (
     "A future dedicated_aggregated_patch_descriptor_v1 adapter can be added once global pooling is validated."
@@ -140,7 +140,6 @@ def test_methods_endpoint_returns_structured_catalog(client: TestClient) -> None
         "sift",
         "sift_plain_roll_v2",
         "dl",
-        "dedicated",
         "vit",
     }
     assert payload["direct_vector_retrieval_methods"] == DIRECT_RETRIEVAL_METHODS
@@ -273,29 +272,10 @@ def test_methods_endpoint_returns_structured_catalog(client: TestClient) -> None
     assert sift_v2_entry["retrieval_capability"]["direct_retrieval_exclusion"] == "intentional_rerank_only"
     assert "experimental research method" in sift_v2_entry["showcase_exclusion_note"]
 
-    dedicated_entry = entries["dedicated"]
-    assert dedicated_entry["status"] == "experimental"
-    assert dedicated_entry["presentation_tier"] == "research"
-    assert dedicated_entry["showcase_eligible"] is False
-    assert dedicated_entry["benchmark_default"] is False
-    assert dedicated_entry["canonical_default"] is False
-    assert dedicated_entry["research_track"] is True
-    assert dedicated_entry["promotion_required"] is True
-    assert dedicated_entry["is_experimental"] is True
-    assert dedicated_entry["is_showcase_eligible"] is False
-    assert dedicated_entry["promotion_criteria"]
-    assert "must not be promoted" in dedicated_entry["showcase_exclusion_note"]
-    assert dedicated_entry["identification_roles"]["experimental"] is True
-    assert dedicated_entry["identification_roles"]["retrieval_capability_status"] == "experimental_rerank_only"
-    assert dedicated_entry["identification_roles"]["direct_retrieval_exclusion"] == "intentional_rerank_only"
-    assert dedicated_entry["identification_roles"]["supports_direct_vector_retrieval"] is False
-    assert dedicated_entry["identification_roles"]["supports_pairwise_rerank"] is True
-    assert dedicated_entry["identification_roles"]["retrieval_unavailable_reason"] == DEDICATED_RETRIEVAL_UNAVAILABLE_REASON
-    assert dedicated_entry["identification_roles"]["future_adapter_hint"] == DEDICATED_FUTURE_ADAPTER_HINT
-    assert dedicated_entry["retrieval_capability"]["experimental"] is True
-    assert dedicated_entry["retrieval_capability"]["presentation_tier"] == "research"
-    assert dedicated_entry["retrieval_capability"]["retrieval_capability_status"] == "experimental_rerank_only"
-    assert dedicated_entry["retrieval_capability"]["direct_retrieval_exclusion"] == "intentional_rerank_only"
+    assert "dedicated" not in entries
+    historical = load_api_method_registry().definition_from_benchmark("dedicated")
+    assert historical is not None and historical.research_track
+    assert historical.showcase_eligible is False
 
 
 def test_registry_exposes_method_level_retrieval_capability_contract() -> None:
@@ -327,7 +307,8 @@ def test_registry_exposes_method_level_retrieval_capability_contract() -> None:
         assert capability["retrieval_distance_metric"] == "cosine"
         assert capability["retrieval_unavailable_reason"] is None
 
-    dedicated_capability = capabilities["dedicated"]
+    assert "dedicated" not in capabilities
+    dedicated_capability = registry.definition_for("dedicated").retrieval_capability_metadata()
     assert dedicated_capability["supports_pairwise_rerank"] is True
     assert dedicated_capability["supports_direct_vector_retrieval"] is False
     assert dedicated_capability["retrieval_vector_dim"] is None
@@ -379,7 +360,6 @@ def test_active_method_registry_is_fingerprint_only() -> None:
         "sift",
         "sift_plain_roll_v2",
         "dl",
-        "dedicated",
         "vit",
     }
 

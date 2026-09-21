@@ -42,9 +42,10 @@ def parse_file_uri(p: str) -> Path:
     # Supports: file:/C:/... or normal path
     if p.startswith("file:"):
         p = p[len("file:"):]
-        if p.startswith("/"):
+        if os.name == "nt" and p.startswith("/"):
             p = p[1:]
-    p = p.replace("/", "\\")  # Windows-friendly
+    # Path already accepts forward slashes on Windows. Replacing them on POSIX
+    # turns absolute paths into unrelated filenames containing backslashes.
     return Path(p)
 
 

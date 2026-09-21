@@ -70,7 +70,7 @@ def load_benchmark_method_profiles() -> BenchmarkMethodProfiles:
         from apps.api.method_registry import load_api_method_registry
 
         registry = load_api_method_registry()
-        definitions = registry.list_methods()
+        definitions = registry.list_methods() + registry.historical_methods()
 
         canonical = tuple(
             definition.benchmark_name

@@ -21,5 +21,5 @@ export const IDENTIFICATION_RERANK_OPTIONS: Array<{
     { value: "classic_gftt_orb", label: formatMethodLabel("classic_gftt_orb") },
     { value: "dl", label: formatMethodLabel("dl") },
     { value: "vit", label: formatMethodLabel("vit") },
-    { value: "dedicated", label: formatMethodLabel("dedicated") },
+    { value: "sift_plain_roll_v2", label: formatMethodLabel("sift_plain_roll_v2") },
 ];

@@ -1,5 +1,7 @@
 import { ChevronRight, Database, LoaderCircle, Play, SlidersHorizontal, Sparkles, Thermometer, Upload } from "lucide-react";
 import FileDropBox from "../../components/FileDropBox.tsx";
+import SourceAfisVerifyPanel from "./components/SourceAfisVerifyPanel.tsx";
+import { useMethodStatus } from "../../api/useMethodStatus.ts";
 import { MatchCanvas } from "../../components/MatchCanvas.tsx";
 import RequestState from "../../components/RequestState.tsx";
 import { ResultSummary } from "../../components/ResultSummary.tsx";
@@ -58,6 +60,8 @@ function demoCatalogHealthTitle(status: "healthy" | "degraded" | "incomplete"): 
 
 export default function VerifyWorkspaceProductScreen() {
     const verify = useVerifyWorkspace();
+    const readiness = useMethodStatus();
+    const selectedStatus = readiness.methods[verify.form.method];
     const browser = verify.browser;
     const overlayMatches = verify.currentResult?.overlay?.matches ?? [];
     const showCanvas = Boolean(verify.manualFiles.probeFile && verify.manualFiles.referenceFile && overlayMatches.length > 0);
@@ -90,7 +94,7 @@ export default function VerifyWorkspaceProductScreen() {
         && demoCatalogBuildHealth.catalog_build_status !== "healthy",
     );
 
-    const canRunPrimaryAction = verify.activeMode === "demo"
+    const canRunPrimaryAction = selectedStatus?.available === true && (verify.activeMode === "demo"
         ? Boolean(selectedDemoCase) && !verify.isBusy
         : verify.activeMode === "browser"
             ? Boolean(
@@ -100,7 +104,7 @@ export default function VerifyWorkspaceProductScreen() {
                 && verify.form.probeFile
                 && verify.form.referenceFile,
             ) && !verify.isBusy
-            : Boolean(verify.form.probeFile && verify.form.referenceFile) && !verify.isBusy;
+            : Boolean(verify.form.probeFile && verify.form.referenceFile) && !verify.isBusy);
 
     const runPrimaryAction = (): void => {
         if (verify.activeMode === "demo") {
@@ -130,6 +134,10 @@ export default function VerifyWorkspaceProductScreen() {
 
     return (
         <div className="space-y-6">
+            <InlineBanner variant="info" title="Software demonstration">
+                Scores are raw method outputs. Threshold decisions are demonstrations, not identity guarantees or probabilities.
+                ResNet and ViT use official ImageNet weights. Saved benchmark reports describe historical runs.
+            </InlineBanner>
             <WorkspaceHero
                 eyebrow="Verify Workspace"
                 title="Run curated cases, browse datasets, or upload a pair."
@@ -468,6 +476,14 @@ export default function VerifyWorkspaceProductScreen() {
                                     </InlineBanner>
                                 ) : null}
 
+                                <button className="rounded border px-3 py-2" disabled={verify.isBusy} onClick={() => {
+                                    void fetch("/api/demo/synthetic/0.png").then(async response => {
+                                        if (!response.ok) throw new Error("Synthetic fixture is unavailable");
+                                        const blob = await response.blob();
+                                        verify.updateForm({ probeFile: new File([blob], "synthetic-probe.png", { type: "image/png" }), referenceFile: new File([blob], "synthetic-reference.png", { type: "image/png" }) });
+                                        verify.setNotice("Synthetic software fixture; no human subject or accuracy claim.");
+                                    }).catch(error => verify.setNotice(String(error)));
+                                }}>Use synthetic verification pair</button>
                                 <div className="grid gap-5 md:grid-cols-2">
                                     <SurfaceCard title="Probe Image" description="Upload the probe image." className="h-full">
                                         <FileDropBox
@@ -567,12 +583,13 @@ export default function VerifyWorkspaceProductScreen() {
                                             verify.updateForm({ method: event.target.value as keyof typeof METHOD_PROFILES });
                                         }}
                                     >
-                                        {Object.values(METHOD_PROFILES).map((profile) => (
-                                            <option key={profile.value} value={profile.value}>
-                                                {profile.label}
+                                        {Object.values(METHOD_PROFILES).filter(profile => profile.value !== "dedicated").map((profile) => (
+                                            <option key={profile.value} value={profile.value} disabled={readiness.methods[profile.value]?.available !== true}>
+                                                {profile.label}{readiness.methods[profile.value]?.available === false ? " — unavailable" : ""}
                                             </option>
                                         ))}
                                     </select>
+                                    <p role="status">{selectedStatus?.available ? `Ready · ${selectedStatus.device ?? "CPU"}` : selectedStatus?.error ?? readiness.error ?? "Checking method readiness…"}</p>
                                 </FormField>
 
                                 <FormField label="Max Visualized Matches" hint="A positive integer used only by the client-side canvas.">
@@ -878,6 +895,7 @@ export default function VerifyWorkspaceProductScreen() {
                         </div>
                     </SurfaceCard>
 
+                    <SourceAfisVerifyPanel />
                     <InlineBanner variant="info" title="Server-backed execution">
                         Dataset Browser uses <code>/api/catalog/datasets</code>, <code>/api/catalog/dataset-browser</code>, and the
                         server-returned asset URLs from <code>/api/catalog/assets/...</code> before the final request reaches

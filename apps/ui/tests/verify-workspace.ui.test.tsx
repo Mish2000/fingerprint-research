@@ -240,6 +240,10 @@ function installFetchMock(
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
 
+        if (url === "/api/methods") {
+            return createJsonResponse({ methods: ["classic_orb", "classic_gftt_orb", "minutiae", "harris", "sift", "sift_plain_roll_v2", "dl", "vit"].map(id => ({ id, availability: { available: true, error: null, device: "cpu" } })) });
+        }
+
         if (overrides[url]) {
             return overrides[url]!(input, init);
         }

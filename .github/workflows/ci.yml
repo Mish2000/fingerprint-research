@@ -1,0 +1,91 @@
+name: Workbench CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      biometric:
+        image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: disposable-ci-biometric
+          POSTGRES_DB: biometric_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U admin -d biometric_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      identity:
+        image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: disposable-ci-identity
+          POSTGRES_DB: identity_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U admin -d identity_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      IDENTIFICATION_TEST_BIOMETRIC_DATABASE_URL: postgresql://admin:disposable-ci-biometric@127.0.0.1:5432/biometric_test
+      IDENTIFICATION_TEST_IDENTITY_DATABASE_URL: postgresql://admin:disposable-ci-identity@127.0.0.1:5433/identity_test
+      FPBENCH_INTEGRATION_REQUIRED: 'true'
+      FPBENCH_RUNTIME_INTEGRATION_TESTS: 'true'
+      SOURCEAFIS_INTEGRATION_TESTS: 'true'
+      SOURCEAFIS_ENABLED: 'true'
+      SOURCEAFIS_SERVICE_URL: http://127.0.0.1:8765
+      FPBENCH_DEVICE: cpu
+      FPBENCH_WEIGHTS_DIR: /tmp/fingerprint-workbench-no-weights
+      OMP_NUM_THREADS: '4'
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements/runtime.txt
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17.0.18'
+          cache: maven
+      - name: Install Linux dependencies (Windows lock is not used)
+        run: |
+          python -m pip install torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements/runtime.txt
+          python -m pip check
+      - name: Build Java and test the real service chain
+        shell: bash
+        run: |
+          mvn -B -f apps/sourceafis-service/pom.xml clean verify
+          java -jar apps/sourceafis-service/target/sourceafis-service-0.1.0.jar > /tmp/sourceafis-ci.log 2>&1 &
+          sidecar_pid=$!
+          trap 'kill "$sidecar_pid" 2>/dev/null || true; wait "$sidecar_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8765/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8765/health >/dev/null
+          python -m pytest tests -q -ra
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/ui
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24.18.0'
+          cache: npm
+          cache-dependency-path: apps/ui/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build

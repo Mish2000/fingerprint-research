@@ -446,24 +446,28 @@
     color: #94a3b8 !important;
   }
 
+  :root[data-theme="dark"] .app-content .text-brand-950,
   :root[data-theme="dark"] .app-content .text-brand-900,
   :root[data-theme="dark"] .app-content .text-brand-800,
   :root[data-theme="dark"] .app-content .text-brand-700 {
     color: #bae6fd !important;
   }
 
+  :root[data-theme="dark"] .app-content .text-emerald-950,
   :root[data-theme="dark"] .app-content .text-emerald-900,
   :root[data-theme="dark"] .app-content .text-emerald-800,
   :root[data-theme="dark"] .app-content .text-emerald-700 {
     color: #bbf7d0 !important;
   }
 
+  :root[data-theme="dark"] .app-content .text-amber-950,
   :root[data-theme="dark"] .app-content .text-amber-900,
   :root[data-theme="dark"] .app-content .text-amber-800,
   :root[data-theme="dark"] .app-content .text-amber-700 {
     color: #fde68a !important;
   }
 
+  :root[data-theme="dark"] .app-content .text-red-950,
   :root[data-theme="dark"] .app-content .text-red-900,
   :root[data-theme="dark"] .app-content .text-red-800,
   :root[data-theme="dark"] .app-content .text-red-700 {

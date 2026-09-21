@@ -14,6 +14,15 @@ from scripts.dev import workbench
 from src.fpbench.local_data import configured_raw_path
 
 
+def test_legacy_score_writer_paths_preserve_the_current_platform(tmp_path):
+    from pipelines.benchmark.eval_classic import parse_file_uri as classic_path
+    from pipelines.benchmark.eval_quick import parse_file_uri as deep_path
+    target = tmp_path / "directory with spaces" / "fixture.csv"
+    for parser in (classic_path, deep_path):
+        assert parser(str(target)) == target
+        assert parser("file:" + target.as_posix()) == target
+
+
 def test_configuration_is_literal_and_process_values_win(tmp_path):
     path = tmp_path / "config with spaces.env"
     path.write_text('FPBENCH_DEVICE=cuda\nLITERAL="$(not-a-command) ${NO_EXPANSION}"\n')

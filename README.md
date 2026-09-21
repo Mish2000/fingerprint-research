@@ -137,8 +137,10 @@ rerun to prepare this presentation.
 
 Eight selected-pair CSVs remain in the two final bundles. Four SourceAFIS files
 match their recorded manifest hashes; all eight match the preservation inventory.
-Six original manifest families still have 87 missing files. No new selection,
-split, training, threshold calibration or replacement checkpoint filled that gap.
+Across six families, 87 configuration-declared manifest/protocol paths are absent.
+This includes optional/raw-only entries; the existence of every original bundle
+is not established. No new selection, split, training, threshold calibration or
+replacement checkpoint filled that gap.
 
 ## Attribution and limits
 

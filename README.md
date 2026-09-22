@@ -22,6 +22,19 @@ research prototype, not a certified identity or security product.
 The [engineering case study](docs/ENGINEERING_CASE_STUDY.md) explains the
 implementation, integration problems and validation approach.
 
+## Related research projects
+
+This repository is the application and systems-engineering workbench in a broader
+research effort. Continuing Level-3 work is centered in
+[fingerprint-l3-benchmark](https://github.com/Mish2000/fingerprint-l3-benchmark).
+The [completed 500 PPI benchmark](https://github.com/Mish2000/fingerprint-benchmark)
+preserves the matcher comparison, while the
+[ML/CV case study](https://github.com/Mish2000/fingerprint-new-method) covers
+synthetic pore localization and its transfer limits. The
+[research project map](https://github.com/Mish2000/fingerprint-l3-benchmark/blob/main/docs/research-projects.md)
+explains the four roles. Archived reports shown by this application retain their
+original experimental identities.
+
 ## Architecture
 
 ```mermaid

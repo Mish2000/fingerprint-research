@@ -6,10 +6,17 @@ No identity data, templates, or vectors are written into this directory.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import re
 import tempfile
+
+
+@dataclass(frozen=True)
+class SavedEnrollmentSource:
+    digest: str
+    created: bool
 
 
 class EnrollmentSources:
@@ -22,9 +29,14 @@ class EnrollmentSources:
         return self.root / f"{digest}.image"
 
     def save(self, source: Path) -> str:
+        return self.save_with_status(source).digest
+
+    def save_with_status(self, source: Path) -> SavedEnrollmentSource:
+        """Report ownership from the atomic link, not a prior existence check."""
         payload = source.read_bytes()
         digest = hashlib.sha256(payload).hexdigest()
         destination = self.path(digest)
+        created = False
         self.root.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             with tempfile.NamedTemporaryFile(dir=self.root, delete=False) as stream:
@@ -33,12 +45,13 @@ class EnrollmentSources:
             try:
                 try:
                     os.link(temporary, destination)
+                    created = True
                 except FileExistsError:
                     pass
             finally:
                 temporary.unlink(missing_ok=True)
         self.resolve(digest)
-        return digest
+        return SavedEnrollmentSource(digest=digest, created=created)
 
     def resolve(self, digest: str) -> Path:
         path = self.path(digest)

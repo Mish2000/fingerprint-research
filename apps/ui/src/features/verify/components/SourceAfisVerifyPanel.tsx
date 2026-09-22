@@ -2,6 +2,7 @@ import { useState } from "react";
 import { readJsonOrThrow } from "../../../api/http.ts";
 
 type EngineResult = { provider: string; score: number; provider_version: string; latency_ms: number | null };
+type VerificationResult = EngineResult & { dpiA: string; dpiB: string };
 
 export default function SourceAfisVerifyPanel() {
     const [left, setLeft] = useState<File | null>(null);
@@ -11,7 +12,7 @@ export default function SourceAfisVerifyPanel() {
     const [synthetic, setSynthetic] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [result, setResult] = useState<EngineResult | null>(null);
+    const [result, setResult] = useState<VerificationResult | null>(null);
 
     async function loadSynthetic() {
         setError(null);
@@ -27,16 +28,17 @@ export default function SourceAfisVerifyPanel() {
 
     async function run() {
         if (!left || !right) return;
+        const submittedDpi = { dpiA, dpiB };
         setBusy(true); setResult(null); setError(null);
         const form = new FormData();
         form.append("img_a", left); form.append("img_b", right);
-        form.append("dpi_a", dpiA); form.append("dpi_b", dpiB);
+        form.append("dpi_a", submittedDpi.dpiA); form.append("dpi_b", submittedDpi.dpiB);
         form.append("provider", "sourceafis_open");
         try {
             const response = await fetch("/api/fingerprint-engine/verify", { method: "POST", body: form });
             const data = await readJsonOrThrow(response, payload => payload as EngineResult);
             if (data.provider !== "sourceafis_open" || !Number.isFinite(data.score)) throw new Error("Invalid engine result");
-            setResult(data);
+            setResult({ ...data, ...submittedDpi });
         } catch (failure) { setError(String(failure)); }
         finally { setBusy(false); }
     }
@@ -48,13 +50,13 @@ export default function SourceAfisVerifyPanel() {
         <div className="grid gap-3 md:grid-cols-2">
             <label>SourceAFIS probe <input aria-label="SourceAFIS probe" type="file" accept="image/*" disabled={busy} onChange={event => { setLeft(event.target.files?.[0] ?? null); setDpiA(""); setSynthetic(false); setResult(null); }} /></label>
             <label>SourceAFIS reference <input aria-label="SourceAFIS reference" type="file" accept="image/*" disabled={busy} onChange={event => { setRight(event.target.files?.[0] ?? null); setDpiB(""); setSynthetic(false); setResult(null); }} /></label>
-            <label>Probe DPI <input className="rounded border p-2" aria-label="Probe DPI" type="number" min="20" max="20000" value={dpiA} onChange={event => setDpiA(event.target.value)} /></label>
-            <label>Reference DPI <input className="rounded border p-2" aria-label="Reference DPI" type="number" min="20" max="20000" value={dpiB} onChange={event => setDpiB(event.target.value)} /></label>
+            <label>Probe DPI <input className="rounded border p-2" aria-label="Probe DPI" type="number" min="20" max="20000" value={dpiA} disabled={busy} onChange={event => { setDpiA(event.target.value); setResult(null); }} /></label>
+            <label>Reference DPI <input className="rounded border p-2" aria-label="Reference DPI" type="number" min="20" max="20000" value={dpiB} disabled={busy} onChange={event => { setDpiB(event.target.value); setResult(null); }} /></label>
         </div>
         {left && right && <p>{left.name} · {right.name}</p>}
-        {synthetic && <p>Synthetic software fixture. 500 DPI is a test input; no human fingerprint or accuracy claim.</p>}
+        {synthetic && <p>Synthetic software fixture. DPI values are test inputs; no human fingerprint or accuracy claim.</p>}
         <button className="rounded bg-slate-900 px-4 py-2 text-white" disabled={busy || !left || !right || !dpiA || !dpiB} onClick={() => void run()}>{busy ? "Comparing…" : "Compare with SourceAFIS"}</button>
         {error && <p role="alert">{error}</p>}
-        {result && <div role="status"><strong>Raw score: {result.score.toFixed(4)}</strong><p>SourceAFIS {result.provider_version} · CPU. Raw similarity, not a probability. No acceptance threshold applied.</p></div>}
+        {result && <div role="status"><strong>Raw score: {result.score.toFixed(4)}</strong><p>Computed with probe DPI {result.dpiA} · reference DPI {result.dpiB}.</p><p>SourceAFIS {result.provider_version} · CPU. Raw similarity, not a probability. No acceptance threshold applied.</p></div>}
     </section>;
 }

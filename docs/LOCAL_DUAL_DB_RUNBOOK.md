@@ -121,6 +121,11 @@ can survive restart. This is explicit local retention, not encrypted template
 protection or a production security guarantee. Identity deletion removes DB
 links and the local input after its final reference in that store is removed.
 
+If enrollment fails, a newly created input is removed when the database confirms
+it has no reference. Existing/shared inputs are preserved. If reference inspection
+or cleanup itself fails, the original enrollment error is retained and the log
+reports that input reconciliation is required.
+
 The existing Reset demo / Reset browser store actions target their seeded
 namespaces. Uploaded people are deleted individually. No reset targets an
 unrelated database or deletes Docker volumes.

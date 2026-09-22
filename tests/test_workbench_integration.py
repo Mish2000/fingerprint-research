@@ -70,3 +70,27 @@ def test_real_engine_endpoint_and_input_failures(client):
     retired = client.post("/match", data={"method": "dedicated"}, files=pair)
     assert retired.status_code == 400
     assert "retired" in retired.json()["detail"]
+
+
+@pytest.mark.parametrize("rejected_id", ["900000002", "no-digits"])
+def test_rejected_enrollment_cleans_only_the_new_image(client, rejected_id):
+    original = synthetic_fingerprint_png(0)
+    enrollment = client.post("/identify/enroll", data={
+        "full_name": "Synthetic Original", "national_id": "900000002", "vector_methods": "classic_orb",
+    }, files={"img": ("original.png", original, "image/png")})
+    assert enrollment.status_code == 200, enrollment.text
+    from apps.api import main
+    service = main._ident_service
+    original_id = enrollment.json()["random_id"]
+    original_digest = enrollment.json()["image_sha256"]
+    retained_before = set(service.enrollment_sources.root.iterdir())
+    assert len(retained_before) == 1
+    rejected = client.post("/identify/enroll", data={
+        "full_name": "Synthetic Rejected", "national_id": rejected_id, "vector_methods": "classic_orb",
+    }, files={"img": ("different.png", synthetic_fingerprint_png(1), "image/png")})
+    assert rejected.status_code == 400, rejected.text
+    assert set(service.enrollment_sources.root.iterdir()) == retained_before
+    assert service.enrollment_sources.resolve(original_digest).read_bytes() == original
+    assert service.store.total_people() == 1
+    assert service.store.get_person(original_id).national_id == "900000002"
+    assert client.delete(f"/identify/person/{original_id}").json()["removed"]

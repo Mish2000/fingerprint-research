@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import tempfile
 import time
@@ -328,19 +329,37 @@ class IdentificationService:
                 previous = self.store.search_people(IdentifyHints(national_id_pattern=normalize_national_id(national_id)), limit=1)
                 if previous:
                     previous_raw = self.store.load_raw_fingerprint(previous[0].random_id)
-        digest = self.enrollment_sources.save(file_path) if self.enrollment_sources else self._sha256_file(file_path)
-        receipt = self.store.enroll(
-            full_name=full_name,
-            national_id=national_id,
-            capture=_safe_capture(capture),
-            ext=file_path.suffix or ".png",
-            vectors=vectors,
-            image_sha256=digest,
-            byte_size=int(file_stat.st_size),
-            replace_existing=replace_existing,
-            random_id=random_id,
-            created_at=created_at,
-        )
+        saved = self.enrollment_sources.save_with_status(file_path) if self.enrollment_sources else None
+        digest = saved.digest if saved else self._sha256_file(file_path)
+        try:
+            receipt = self.store.enroll(
+                full_name=full_name,
+                national_id=national_id,
+                capture=_safe_capture(capture),
+                ext=file_path.suffix or ".png",
+                vectors=vectors,
+                image_sha256=digest,
+                byte_size=int(file_stat.st_size),
+                replace_existing=replace_existing,
+                random_id=random_id,
+                created_at=created_at,
+            )
+        except Exception as enrollment_error:
+            if saved and saved.created:
+                try:
+                    # A late DB error need not imply that the commit failed.
+                    # Preserve any committed reference, as well as older files.
+                    if not self.store.has_image_reference(digest):
+                        self.enrollment_sources.remove(digest)
+                except Exception as cleanup_error:
+                    # Do not replace the actual enrollment error or delete an
+                    # input whose reference state could not be established.
+                    enrollment_error.add_note("Retained-input cleanup could not be completed; reconciliation required.")
+                    logging.getLogger(__name__).warning(
+                        "Retained-input cleanup requires reconciliation (%s).",
+                        type(cleanup_error).__name__,
+                    )
+            raise
         if previous_raw and previous_raw.sha256 != digest and not self.store.has_image_reference(previous_raw.sha256):
             self.enrollment_sources.remove(previous_raw.sha256)
         return receipt

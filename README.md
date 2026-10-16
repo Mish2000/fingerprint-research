@@ -24,16 +24,14 @@ implementation, integration problems and validation approach.
 
 ## Related research projects
 
-This repository is the application and systems-engineering workbench in a broader
-research effort. Continuing Level-3 work is centered in
-[fingerprint-l3-benchmark](https://github.com/Mish2000/fingerprint-l3-benchmark).
-The [completed 500 PPI benchmark](https://github.com/Mish2000/fingerprint-benchmark)
-preserves the matcher comparison, while the
-[ML/CV case study](https://github.com/Mish2000/fingerprint-new-method) covers
-synthetic pore localization and its transfer limits. The
-[research project map](https://github.com/Mish2000/fingerprint-l3-benchmark/blob/main/docs/research-projects.md)
-explains the four roles. Archived reports shown by this application retain their
-original experimental identities.
+This is the application and systems-engineering workbench. Current SD302
+research, including the learned pore descriptor and improved verification
+results, is in
+[fingerprint-level3-recognition-research](https://github.com/Mish2000/fingerprint-level3-recognition-research).
+The [research overview](https://github.com/Mish2000/fingerprint-level3-recognition-research/blob/main/docs/research-projects.md)
+connects all five projects. Integration of the new descriptor into this
+workbench is planned; the application's existing reports retain their original
+experimental identities.
 
 ## Architecture
 

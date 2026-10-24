@@ -168,5 +168,8 @@ policy, not a population FAR guarantee. Different routes and image resolutions
 have different semantics; upsampling does not create native fine detail.
 
 Raw datasets, private paths, weights, captures, templates and embeddings stay
-local. New public fixtures are synthetic. Existing research assets and reports
-retain their original terms; no blanket third-party license is granted.
+local. Dataset images, previews and demo samples (NIST SD300, PolyU, UNSW and
+L3-SF) and the Biometrika scanner drivers are not included in this repository;
+obtain them from their owners under their terms. New public fixtures are
+synthetic. Existing research assets and reports retain their original terms;
+no blanket third-party license is granted.

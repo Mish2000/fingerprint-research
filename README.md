@@ -1,3 +1,5 @@
+> **Archived:** an earlier, completed stage of the research. Current work: [fingerprint-level3-recognition-research](https://github.com/Mish2000/fingerprint-level3-recognition-research) and [multimodal-biometric-system](https://github.com/Mish2000/multimodal-biometric-system).
+
 # Fingerprint Verification & Identification Workbench
 
 A local application for comparing two images, enrolling a small gallery,
